@@ -1,0 +1,1969 @@
+/* inicio.component.css */
+@import 'swiper/css';
+/* O swiper/swiper.min.css */
+@import 'swiper/css/navigation';
+@import 'swiper/css/pagination';
+@import 'swiper/css/autoplay';
+
+/* Estilo para ocultar visualmente pero mantener accesible */
+.visually-hidden {
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+}
+
+
+/* ====================================== */
+/* Sección Hero (Estilos Actualizados)    */
+/* ====================================== */
+.hero-section {
+    background: linear-gradient(to bottom, #5cb85c, #004d26);
+    color: white;
+    padding: 5rem 1.5rem 3rem;
+    min-height: 70vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* centramos horizontal */
+    text-align: left;
+ 
+}
+
+.hero-section .content {
+    max-width: 700px;
+    width: 100%;
+    /* full width hasta max-width */
+    margin: 0 auto;
+}
+
+
+.welcome-title {
+    /* cambiaremos luego por clamp() */
+    font-size: clamp(1.8rem, 5vw, 3rem);
+    font-weight: 800;
+    line-height: 1.2;
+    margin-bottom: 1.5rem;
+}
+
+.welcome-title .highlight {
+    color: #ffde58;
+    /* Buen contraste */
+}
+
+.description {
+    font-size: clamp(1rem, 3vw, 1.25rem);
+    line-height: 1.7;
+    margin-bottom: 2rem;
+    max-width: 550px;
+    color: rgba(255, 255, 255, 0.95);
+    /* Más opaco */
+}
+
+.buttons {
+    display: flex;
+    justify-content: flex-start;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.btn {
+    padding: 0.8rem 1.8rem;
+    font-size: 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 700;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+    line-height: 1.4;
+    text-align: center;
+}
+
+/* CORRECCIÓN CONTRASTE: Botón Primario */
+.btn.primary {
+    background-color: #1e7e34;
+    /* Verde oscuro */
+    color: white;
+    border-color: #1e7e34;
+}
+
+.btn.primary:hover,
+.btn.primary:focus {
+    /* Añadido :focus para accesibilidad */
+    background-color: #155724;
+    /* Aún más oscuro */
+    border-color: #155724;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    outline: 2px solid #ffffff;
+    /* Outline visible en focus */
+    outline-offset: 2px;
+}
+
+/* Botón Secundario (Borde blanco) - OK */
+.btn.secondary {
+    background-color: transparent;
+    border: 2px solid white;
+    color: white;
+}
+
+.btn.secondary:hover,
+.btn.secondary:focus {
+    /* Añadido :focus para accesibilidad */
+    background-color: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+    outline: 2px solid #ffffff;
+    /* Outline visible en focus */
+    outline-offset: 1px;
+}
+
+/* ... (Estilos de Stats sin cambios relevantes) ... */
+
+
+
+/* ================================= */
+/* Sección: ¿Cómo quieres usar?      */
+/* ================================= */
+.usage-section {
+    background-color: #f8f9fa;
+    /* Un fondo ligeramente gris para contraste */
+    padding: 0rem 1rem 3rem 1rem;
+    text-align: center;
+}
+
+.usage-title {
+    font-size: clamp(1.8rem, 5vw, 2.4rem);
+    font-weight: 700;
+    color: #212529;
+    margin-bottom: 0.5rem;
+}
+
+.usage-subtitle {
+    font-size: clamp(0.9rem, 2.5vw, 1rem);
+    color: #000;
+    max-width: 600px;
+    margin: 0 auto 2.5rem auto;
+    line-height: 1.5;
+}
+
+.usage-cards-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    max-width: 800px;
+    /* O el ancho que prefieras */
+    margin: 0 auto;
+}
+
+/* Estilos generales de las tarjetas (actualizado) */
+.usage-card {
+    border-radius: 10px;
+    /* Bordes menos redondeados */
+    color: white;
+    text-align: left;
+    /* Eliminada la sombra para un look más plano */
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s ease;
+    /* Añadir transición suave */
+}
+
+/* Colores sólidos de fondo (actualizado) */
+.card-cliente {
+    /* Un verde similar al de la imagen 2 */
+    background-color: #045229;
+}
+
+.card-campiamigo {
+    /* Un naranja/amarillo similar al de la imagen 2 */
+    background-color: #FFAA00;
+}
+
+.titlecard {
+    padding: 1.8rem 1.5rem 0;
+    /* Ajuste ligero de padding */
+
+}
+
+
+
+/* Ocultar elementos del diseño anterior que ya no se usan */
+.card-icon-wrapper,
+.decorative-icon {
+    display: none;
+}
+
+/* Título dentro de la tarjeta (actualizado) */
+.card-role-title {
+    font-size: 1.5rem;
+    /* Ligeramente más pequeño */
+    font-weight: 600;
+    /* Ligeramente menos grueso */
+    margin-bottom: 0.6rem;
+    color: white;
+}
+
+/* NUEVO: Estilo para el resumen corto */
+.card-summary {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin-bottom: 1.5rem;
+    /* Espacio antes de la lista */
+    color: rgba(255, 255, 255, 0.95);
+    /* Texto ligeramente transparente */
+}
+
+/* NUEVO: Estilos para la lista ordenada */
+.card-steps {
+    list-style: none;
+    padding: 1.5rem;
+    background: #fff;
+    /* Espacio debajo de la lista */
+    counter-reset: steps-counter;
+    /* Iniciar contador personalizado */
+    flex-grow: 1;
+    box-shadow: 0 3px 10px 0px #a3a3a3;
+}
+
+.card-steps li {
+    font-size: 13px;
+    margin-bottom: 0.8rem;
+    display: flex;
+    gap: 15px;
+    color: rgb(0 0 0 / 90%);
+    align-items: center;
+}
+
+/* NUEVO: Estilo para los números en círculo */
+.card-steps.cliente li::before {
+    counter-increment: steps-counter;
+    content: counter(steps-counter);
+    padding: 10px;
+    background-color: rgb(124 255 168 / 49%);
+    border-radius: 50%;
+    color: #004d26;
+    font-weight: bold;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.card-steps.campiamigo li::before {
+    counter-increment: steps-counter;
+    content: counter(steps-counter);
+    padding: 10px;
+    background-color: rgb(254 243 201);
+    border-radius: 50%;
+    color: #f59e0b;
+    font-weight: bold;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+
+/* Botón de rol (actualizado para coincidir con Imagen 2) */
+.card-cliente .btn-role {
+    background-color: #045229;
+    border: none;
+    border-radius: 20px;
+    padding: 0.7rem 1.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    align-self: flex-start;
+    margin-top: auto;
+    width: 100%;
+    min-width: 180px;
+    color: #fff;
+
+}
+
+.card-campiamigo .btn-role {
+    background-color: #FFAA00;
+    border: none;
+    border-radius: 20px;
+    padding: 0.7rem 1.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    align-self: flex-start;
+    margin-top: auto;
+    width: 100%;
+    color: #fff;
+    min-width: 180px;
+}
+
+
+
+.btn-role:hover,
+.btn-role:focus {
+    background-color: #f0f0f0;
+    /* Fondo ligeramente gris al pasar el ratón */
+    transform: translateY(-5px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    outline: none;
+    /* Puedes quitar el outline si prefieres */
+}
+
+/* Si quieres un focus visible específico */
+.btn-role:focus-visible {
+    outline: 2px solid #0056b3;
+    outline-offset: 2px;
+}
+
+.card-cliente .btn-role:focus-visible {
+    outline-color: #155724;
+}
+
+.card-campiamigo .btn-role:focus-visible {
+    outline-color: #85551e;
+}
+
+/* Ya no se necesita espacio para el icono */
+.btn-role span {
+    margin-right: 0;
+}
+
+
+
+
+/* ========================================== */
+/* INICIO: Sección Explora el Territorio      */
+/* ========================================== */
+.territorios {
+    background-color: #f9f9f9;
+    padding: 3rem 1rem;
+}
+
+.container_territorios {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.section-header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+}
+
+.section-header h2 {
+    font-size: clamp(1.8rem, 5vw, 2.4rem);
+    font-weight: 700;
+    color: #212529;
+    margin-bottom: 0.75rem;
+    position: relative;
+    display: inline-block;
+    padding-bottom: 0.5rem;
+}
+
+.section-header h2::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80px;
+    height: 3px;
+    background-color: #1e7e34;
+    border-radius: 2px;
+}
+
+.section-header p {
+    font-size: 1rem;
+    color: #555;
+    max-width: 650px;
+    margin: 0 auto 1rem auto;
+    line-height: 1.6;
+}
+
+.section-header p i {
+    color: #1e7e34;
+    font-size: 1.1em;
+    vertical-align: middle;
+    margin: 0 2px;
+}
+
+/* --- Enlaces --- */
+.section-header .link-all,
+.main-territorio-card .link-detail {
+    color: #155724;
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.2s;
+    border-radius: 4px;
+    padding: 2px 4px;
+    margin: -2px -4px;
+}
+
+.section-header .link-all {
+    font-size: 0.95rem;
+}
+
+.main-territorio-card .link-detail {
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.section-header .link-all:hover,
+.main-territorio-card .link-detail:hover {
+    color: #0b2e13;
+    text-decoration: underline;
+}
+
+.section-header .link-all:focus,
+.main-territorio-card .link-detail:focus {
+    color: #0b2e13;
+    outline: 2px solid #155724;
+    outline-offset: 2px;
+    text-decoration: none;
+}
+
+
+/* --- Tarjeta Principal Grande (MODIFICADO) --- */
+.main-territorio-card {
+    background: white;
+    border-radius: 12px;
+    /* *** REMOVIDO overflow: hidden; *** */
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.08);
+    margin-bottom: 3rem;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    /* Necesario para contener hijos absolutos si se requiere, pero no debe cortar */
+}
+
+/* --- Contenedor Modelo/Imagen (MODIFICADO) --- */
+.main-territorio-card .model-container {
+    position: relative;
+    /* Contenedor para elementos absolutos internos */
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    min-height: 250px;
+    max-height: 500px;
+    background-color: #e0e0e0;
+    cursor: pointer;
+    /* *** REMOVIDO overflow: hidden; *** */
+    border-radius: 12px 12px 0 0;
+    /* Solo redondeo superior */
+    -webkit-tap-highlight-color: transparent;
+}
+
+.main-territorio-card .model-container:focus-within {
+    outline: 3px solid #0056b3;
+    outline-offset: -3px;
+}
+
+/* --- Canvas y Placeholder (Base) --- */
+.main-territorio-card .model-container canvas,
+.main-territorio-card .model-container .placeholder-content {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    transition: opacity 0.4s ease-in-out;
+    -webkit-tap-highlight-color: transparent;
+    border-radius: inherit;
+    /* Heredan redondeo del model-container */
+}
+
+/* --- Canvas Específico --- */
+.main-territorio-card .model-container canvas {
+    opacity: 0;
+    pointer-events: none;
+    z-index: 5;
+    /* Base */
+}
+
+.main-territorio-card .model-container canvas.canvas-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* --- Placeholder Específico (MODIFICADO) --- */
+.main-territorio-card .placeholder-content {
+    /* display: flex; Ya no necesario, la imagen se posiciona absolute */
+    background-color: #f0f0f0;
+    /* Fallback */
+    opacity: 1;
+    pointer-events: none;
+    /* El contenedor no necesita eventos, la imagen sí (error), el icono/spinner están fuera */
+    z-index: 6;
+    /* Encima del canvas base */
+    overflow: hidden;
+    /* *ESTE SÍ* puede tener overflow, para asegurar que la imagen no tape el icono que está *fuera* */
+    position: relative;
+    /* Para contener la imagen absoluta */
+}
+
+.main-territorio-card .placeholder-content.hidden {
+    opacity: 0;
+}
+
+.main-territorio-card .placeholder-image {
+    position: absolute;
+    /* Posicionar dentro del placeholder */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 1;
+    /* Dentro del placeholder */
+    border-radius: inherit;
+}
+
+/* --- Icono Click Wrapper (MODIFICADO - Ahora hijo de model-container) --- */
+.icon-click-wrapper {
+    position: absolute;
+    /* Relativo a model-container */
+    bottom: 65px;
+    left: 149px;
+    /* Misma posición visual relativa */
+    width: 50px;
+    height: 50px;
+    z-index: 8;
+    /* Encima de canvas(5) y placeholder(6) */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    pointer-events: auto;
+    /* Debe ser clickeable */
+    /* border: 1px dashed blue; */
+    /* Para depurar posición */
+}
+
+/* --- Icono de la Mano (Interno) --- */
+.icon-click-wrapper .icon-click {
+    font-size: 2.5rem;
+    color: rgb(255, 255, 255);
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, -1px 0 0 #000, 1px 0 0 #000, 0 -1px 0 #000, 0 1px 0 #000;
+    animation: pulseSimpleHand 2s infinite ease-in-out;
+    transform-origin: center center;
+    position: relative;
+    /* Para z-index interno si fuera necesario */
+    z-index: 2;
+    /* Encima de .line-container */
+}
+
+/* --- Contenedor Líneas (Interno) --- */
+.icon-click-wrapper .line-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    /* Detrás del icono */
+    pointer-events: none;
+}
+
+/* --- Estilos Líneas (::before, ::after) --- */
+.icon-click-wrapper::before,
+.icon-click-wrapper::after,
+.icon-click-wrapper .line-container::before {
+    content: '';
+    position: absolute;
+    background-color: rgba(255, 255, 255, 0.95);
+    border-radius: 2px;
+    opacity: 0;
+    /* Controlado por animación */
+    z-index: 1;
+    /* Mismo nivel que .line-container */
+    pointer-events: none;
+}
+
+/* --- Posiciones y animaciones de las líneas (Sin cambios) --- */
+.icon-click-wrapper::before {
+    width: 5px;
+    height: 20px;
+    top: 0%;
+    left: 80%;
+    transform: translate(-50%, 0);
+    transform-origin: bottom center;
+    opacity: 1;
+    animation: radiateTop 2s infinite ease-out;
+}
+
+.icon-click-wrapper::after {
+    width: 20px;
+    height: 5px;
+    top: 50%;
+    left: 75%;
+    transform: translate(0, -50%);
+    transform-origin: center left;
+    opacity: 1;
+    animation: radiateRight 2s infinite ease-out;
+}
+
+.icon-click-wrapper .line-container::before {
+    width: 5px;
+    height: 20px;
+    bottom: 0%;
+    left: 80%;
+    transform: translate(-50%, 0);
+    transform-origin: top center;
+    opacity: 1;
+    animation: radiateBottom 2s infinite ease-out;
+}
+
+/* --- Animaciones (Sin cambios) --- */
+@keyframes pulseSimpleHand {
+
+    0%,
+    100% {
+        transform: scale(0.8) rotate(350deg) translateX(8px) translateY(12px);
+    }
+
+    50% {
+        transform: scale(1.8) rotate(280deg) translateX(-60px) translateY(-50px);
+    }
+}
+
+@keyframes radiateTop {
+    0% {
+        height: 0px;
+        opacity: 0;
+        transform: translate(-50%, 5px);
+    }
+
+    1% {
+        height: 20px;
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+
+    20% {
+        height: 20px;
+        opacity: 0;
+        transform: translate(-50%, -10px);
+    }
+
+    21%,
+    100% {
+        height: 0px;
+        opacity: 0;
+        transform: translate(-50%, -10px);
+    }
+}
+
+@keyframes radiateRight {
+    0% {
+        width: 0px;
+        opacity: 0;
+        transform: translate(-5px, -50%);
+    }
+
+    1% {
+        width: 20px;
+        opacity: 1;
+        transform: translate(0, -50%);
+    }
+
+    20% {
+        width: 20px;
+        opacity: 0;
+        transform: translate(10px, -50%);
+    }
+
+    21%,
+    100% {
+        width: 0px;
+        opacity: 0;
+        transform: translate(10px, -50%);
+    }
+}
+
+@keyframes radiateBottom {
+    0% {
+        height: 0px;
+        opacity: 0;
+        transform: translate(-50%, -5px);
+    }
+
+    1% {
+        height: 20px;
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+
+    20% {
+        height: 20px;
+        opacity: 0;
+        transform: translate(-50%, 10px);
+    }
+
+    21%,
+    100% {
+        height: 0px;
+        opacity: 0;
+        transform: translate(-50%, 10px);
+    }
+}
+
+
+/* --- Spinner Overlay (MODIFICADO - Ahora hijo de model-container) --- */
+.loading-spinner-overlay {
+    position: absolute;
+    /* Relativo a model-container */
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.9);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 9;
+    /* Encima de todo: canvas(5), placeholder(6), icono(8) */
+    color: #333;
+    opacity: 0;
+    animation: fadeInOverlay 0.3s ease forwards;
+    border-radius: inherit;
+    /* Hereda redondeo superior */
+    pointer-events: auto;
+    /* Bloquea interacciones debajo */
+}
+
+.loading-spinner-overlay .spinner {
+    border: 4px solid rgba(0, 0, 0, 0.2);
+    border-left-color: #333;
+    border-radius: 50%;
+    width: 35px;
+    height: 35px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 12px;
+}
+
+.loading-spinner-overlay span {
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes fadeInOverlay {
+    to {
+        opacity: 1;
+    }
+}
+
+
+/* --- Overlay de Información (Se muestra con canvas visible) --- */
+.territory-overlay-info {
+    position: absolute;
+    /* Relativo a model-container */
+    bottom: 10px;
+    left: 0;
+    right: 0;
+    padding: 10px;
+    z-index: 10;
+    /* Encima del canvas visible (5) */
+    pointer-events: none;
+    display: flex;
+    justify-content: center;
+    opacity: 0;
+    transform: translateY(10px);
+    animation: fadeInOverlay 0.5s 0.2s ease-out forwards;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.5), transparent);
+}
+
+/* ... (Resto de estilos para .info-items-container, .info-item, etc. sin cambios) ... */
+.info-items-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+}
+
+.info-item {
+    position: relative;
+    border-radius: 8px;
+    padding: 6px 10px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    pointer-events: auto;
+    color: #ffffff;
+}
+
+.info-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0px;
+    z-index: 1;
+    background-color: rgb(255 255 255 / 36%);
+    filter: blur(18px);
+    /* Considera fallback/prefijos */
+    border-radius: inherit;
+}
+
+.info-item .info-content-wrapper {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.info-item .info-icon {
+    font-size: 18px;
+    color: rgba(255, 255, 255, 0.95);
+    flex-shrink: 0;
+    line-height: 1;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+.info-item .info-text-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    line-height: 1.2;
+}
+
+.info-item .info-label {
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.85);
+    font-weight: 400;
+    margin-bottom: 1px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+.info-item .info-value {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #ffffff;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+
+/* --- Información de la Tarjeta Principal (MODIFICADO) --- */
+.main-territorio-card .card-info {
+    padding: 1rem 1.5rem 1.5rem 1.5rem;
+    border-top: 1px solid #eee;
+    background-color: white;
+    /* Fondo explícito */
+    border-radius: 0 0 12px 12px;
+    /* Redondeo inferior */
+}
+
+/* ... (Resto de estilos para .card-title, .card-desc, .climate-pill, etc. sin cambios) ... */
+.main-territorio-card .card-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.main-territorio-card .card-title-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.main-territorio-card .card-title-group h3 {
+    margin: 0;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #212529;
+    text-transform: uppercase;
+    line-height: 1.2;
+}
+
+.main-territorio-card .region {
+    font-size: 0.85rem;
+    color: #555;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.main-territorio-card .card-desc {
+    font-size: 0.95rem;
+    color: #444;
+    line-height: 1.6;
+    margin-bottom: 1rem;
+}
+
+.main-territorio-card .climate-pill {
+    display: inline-block;
+    padding: 0.3rem 0.8rem;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.climate-pill.cold {
+    background-color: #cce7ed;
+    color: #004044;
+}
+
+.climate-pill.hot {
+    background-color: #ffe8cc;
+    color: #7a3d00;
+}
+
+.climate-pill.other {
+    background-color: #dee2e6;
+    color: #343a40;
+}
+
+/* --- Sección Zonas Disponibles y Tarjetas Pequeñas (Sin cambios) --- */
+.destacadas-section {
+    margin-top: 3rem;
+}
+
+.destacadas-section .subtitle {
+    font-size: 1.4rem;
+    color: #212529;
+    margin-bottom: 1.5rem;
+    text-align: left;
+    font-weight: 700;
+}
+
+.destacadas-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.destacada-card {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 0.8rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+    cursor: pointer;
+    border: 1px solid #eee;
+}
+
+.destacada-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+.destacada-card.active-zone {
+    background-color: #d4edda;
+    border-color: #8fd19e;
+}
+
+.destacada-card:focus {
+    outline: 2px solid #1e7e34;
+    outline-offset: 1px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.destacada-card.active-zone:focus {
+    outline-color: #155724;
+}
+
+.dest-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex-grow: 1;
+    margin-right: 10px;
+    overflow: hidden;
+}
+
+.dest-name {
+    font-weight: 600;
+    color: #333;
+    font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dest-region {
+    font-size: 0.75rem;
+    color: #555;
+    text-transform: uppercase;
+}
+
+.dest-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-shrink: 0;
+}
+
+.destacada-card .climate-pill {
+    padding: 0.2rem 0.6rem;
+    font-size: 0.7rem;
+    border-radius: 10px;
+}
+
+.model-indicator-small {
+    font-size: 1rem;
+    color: #555;
+    opacity: 0.8;
+    transition: color 0.2s, opacity 0.2s;
+}
+
+.destacada-card:hover .model-indicator-small {
+    opacity: 1;
+    color: #155724;
+}
+
+.destacada-card.active-zone .model-indicator-small {
+    color: #155724;
+    opacity: 1;
+}
+
+/* --- Mensajes (Sin cambios) --- */
+.loading-message,
+.error-message,
+.info-message {
+    text-align: center;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    border-radius: 8px;
+    font-size: 0.95rem;
+}
+
+.loading-message {
+    background-color: #e2e3e5;
+    color: #383d41;
+}
+
+.error-message {
+    color: #721c24;
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+}
+
+.info-message {
+    background-color: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+}
+
+.product-carousel-container .no-products-message.info-message {
+    background-color: #e2e3e5;
+    color: #383d41;
+    border: 1px dashed #adb5bd;
+}
+
+/* --- Botón "Ver más" (Sin cambios) --- */
+.more-btn {
+    display: block;
+    margin: 2.5rem auto 0 auto;
+    background: transparent;
+    border: 1.5px solid #6c757d;
+    border-radius: 20px;
+    padding: 0.7rem 1.5rem;
+    font-size: 0.9rem;
+    color: #343a40;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.more-btn:hover,
+.more-btn:focus {
+    background-color: #e9ecef;
+    border-color: #343a40;
+    color: #212529;
+    outline: 2px solid #343a40;
+    outline-offset: 1px;
+}
+
+/* ============================================= */
+/*      ESTILOS SECCIÓN PRODUCTOS DESTACADOS     */
+/* ============================================= */
+
+.products-section {
+    background-color: #FAFEFB;
+    padding: 3.5rem 0;
+}
+
+.products-section .container_products {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+.products-section .section-header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+}
+
+
+.products-section .section-header p {
+    color: #555;
+}
+
+/* --- Pestañas de Filtro --- */
+.filter-tabs.tabs {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 2.5rem;
+}
+
+.tab-button {
+    padding: 8px 18px;
+    border: 1.5px solid #ced4da;
+    background-color: #fff;
+    color: #495057;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.tab-button:hover {
+    border-color: #adb5bd;
+    background-color: #f8f9fa;
+    color: #212529;
+}
+
+.tab-button.active {
+    background-color: #1e7e34;
+    color: white;
+    border-color: #1e7e34;
+    font-weight: 600;
+    box-shadow: 0 3px 6px rgba(30, 126, 52, 0.2);
+}
+
+.tab-button.active:hover,
+.tab-button.active:focus {
+    background-color: #155724;
+    border-color: #155724;
+    outline: none;
+}
+
+.tab-button:focus {
+    outline: 2px solid #0056b3;
+    outline-offset: 1px;
+    border-color: #adb5bd;
+    box-shadow: 0 0 0 2px rgba(0, 86, 179, 0.25);
+}
+
+
+/* ============================================= */
+/*     ESTILOS CONTENEDOR Y CARRUSEL SWIPER      */
+/* ============================================= */
+.product-carousel-container {
+    position: relative;
+    max-width: 1200px;
+    /* Mantenemos el padding para el espaciado general */
+    padding: 0 1rem;
+    box-sizing: border-box;
+
+    /* SOLUCIÓN 1: RESERVAR ESPACIO VERTICAL */
+    /* Le damos una altura mínima para evitar que la sección "salte" al cargar. */
+    /* El valor se basa en la altura de tus tarjetas (min-height: 430px) más márgenes. */
+    min-height: 480px;
+
+    /* SOLUCIÓN 2: PREVENIR EL SCROLL HORIZONTAL */
+    /* ¡LA SOLUCIÓN CLAVE! Oculta cualquier desbordamiento que ocurra */
+    /* durante el instante en que Swiper aún no se ha ajustado. */
+    overflow: hidden;
+
+    /* Alinear los elementos internos (como el mensaje de "cargando") */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px; /* Opcional, si quieres bordes redondeados */
+}
+.swiper-container.product-carousel {
+    width: 100%;
+
+    /* SOLUCIÓN 3: ELIMINAR ANCHO FIJO */
+    /* Eliminamos este 'max-width' que limitaba el carrusel a un tamaño muy pequeño. */
+    /* max-width: 320px; */ /* <-- ELIMINADO */
+
+    margin: 0 auto;
+    /* Mantenemos 'visible' para que las sombras o efectos de las tarjetas no se corten */
+    /* por este contenedor, sino por el padre (.product-carousel-container). */
+    overflow: visible;
+    position: static; /* Esto está bien */
+}
+
+.swiper-slide {
+    display: flex;
+    justify-content: center;
+    align-items: stretch;
+    height: auto;
+    box-sizing: border-box;
+}
+
+/* ============================================= */
+/*           ESTILOS TARJETA PRODUCTO            */
+/* ============================================= */
+.product-card {
+    width: 100%;
+    max-width: 280px;
+    min-height: 430px;
+    background-color: #fff;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgb(0 0 0 / 8%); /* Sombra un poco más sutil */
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    /* Ajustamos el margen para que no sea tan grande y evitar problemas */
+    margin: 0 10px 20px 10px;
+}
+.product-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+}
+
+.product-card:hover .prod-title {
+    color: #1e7e34;
+}
+
+.product-card:hover .btn-view-product {
+    background-color: #1e7e34;
+    color: #fff;
+}
+
+.product-card:focus-within {
+    box-shadow: 0 0 0 3px rgba(30, 126, 52, 0.3);
+}
+
+/* --- Imagen del Producto --- */
+.product-model {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 0.95;
+    background-color: #f0f2f5;
+    cursor: pointer;
+}
+
+.product-model canvas,
+.placeholder-content_product {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    transition: opacity 0.4s ease-in-out;
+}
+
+.placeholder-image_product {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* ... (otros estilos de product-model que ya tenías) ... */
+
+
+/* --- Información del Producto --- */
+.product-info {
+    padding: 1rem 1.1rem;
+    text-align: left;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.prod-subtitle {
+    display: block;
+    font-size: 0.75rem;
+    color: #555;
+    margin-bottom: 4px;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.prod-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #343a40;
+    margin-bottom: 8px;
+    line-height: 1.35;
+    min-height: calc(1.35em * 2);
+    transition: color 0.3s ease;
+}
+
+.prod-desc {
+    font-size: 0.85rem;
+    color: #555;
+    margin-bottom: 1rem;
+    line-height: 1.4;
+    min-height: calc(1.4em * 2);
+    flex-grow: 1;
+}
+
+/* ========================================================= */
+/* ==== INICIO: NUEVOS ESTILOS PARA RATING DE ESTRELLAS ==== */
+/* ========================================================= */
+
+/* Contenedor principal de la metadata del producto */
+.prod-meta {
+    margin-bottom: 1rem;
+}
+
+/* Contenedor que alinea las estrellas y el contador de reviews */
+.rating-display {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    /* Espacio entre las estrellas y el número (e.g., "(15)") */
+}
+
+/* Contenedor específico para los iconos de estrella */
+.rating-stars {
+    display: inline-flex;
+    align-items: center;
+}
+
+/* Estilo base para todos los iconos de estrella */
+.rating-stars i {
+    font-size: 1rem;
+    /* Tamaño de las estrellas */
+    line-height: 1;
+    transition: color 0.2s ease-in-out;
+}
+
+/* Estrellas LLENAS y MEDIAS (las que tienen calificación) */
+.rating-stars .bxs-star,
+.rating-stars .bxs-star-half {
+    color: #FFC700;
+    /* Un dorado moderno y brillante */
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    /* Sombra sutil para dar profundidad */
+}
+
+/* Estrellas VACÍAS (las que no tienen calificación) */
+.rating-stars .bx-star {
+    color: #d1d5db;
+    /* Un gris neutro y suave */
+}
+
+/* Estilo para el número de reviews (e.g., "(15)") */
+.rating-value {
+    font-size: 0.8rem;
+    color: #6c757d;
+    /* Un gris oscuro para el texto */
+    font-weight: 500;
+    transform: translateY(1px);
+    /* Pequeño ajuste vertical para alinear perfectamente */
+}
+
+/* ========================================================= */
+/* ====== FIN: NUEVOS ESTILOS PARA RATING DE ESTRELLAS ====== */
+/* ========================================================= */
+
+.product-bottom-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: auto;
+    padding-top: 0.75rem;
+    border-top: 1px solid #eee;
+}
+
+.price-container {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.price {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #1e7e34;
+}
+
+.original-price {
+    font-size: 0.85rem;
+    color: #6c757d;
+    text-decoration: line-through;
+}
+
+.btn-view-product {
+    background-color: #e2f0e9;
+    color: #1e7e34;
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+}
+
+.btn-view-product:hover {
+    background-color: #1e7e34;
+    color: #fff;
+    transform: scale(1.1);
+}
+
+/* ... (El resto de tu CSS para Swiper, botones, etc., puede permanecer igual) ... */
+
+
+/* ============================================= */
+/*      ESTILOS SWIPER NAVEGACIÓN Y PAGINACIÓN   */
+/* ============================================= */
+.product-carousel-container .swiper-button-prev,
+.product-carousel-container .swiper-button-next {
+    width: 40px;
+    height: 40px;
+    color: #1e7e34;
+    /* Verde oscuro */
+    background-color: #fff;
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-top: -20px;
+    /* Ajuste vertical */
+    z-index: 10;
+}
+
+.product-carousel-container .swiper-button-prev:hover,
+.product-carousel-container .swiper-button-next:hover {
+    background-color: #1e7e34;
+    color: white;
+    transform: translateY(-50%) scale(1.05);
+}
+
+.product-carousel-container .swiper-button-prev::after,
+.product-carousel-container .swiper-button-next::after {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.product-carousel-container .product-swiper-button-prev {
+    left: -5px;
+    /* Ajustar si se usa padding/margin en .product-carousel */
+}
+
+.product-carousel-container .product-swiper-button-next {
+    right: -5px;
+    /* Ajustar si se usa padding/margin en .product-carousel */
+}
+
+.product-carousel-container .swiper-button-disabled {
+    opacity: 0.4 !important;
+    cursor: default !important;
+    pointer-events: none !important;
+}
+
+/* Focus para botones swiper */
+.product-carousel-container .swiper-button-prev:focus,
+.product-carousel-container .swiper-button-next:focus {
+    outline: 2px solid #1e7e34;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 3px rgba(30, 126, 52, 0.3);
+}
+
+
+.product-carousel-container .swiper-pagination.product-swiper-pagination {
+    position: absolute;
+    bottom: 10px;
+    /* Ajustado por padding en .product-carousel */
+    left: 50px;
+    /* Ajustado por padding en .product-carousel */
+    right: 50px;
+    /* Ajustado por padding en .product-carousel */
+    width: auto;
+    /* Auto width */
+    text-align: center;
+    z-index: 10;
+    line-height: 1;
+    padding: 5px 0;
+}
+
+.product-carousel-container .swiper-pagination-bullet {
+    width: 9px;
+    height: 9px;
+    display: inline-block;
+    margin: 0 5px;
+    background-color: #bdbdbd;
+    /* Gris más oscuro inactivo */
+    border-radius: 50%;
+    opacity: 1;
+    cursor: pointer;
+    transition: background-color 0.3s ease, width 0.3s ease;
+    vertical-align: middle;
+}
+
+.product-carousel-container .swiper-pagination-bullet-active {
+    background-color: #1e7e34;
+    /* Verde oscuro activo */
+    width: 26px;
+    border-radius: 5px;
+}
+
+/* Focus para bullets */
+.product-carousel-container .swiper-pagination-bullet:focus {
+    outline: 2px solid #1e7e34;
+    outline-offset: 2px;
+    background-color: #a0a0a0;
+    /* Indicar focus en inactivo */
+}
+
+.product-carousel-container .swiper-pagination-bullet-active:focus {
+    outline-color: #155724;
+    background-color: #155724;
+    /* Más oscuro en focus activo */
+}
+
+/* ============================================= */
+/*      ESTILOS BOTÓN "VER TODOS"                */
+/* ============================================= */
+.view-all-container {
+    text-align: center;
+    margin-top: 2.5rem;
+    margin-bottom: 3rem;
+}
+
+/* CORRECCIÓN CONTRASTE: Botón Ver Todos (Ahora <a>) */
+.btn-view-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 25px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    /* Más grueso */
+    color: #155724;
+    /* Verde muy oscuro */
+    background-color: #fff;
+    border: 1.5px solid #1e7e34;
+    /* Borde verde oscuro */
+    border-radius: 25px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    box-shadow: 0 2px 5px rgba(30, 126, 52, 0.1);
+}
+
+.btn-view-all:hover {
+    background-color: #1e7e34;
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(30, 126, 52, 0.2);
+}
+
+.btn-view-all:focus {
+    /* Añadir focus */
+    background-color: #f0f0f0;
+    /* Similar a hover inactivo */
+    color: #155724;
+    border-color: #155724;
+    outline: 2px solid #155724;
+    outline-offset: 2px;
+    box-shadow: 0 2px 5px rgba(30, 126, 52, 0.1);
+}
+
+.btn-view-all i {
+    font-size: 1.1rem;
+    transition: transform 0.3s ease;
+}
+
+.btn-view-all:hover i {
+    transform: translateX(3px);
+}
+
+/* Paginación personalizada (Si se usa) */
+.custom-pagination {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.custom-pagination .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #bdbdbd;
+    /* Gris oscuro */
+    cursor: pointer;
+    transition: width 0.3s ease, background 0.3s ease;
+}
+
+.custom-pagination .dot.active {
+    width: 18px;
+    background: #1e7e34;
+    /* Verde oscuro */
+    border-radius: 5px;
+}
+
+.custom-pagination .dot:focus {
+    background: #a0a0a0;
+    outline: 2px solid #1e7e34;
+    outline-offset: 2px;
+}
+
+.custom-pagination .dot.active:focus {
+    background: #155724;
+}
+
+/* ============================================= */
+/*              ESTILOS FOOTER                   */
+/* ============================================= */
+/* Footer: Colores base ya tienen buen contraste */
+.footer-section {
+    background-color: #1c0e07;
+    padding: 3rem 1rem 1.5rem 1rem;
+    font-size: 0.9rem;
+    position: relative;
+}
+
+.footer-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.logo-container {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+
+.logo-container img {
+    width: auto;
+    margin-bottom: 25px;
+    height: 70px;
+}
+
+.scroll-to-top {
+    position: absolute;
+    top: -25px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 50px;
+    height: 50px;
+    background-color: #fff;
+    color: #1e7e34;
+    /* Icono verde oscuro */
+    border: none;
+    border-radius: 50%;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    transition: background-color 0.3s ease, color 0.3s ease, transform 0.2s ease;
+    z-index: 20;
+}
+
+.scroll-to-top:hover {
+    background-color: #fff;
+    transform: translateX(-50%) translateY(-3px);
+}
+
+.scroll-to-top:focus {
+    /* Añadir focus */
+    outline: 2px solid #1e7e34;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 3px rgba(30, 126, 52, 0.3);
+}
+
+.footer-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 2.5rem 2rem;
+    padding-bottom: 3rem;
+}
+
+.footer-col h4,
+.footer-col h5 {
+    color: #fff;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 1.2rem;
+    position: relative;
+    padding-bottom: 0.5rem;
+}
+
+.footer-col h4::after,
+.footer-col h5::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 40px;
+    height: 2px;
+    background-color: #ffde58;
+    /* Línea verde más brillante OK */
+}
+
+.footer-col.about-col h4 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Para alinear logo con texto */
+.about-col .logo-icon {
+    /* Ajustar estilo si se usa dentro del h4 */
+    width: 30px;
+    height: 30px;
+    font-size: 20px;
+    margin-right: 0;
+    /* Quitar estilos redundantes de .footer-logo */
+}
+
+
+
+.about-col .footer-description {
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+    color: #ffff;
+}
+
+.footer-contact {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.footer-contact li {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.8rem;
+    color: #ffff;
+}
+
+.footer-contact li i {
+    font-size: 1.2rem;
+    margin-right: 10px;
+    color: #ffde58;
+    /* Amarillo ok */
+    width: 20px;
+    text-align: center;
+}
+
+.links-col .footer-links {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.links-col .footer-links li {
+    margin-bottom: 0.7rem;
+}
+
+.links-col .footer-links a {
+    color: #ffff;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    transition: color 0.3s ease, padding-left 0.3s ease;
+    border-radius: 4px;
+    padding: 2px 0;
+    margin: -2px 0;
+    /* Para outline */
+}
+
+.links-col .footer-links a i {
+    font-size: 1rem;
+    margin-right: 8px;
+    color: #ffde58;
+    /* Amarillo ok */
+    transition: transform 0.3s ease;
+}
+
+.links-col .footer-links a:hover {
+    color: #ffde58;
+    padding-left: 5px;
+}
+
+.links-col .footer-links a:focus {
+    /* Añadir focus */
+    color: #ffde58;
+    outline: 1px solid #ffde58;
+    outline-offset: 2px;
+    text-decoration: none;
+    /* Quitar subrayado en focus */
+}
+
+.links-col .footer-links a:hover i {
+    transform: translateX(3px);
+}
+
+.subscribe-col p {
+    line-height: 1.6;
+    margin-bottom: 1rem;
+    color: #ffff;
+}
+
+.newsletter-form {
+    display: flex;
+    margin-bottom: 2rem;
+}
+
+.newsletter-form input[type="email"] {
+    flex-grow: 1;
+    padding: 0.75rem 1rem;
+    border: 1px solid #ffde58;
+    background-color: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    border-radius: 6px 0 0 6px;
+    font-size: 0.9rem;
+    outline: none;
+}
+
+.newsletter-form input[type="email"]::placeholder {
+    color: #a0a0a0;
+}
+
+.newsletter-form input[type="email"]:focus {
+    /* Añadir focus */
+    border-color: #ffde58;
+    background-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 0 2px rgba(255, 222, 89, 0.3);
+}
+
+.newsletter-form button[type="submit"] {
+    padding: 0.75rem 1rem;
+    background-color: #fedf59;
+    color: #1c0e07;
+    /* Contraste OK */
+    border: none;
+    border-radius: 0 6px 6px 0;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: background-color 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.newsletter-form button[type="submit"]:hover {
+    background-color: #fdd32a;
+    /* Amarillo más intenso */
+}
+
+.newsletter-form button[type="submit"]:focus {
+    /* Añadir focus */
+    outline: 2px solid #fdd32a;
+    outline-offset: 1px;
+    background-color: #fdd32a;
+}
+
+.social-section h5 {
+    margin-bottom: 1rem;
+}
+
+.social-links {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.social-links li a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 1.2rem;
+    text-decoration: none;
+    transition: background-color 0.3s ease, color 0.3s ease, transform 0.2s ease;
+}
+
+.social-links li a:hover {
+    background-color: #28a745;
+    color: #fff;
+    transform: translateY(-2px);
+}
+
+.social-links li a:focus {
+    /* Añadir focus */
+    outline: 2px solid #ffde58;
+    outline-offset: 2px;
+    background-color: rgba(255, 255, 255, 0.2);
+    /* Ligeramente diferente */
+}
+
+.footer-bottom {
+    border-top: 1px solid #fdd32a;
+    padding-top: 1.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.85rem;
+    color: #a0a0a0;
+}
+
+.copyright {
+    margin: 0;
+}
+
+.payment-methods {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.payment-methods span:first-child {
+    margin-right: 5px;
+}
+
+.payment-icon {
+    display: inline-block;
+    width: 35px;
+    height: 22px;
+    background-color: #ddd;
+    /* Placeholder más visible */
+    border-radius: 3px;
+    border: 1px solid #aaa;
+    text-align: center;
+    line-height: 20px;
+    font-size: 0.7rem;
+    color: #555;
+}
+
+/* Ejemplo si usaras FontAwesome o iconos SVG */
+/* .payment-icon.visa::before { content: "\f1f0"; font-family: "Font Awesome 5 Brands"; } */

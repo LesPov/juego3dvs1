@@ -1,0 +1,84 @@
+<!-- CÓDIGO HTML COMPLETO CON LA VISUALIZACIÓN CORREGIDA -->
+
+<div class="auth-container">
+  <div class="form-wrapper">
+
+    <!-- Botones de navegación (sin cambios) -->
+    <button class="back-button" (click)="goBack()" aria-label="Volver atrás"><i class='bx bx-arrow-back'></i></button>
+    <button class="close-button" (click)="showConfirmationDialog()" aria-label="Cerrar proceso"><i class='bx bx-x'></i></button>
+
+    <div class="title">
+      <h2>Enlazar Teléfono</h2>
+      <p class="welcome-message" *ngIf="username">
+        Por tu seguridad, <span class="username-highlight">{{ username }}</span>, vamos a vincular tu cuenta.
+      </p>
+    </div>
+
+    <div class="content-body">
+      <p class="instructions">Ingresa tu número de teléfono para recibir un código de verificación.</p>
+      
+      <div class="phone-input-container">
+        <!-- Parte del selector de país -->
+        <div class="country-code-part">
+          <!-- Lógica de la imagen (sin cambios) -->
+          <img 
+            *ngIf="selectedCountryCode === '+57'" 
+            src="assets/img/colombia.jpg" 
+            alt="Bandera de Colombia"
+            class="country-flag">
+            
+          <!-- MEJORA: span para mostrar el valor y select funcional pero invisible -->
+          <div class="select-wrapper">
+            <span class="selected-value">
+              {{ selectedCountryCode ? '(' + selectedCountryCode + ')' : 'País' }}
+            </span>
+            <select 
+              id="countryCode" 
+              [(ngModel)]="selectedCountryCode" 
+              name="countryCode"
+              required>
+              <option [ngValue]="null" disabled>Seleccionar País</option>
+              <option *ngFor="let country of countries" [value]="country.countryCode">
+                {{ country.name }} ({{ country.countryCode }})
+              </option>
+            </select>
+          </div>
+        </div>
+        
+        <!-- Parte del número de teléfono (sin cambios) -->
+        <div class="phone-number-part">
+          <input 
+            type="tel" 
+            id="phoneNumber" 
+            class="phone-input" 
+            placeholder="Número de teléfono"
+            [(ngModel)]="phoneNumber"
+            name="phoneNumber"
+            required>
+        </div>
+      </div>
+
+      <!-- Botón de enviar (sin cambios) -->
+      <button class="btn-submit" (click)="registerPhoneNumber()" [disabled]="!selectedCountryCode || !phoneNumber || isLoading">
+        <span *ngIf="!isLoading">Enviar Código</span>
+        <div *ngIf="isLoading" class="spinner"></div>
+      </button>
+    </div>
+
+    <div class="form-footer">
+      <p>Al continuar, aceptas nuestros <a routerLink="/terminos">Términos</a> y <a routerLink="/privacidad">Política de Privacidad</a>.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Diálogo de confirmación (sin cambios) -->
+<div class="confirmation-overlay" *ngIf="showConfirmationMessage">
+  <div class="confirmation-dialog">
+    <h4>¿Abandonar el proceso?</h4>
+    <p>Se perderán los datos ingresados si decides salir.</p>
+    <div class="dialog-actions">
+      <button class="btn-dialog-secondary" (click)="showConfirmationMessage = false">Cancelar</button>
+      <button class="btn-dialog-primary" routerLink="/auth/login">Aceptar y Salir</button>
+    </div>
+  </div>
+</div>

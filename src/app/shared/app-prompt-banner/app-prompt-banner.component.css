@@ -1,0 +1,141 @@
+/* src/app/shared/components/app-prompt-banner/app-prompt-banner.component.css */
+
+/* --- Variables de Color para fácil personalización --- */
+:host {
+  --banner-bg-color: #ffffff;
+  --banner-shadow-color: rgba(0, 0, 0, 0.08);
+  --primary-text-color: #1a1a1a;
+  --secondary-text-color: #6c757d;
+  --accent-color: #007aff; /* Un azul moderno tipo iOS */
+  --accent-hover-color: #0056b3;
+  --star-color: #ffc107;
+
+  display: block;
+  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2000;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  animation: slide-down 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94); /* Animación más suave */
+}
+
+.smart-banner__container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px; /* Más espaciado vertical */
+  cursor: pointer;
+  background-color: var(--banner-bg-color);
+  border-bottom: 1px solid #e9ecef; /* Borde sutil */
+  box-shadow: 0 4px 12px var(--banner-shadow-color);
+}
+
+/* --- Botón de Cerrar --- */
+.smart-banner__close-btn {
+  background: transparent;
+  border: none;
+  font-size: 28px;
+  font-weight: 300;
+  color: var(--secondary-text-color);
+  cursor: pointer;
+  padding: 0 8px;
+  line-height: 1;
+  transition: transform 0.2s ease, color 0.2s ease;
+  align-self: flex-start; /* Alinear arriba */
+}
+
+.smart-banner__close-btn:hover {
+  color: var(--primary-text-color);
+  transform: scale(1.1);
+}
+
+/* --- Contenido Central (Ícono + Texto) --- */
+.smart-banner__content {
+  display: flex;
+  align-items: center;
+  flex-grow: 1; /* Permite que ocupe el espacio disponible */
+  margin: 0 12px;
+}
+
+/* --- Ícono de la App (¡Más Grande!) --- */
+.smart-banner__icon-wrapper {
+  flex-shrink: 0; /* Evita que el ícono se encoja */
+}
+
+.smart-banner__icon-img {
+  width: 60px; /* Tamaño aumentado */
+  height: 60px; /* Tamaño aumentado */
+  border-radius: 12px; /* Bordes más redondeados */
+  margin-right: 16px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+  object-fit: cover; /* Asegura que la imagen llene el espacio sin deformarse */
+  background-color: #f0f0f0; /* Color de fondo mientras carga la imagen */
+}
+
+/* --- Info de la App --- */
+.smart-banner__info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0; /* Ayuda a que el texto se ajuste correctamente */
+}
+
+.smart-banner__app-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--primary-text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* Evita que el nombre largo rompa el diseño */
+}
+
+.smart-banner__app-slogan {
+  font-size: 0.85rem;
+  color: var(--secondary-text-color);
+}
+
+/* --- Opcional: Calificación con Estrellas --- */
+.smart-banner__rating {
+  display: flex;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--star-color);
+  margin-top: 2px;
+}
+.smart-banner__rating-count {
+  color: var(--secondary-text-color);
+  margin-left: 4px;
+}
+
+/* --- Botón de Acción "ABRIR" --- */
+.smart-banner__view-btn {
+  background-color: var(--accent-color);
+  color: white;
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 10px 22px; /* Botón más grande y fácil de tocar */
+  border-radius: 50px; /* Totalmente redondeado (píldora) */
+  text-decoration: none;
+  white-space: nowrap;
+  transition: all 0.25s ease-out;
+  box-shadow: 0 2px 4px rgba(0, 122, 255, 0.3);
+}
+
+.smart-banner__view-btn:hover {
+  background-color: var(--accent-hover-color);
+  transform: translateY(-2px); /* Efecto de "levantarse" */
+  box-shadow: 0 4px 8px rgba(0, 122, 255, 0.4);
+}
+
+/* --- Animación de Entrada --- */
+@keyframes slide-down {
+  from {
+    transform: translateY(-120%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

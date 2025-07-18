@@ -1,0 +1,197 @@
+.form {
+    width: 100%;
+    max-width: 450px;
+    background: #fff;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    animation: fadeIn 0.6s ease-out forwards;
+
+}
+
+.title {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.title h3 {
+    color: #2c3e50;
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.title h6 {
+    color: #7f8c8d;
+    font-size: 1rem;
+}
+
+.group {
+    margin-bottom: 1.2rem;
+}
+
+.lbl {
+    display: block;
+    font-size: 0.9rem;
+    margin-bottom: 0.3rem;
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+.input {
+    width: 100%;
+    padding: 10px 15px;
+    border: 2px solid #ffffff;
+    border-radius: 8px;
+    font-size: 1rem;
+    background: #f1f1f1;
+    transition: all 0.3s ease;
+}
+
+.input:focus {
+    border-color: #3498db;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+    outline: none;
+}
+
+.input::placeholder {
+    color: #bdc3c7;
+}
+
+.btn {
+    width: 100%;
+    padding: 12px;
+    background: #50b9ff;
+    color: #2c3e50;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 1rem;
+    margin-bottom: 100px;
+}
+
+/* Estilo para botón en hover */
+.btn:hover {
+    background: #2980b9;
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Estilo para botón deshabilitado */
+.btn:disabled {
+    background: grey;
+    cursor: not-allowed;
+}
+
+/* Animación de entrada */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.image-preview-group {
+    position: relative;
+}
+
+/* Contenedor con tamaño fijo */
+.image-container {
+    width: 150px;
+    height: 150px;
+    margin: 0 auto 1rem;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+}
+
+/* La imagen ocupa todo el contenedor */
+.image-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    border-radius: 50%;
+}
+
+/* El botón para cambiar imagen */
+.btn-upload {
+    background: #50b9ff;
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 8px;
+    position: absolute;
+    bottom: -10px;
+    right: 70px;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.3s ease;
+}
+
+.btn-upload:hover {
+    background: #2980b9;
+}
+
+/* Estilo personalizado para los elementos select con la clase .input */
+select.input {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url('data:image/svg+xml;utf8,<svg fill="%237f8c8d" height="16" viewBox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+    background-repeat: no-repeat;
+    /* Ajusta el valor right para mover la flecha más a la izquierda */
+    background-position: right 16px center;
+    /* Asegura que el texto no se superponga a la flecha */
+}
+
+.status-container {
+    margin: 20px 0;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background-color: #f9f9f9;
+}
+
+.status-header {
+    background-color: #50b9ff;
+    color: #fff;
+    padding: 10px;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.status-value {
+    padding: 15px;
+    font-size: 1.1rem;
+    color: #2c3e50;
+}
+
+/* Estilos específicos según el estado */
+.status-pending {
+    color: #e67e22;
+    /* Naranja */
+    font-weight: bold;
+}
+
+.status-registered {
+    color: #27ae60;
+    /* Verde */
+    font-weight: bold;
+}
+
+.status-rejected {
+    color: #c0392b;
+    /* Rojo */
+    font-weight: bold;
+}

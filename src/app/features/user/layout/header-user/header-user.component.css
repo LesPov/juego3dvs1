@@ -1,0 +1,321 @@
+/* header-inicio.component.css - (COMPLETO Y CORREGIDO) */
+
+/* Definimos una variable para la altura del header. 
+   Esto es crucial para la coherencia. 
+   4.5rem (aprox. 72px) es una buena altura estándar para un header. */
+:host {
+  --header-height: 4.5rem; 
+}
+
+/* --- Estilos del Header Principal (Barra Superior) --- */
+.main-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    
+    /* LÓGICA: Usamos la variable para definir la altura. 
+       Esto hace que la altura sea predecible y consistente en todas las pantallas. */
+    height: var(--header-height);
+
+    background: rgb(255 255 255 / 10%);
+    padding: 10px 15px;
+    color: #333;
+    z-index: 1000;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    box-sizing: border-box;
+    backdrop-filter: blur(2px);
+}
+  
+.main-header .header-left {
+    display: flex;
+    align-items: center;
+}
+  
+.main-header img {
+    width: auto;
+    /* La altura se ajustará proporcionalmente para caber en el header */
+    max-height: calc(var(--header-height) - 20px); /* Un poco de margen vertical */
+}
+  
+.main-header .menu-toggle-icon,
+.main-header .voice-icon {
+    font-size: 35px;
+    cursor: pointer;
+    color: #034512;
+}
+  
+.main-header .app-title {
+    font-size: clamp(20px, 5vw, 24px);
+    margin: 0;
+    font-weight: 600;
+}
+  
+  /* --- Estilos del Menú Lateral Desplegable --- */
+  .dropdown-menu {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    /* Ancho del menú como en la imagen */
+    height: 100vh;
+    /* Altura completa */
+    background-color: #ffffff;
+    /* Fondo blanco para el contenido */
+    z-index: 1002;
+    /* Por encima del overlay y del header principal */
+    display: flex;
+    flex-direction: column;
+    /* Organiza header, content, footer verticalmente */
+    box-shadow: 4px 0px 15px rgba(0, 0, 0, 0.2);
+    /* Sombra lateral */
+    border-top-right-radius: 20px;
+    border-bottom-right-radius: 20px;
+    /* Opcional: Transición para suavizar la aparición/desaparición */
+    /* Para que funcione bien la transición, es mejor usar [class.visible]="..." en lugar de *ngIf */
+    /* transform: translateX(-100%); */
+    /* transition: transform 0.3s ease-in-out; */
+  }
+  
+  /* .dropdown-menu.visible { */
+  /* transform: translateX(0); */
+  /* } */
+  
+  
+  /* --- Estilos Cabecera Verde del Menú --- */
+  .dropdown-header {
+    background-color: #308928;
+    /* Verde CampiAmigo */
+    color: #ffffff;
+    /* Texto e iconos blancos */
+    padding: 10px 15px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    /* Evita que se encoja */
+    
+    border-top-right-radius: 20px;
+  
+  }
+
+  .dropdown-header img {
+    width: auto;
+    height: 50px;
+    /* Ajusta la altura del logo */
+  }
+  
+  .dropdown-header .logo-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .dropdown-header .logo-icon {
+    font-size: 28px;
+    margin-right: 10px;
+  }
+  
+  .dropdown-header .dropdown-title {
+    font-size: 1.1em;
+    font-weight: 600;
+  }
+  
+  .dropdown-header .close-icon {
+    font-size: 28px;
+    cursor: pointer;
+  }
+  
+  /* --- Estilos Contenido Principal del Menú (Scrollable) --- */
+  .dropdown-content {
+    flex-grow: 1;
+    /* Ocupa el espacio restante */
+    overflow-y: auto;
+    /* Habilita el scroll si el contenido es muy largo */
+    padding-bottom: 15px;
+    /* Espacio antes del footer */
+  }
+  
+  .menu-section {
+    margin-top: 15px;
+  }
+  
+  .section-title {
+    font-size: 0.75em;
+    /* Más pequeño */
+    color: #888888;
+    /* Gris */
+    padding: 0 15px 5px 15px;
+    /* Espaciado */
+    text-transform: uppercase;
+    /* Mayúsculas */
+    font-weight: 600;
+    margin: 0;
+  }
+  
+  .menu-section ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .menu-section ul li {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    /* Espaciado interno */
+    cursor: pointer;
+    color: #333333;
+    /* Color de texto principal */
+    transition: background-color 0.2s ease;
+    /* Suaviza el hover */
+  }
+  
+  .menu-section ul li:hover {
+    background-color: #f0f0f0;
+    /* Fondo gris claro al pasar el ratón */
+  }
+  
+  .menu-section ul li i:first-child {
+    /* El icono principal de la izquierda */
+    font-size: 22px;
+    /* Tamaño iconos de navegación */
+    margin-right: 15px;
+    /* Espacio entre icono y texto */
+    color: #218838;
+    /* Iconos verdes */
+    width: 25px;
+    /* Ancho fijo para alinear texto */
+    text-align: center;
+  }
+  
+  .menu-section ul li span {
+    flex-grow: 1;
+    /* El texto ocupa el espacio restante */
+    font-size: 0.95em;
+    color: #000;
+  }
+  
+  .menu-section ul li .arrow-icon {
+    /* Icono de flecha derecha */
+    font-size: 18px;
+    color: #aaaaaa;
+    /* Gris claro para la flecha */
+    margin-left: auto;
+    /* Empuja la flecha a la derecha */
+  }
+  
+  
+  /* --- Estilos Footer del Menú (Botones y Soporte) --- */
+  .dropdown-footer {
+    padding: 15px;
+    border-top: 1px solid #eeeeee;
+    /* Línea separadora */
+    background-color: #ffffff;
+    /* Asegura fondo blanco */
+    flex-shrink: 0;
+    border-bottom-right-radius: 20px;
+  }
+  
+  .dropdown-footer .btn {
+    display: flex;
+    /* Para alinear icono y texto */
+    align-items: center;
+    justify-content: center;
+    /* Centra contenido del botón */
+    padding: 10px 15px;
+    border-radius: 5px;
+    text-decoration: none;
+    font-size: 1em;
+    font-weight: 500;
+    cursor: pointer;
+    margin-bottom: 10px;
+    /* Espacio entre botones */
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+  }
+  
+  .dropdown-footer .btn i {
+    margin-right: 8px;
+    /* Espacio entre icono y texto del botón */
+    font-size: 1.2em;
+    /* Iconos un poco más grandes en botones */
+  }
+  
+  .dropdown-footer .btn-login {
+    background-color: #218838;
+    /* Fondo verde */
+    color: #ffffff;
+    /* Texto blanco */
+    border: 1px solid #218838;
+  }
+  
+  .dropdown-footer .btn-login:hover {
+    background-color: #218838;
+    /* Verde más oscuro al hover */
+    border-color: #1e7e34;
+  }
+  
+  .dropdown-footer .btn-register {
+    background-color: #ffffff;
+    /* Fondo blanco */
+    color: #218838;
+    /* Texto verde */
+    border: 1px solid #218838;
+    /* Borde verde */
+  }
+  
+  .dropdown-footer .btn-register:hover {
+    background-color: #e9f7ec;
+    /* Fondo verde muy claro al hover */
+  }
+  
+  .dropdown-footer .support-link {
+    display: flex;
+    /* Alinear icono y texto */
+    align-items: center;
+    justify-content: center;
+    /* Centrar */
+    color: #555555;
+    /* Color gris oscuro */
+    text-decoration: none;
+    font-size: 0.9em;
+    margin-top: 10px;
+    /* Espacio sobre el enlace de soporte */
+    margin-bottom: 8px;
+    /* Espacio bajo el enlace */
+  }
+  
+  .dropdown-footer .support-link:hover {
+    color: #218838;
+    /* Color verde al pasar el ratón */
+  }
+  
+  .dropdown-footer .support-link i {
+    margin-right: 5px;
+    font-size: 1.1em;
+  }
+  
+  .dropdown-footer .version-info {
+    display: block;
+    /* Para que ocupe su línea */
+    text-align: center;
+    font-size: 0.8em;
+    color: #aaaaaa;
+    /* Gris claro */
+  }
+  
+  /* --- Estilos del Overlay (Fondo Oscuro) --- */
+  .dropdown-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    /* Negro semitransparente */
+    z-index: 1001;
+    /* Debajo del menú, encima del contenido */
+  }

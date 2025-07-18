@@ -1,0 +1,92 @@
+<div class="form update-profile-container">
+  <div class="title">
+    <h3>Perfil</h3>
+    <h6>Modifica tu información personal</h6>
+  </div>
+  <!-- Se puede asignar una referencia local al form si se requiere -->
+  <form (ngSubmit)="updateProfile()">
+    <div class="group image-preview-group">
+      <!-- Contenedor fijo para la imagen -->
+      <div class="image-container">
+        <!-- Imagen actual o vista previa -->
+        <img [src]="previewUrl ? previewUrl : getImageUrl(profileData.profilePicture)" alt="Foto de perfil" />
+
+      </div>
+
+      <!-- Botón para cambiar imagen --> 
+      <label class="btn-upload">
+        <i class='bx bx-image-add'></i>
+        <!-- El input de tipo file va oculto -->
+        <input type="file" (change)="onFileSelected($event)" style="display: none;" />
+      </label>
+    </div>
+
+    <div class="group">
+      <label class="lbl" for="firstName">Nombre</label>
+      <input id="firstName" type="text" [(ngModel)]="profileData.firstName" (ngModelChange)="setModified()"
+        name="firstName" class="input" placeholder="Ingrese su nombre" required>
+    </div>
+    <div class="group">
+      <label class="lbl" for="lastName">Apellido</label>
+      <input id="lastName" type="text" [(ngModel)]="profileData.lastName" (ngModelChange)="setModified()"
+        name="lastName" class="input" placeholder="Ingrese su apellido" required>
+    </div>
+    <div class="group">
+      <label class="lbl" for="identificationType">Tipo de Identificación</label>
+      <select id="identificationType" [(ngModel)]="profileData.identificationType" name="identificationType"
+        class="input" disabled required>
+        <option value="">Seleccione</option>
+        <option *ngFor="let type of identificationTypes" [value]="type">{{ type }}</option>
+      </select>
+    </div>
+    <div class="group">
+      <label class="lbl" for="identificationNumber">Número de Identificación</label>
+      <input id="identificationNumber" type="text" [(ngModel)]="profileData.identificationNumber"
+        name="identificationNumber" class="input" placeholder="Ingrese su número" disabled required>
+    </div>
+
+    <div class="group">
+      <label class="lbl" for="birthDate">Fecha de Nacimiento</label>
+      <input id="birthDate" type="date" [(ngModel)]="profileData.birthDate" (ngModelChange)="setModified()"
+        name="birthDate" class="input" required>
+    </div>
+    <div class="group">
+      <label class="lbl" for="gender">Género</label>
+      <select id="gender" [(ngModel)]="profileData.gender" (ngModelChange)="setModified()" name="gender" class="input"
+        required>
+        <option value="">Seleccione</option>
+        <option *ngFor="let gender of genders" [value]="gender">{{ gender }}</option>
+      </select>
+    </div>
+    <div class="group">
+      <label class="lbl" for="biography">Biografía</label>
+      <textarea id="biography" [(ngModel)]="profileData.biography" (ngModelChange)="setModified()" name="biography"
+        class="input" placeholder="Cuéntanos sobre ti"></textarea>
+    </div>
+    <div class="group">
+
+      <label class="lbl" for="direccion">Dirección</label>
+      <textarea id="direccion" [(ngModel)]="profileData.direccion" (ngModelChange)="setModified()" disabled required
+        name="direccion" class="input" placeholder="Ingrese su dirección"></textarea>
+    </div>
+    <!-- Solo se muestra si campiamigo es true -->
+    <!-- Solo se muestra si campiamigo es true -->
+    <div *ngIf="profileData.campiamigo" class="status-container">
+      <div class="status-header">Status</div>
+      <div class="status-value">
+        <span *ngIf="profileData.status === 'pendiente'" class="status-pending">
+          Registro pendiente
+        </span>
+        <span *ngIf="profileData.status === 'aprobado'" class="status-registered">
+          CampiAmigo activado
+        </span>
+        <span *ngIf="profileData.status === 'rechazado'" class="status-rejected">
+          Registro rechazado
+        </span>
+      </div>
+    </div>
+
+
+    <button type="submit" class="btn" [disabled]="!isModified">Actualizar Perfil</button>
+  </form>
+</div>

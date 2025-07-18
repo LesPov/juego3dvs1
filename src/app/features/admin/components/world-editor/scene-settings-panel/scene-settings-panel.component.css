@@ -1,0 +1,19 @@
+/* Usaremos estilos muy similares al panel de propiedades para mantener la consistencia */
+:host {
+  background-color: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+}
+.panel-header { padding: 8px 12px; font-weight: 500; border-bottom: 1px solid #333; }
+.panel-body { display: flex; flex-grow: 1; overflow: hidden; }
+.tabs { display: flex; flex-direction: column; background-color: #252526; border-right: 1px solid #333; padding: 5px; gap: 5px; }
+.tab-button { background: transparent; border: 1px solid transparent; color: #ccc; padding: 8px; border-radius: 4px; cursor: pointer; font-size: 20px; transition: background-color 0.2s; }
+.tab-button:hover { background-color: #3f3f46; }
+.tab-button.active { background-color: #094771; color: white; }
+.tab-content { flex-grow: 1; padding: 15px; overflow-y: auto; }
+.section-title { color: #888; font-size: 11px; font-weight: bold; text-align: center; margin-bottom: 15px; letter-spacing: 0.5px; }
+.placeholder-text { color: #666; font-style: italic; text-align: center; font-size: 13px; }

@@ -1,0 +1,81 @@
+/* src/app/features/admin/views/world-editor/properties-panel/properties-panel.component.css */
+
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: #393939;
+  color: #dcdcdc;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.object-icon-header {
+  font-size: 1.2rem;
+}
+
+.object-name-input {
+  flex-grow: 1;
+  background: #555;
+  border: 1px solid #666;
+  color: #fff;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 1rem;
+}
+
+.panel-content {
+  overflow-y: auto;
+  flex-grow: 1;
+  padding: 8px;
+}
+
+.properties-section {
+  border-bottom: 1px solid #4a4a4a;
+}
+.properties-section:last-child {
+  border-bottom: none;
+}
+
+.section-header {
+  font-weight: bold;
+  font-size: 12px;
+  padding: 10px 4px;
+  cursor: pointer;
+  list-style: none; /* Oculta el marcador por defecto */
+  display: flex;
+  align-items: center;
+}
+.section-header::-webkit-details-marker {
+  display: none; /* Oculta el marcador en Chrome/Safari */
+}
+.section-header .arrow {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 5px solid #dcdcdc;
+  margin-right: 10px;
+  transition: transform 0.2s ease;
+}
+
+details[open] > summary .arrow {
+  transform: rotate(90deg);
+}
+
+.section-content {
+  padding: 10px 5px 15px 19px; /* Alineado con el texto del header */
+}
+
+.placeholder {
+  color: #888;
+  font-style: italic;
+  font-size: 12px;
+}

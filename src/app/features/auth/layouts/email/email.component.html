@@ -1,0 +1,69 @@
+<!-- CÓDIGO HTML CORREGIDO Y MEJORADO -->
+
+<div class="auth-container">
+  <div class="form-wrapper">
+
+    <!-- Botones de navegación superiores -->
+    <button class="back-button" (click)="goBack()" aria-label="Volver atrás">
+      <i class='bx bx-arrow-back'></i>
+    </button>
+    <button class="close-button" (click)="showConfirmationDialog()" aria-label="Cerrar proceso">
+      <i class='bx bx-x'></i>
+    </button>
+
+    <div class="title">
+      <h2>Verificación de Identidad</h2>
+      <p class="welcome-message" *ngIf="username">
+        ¡Hola <span class="username-highlight">{{ username }}</span>! Te enviamos un código a tu correo.
+      </p>
+    </div>
+
+    <div class="content-body">
+      <p class="instructions">Ingresa el código de 6 dígitos que recibiste.</p>
+      
+      <!-- LÓGICA DE INPUTS CORREGIDA (Como la tenías originalmente) -->
+      <div class="code-inputs">
+        <input #digit0 type="text" inputmode="numeric" class="digit-input" maxlength="1" [(ngModel)]="verificationDigits[0]" [disabled]="isLoading" (keyup)="handleKeyUp($event, digit0, null, digit1)">
+        <input #digit1 type="text" inputmode="numeric" class="digit-input" maxlength="1" [(ngModel)]="verificationDigits[1]" [disabled]="isLoading" (keyup)="handleKeyUp($event, digit1, digit0, digit2)">
+        <input #digit2 type="text" inputmode="numeric" class="digit-input" maxlength="1" [(ngModel)]="verificationDigits[2]" [disabled]="isLoading" (keyup)="handleKeyUp($event, digit2, digit1, digit3)">
+        <span class="hyphen">-</span>
+        <input #digit3 type="text" inputmode="numeric" class="digit-input" maxlength="1" [(ngModel)]="verificationDigits[3]" [disabled]="isLoading" (keyup)="handleKeyUp($event, digit3, digit2, digit4)">
+        <input #digit4 type="text" inputmode="numeric" class="digit-input" maxlength="1" [(ngModel)]="verificationDigits[4]" [disabled]="isLoading" (keyup)="handleKeyUp($event, digit4, digit3, digit5)">
+        <input #digit5 type="text" inputmode="numeric" class="digit-input" maxlength="1" [(ngModel)]="verificationDigits[5]" [disabled]="isLoading" (keyup)="handleKeyUp($event, digit5, digit4, null)">
+      </div>
+
+      <!-- Botón de verificar con estado de carga -->
+      <button class="btn-submit" (click)="verifyCode()" [disabled]="isVerifyButtonDisabled() || isLoading">
+        <span *ngIf="!isLoading">Verificar Código</span>
+        <div *ngIf="isLoading" class="spinner"></div>
+      </button>
+
+      <!-- Temporizador y botón de reenvío -->
+      <div class="resend-section">
+        <div *ngIf="timerVisible" class="timer">
+          Reenviar código en: <span class="timer-text">{{ formatTimeLeft() }}</span>
+        </div>
+        <button *ngIf="!timerVisible" class="btn-resend" (click)="resendVerificationCode()" [disabled]="isResending">
+          <span *ngIf="!isResending">Reenviar código</span>
+          <div *ngIf="isResending" class="spinner-small"></div>
+        </button>
+      </div>
+    </div>
+
+    <div class="form-footer">
+      <p>Al continuar, aceptas nuestros <a routerLink="/terminos">Términos</a> y <a routerLink="/privacidad">Política de Privacidad</a>.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Diálogo de confirmación para salir -->
+<div class="confirmation-overlay" *ngIf="showConfirmationMessage">
+  <div class="confirmation-dialog">
+    <h4>¿Abandonar el proceso?</h4>
+    <p>Se perderán los datos ingresados si decides salir.</p>
+    <div class="dialog-actions">
+      <button class="btn-dialog-secondary" (click)="showConfirmationMessage = false">Cancelar</button>
+      <button class="btn-dialog-primary" routerLink="/auth/login">Aceptar y Salir</button>
+    </div>
+  </div>
+</div>

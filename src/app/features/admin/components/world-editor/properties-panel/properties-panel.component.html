@@ -1,0 +1,60 @@
+<!-- ✅ SOLUCIÓN: Envolvemos todo en un *ngIf para asegurarnos de que `selectedObject` no es nulo -->
+<div class="properties-panel-wrapper" *ngIf="selectedObject">
+
+  <div class="panel-header">
+    <div class="object-icon-header">
+      <!-- Ahora es seguro acceder a selectedObject.type -->
+      <span *ngIf="selectedObject.type === 'camera'">📷</span>
+      <!-- Agregamos más tipos para ser más robustos -->
+      <span *ngIf="selectedObject.type.toLowerCase().includes('light')">💡</span>
+      <!-- Por defecto para modelos y cubos -->
+      <span *ngIf="selectedObject.type === 'model' || selectedObject.type === 'cube'">🧊</span>
+    </div>
+    <input type="text" class="object-name-input" [(ngModel)]="editableObjectName" (blur)="onNameChange()">
+    <button class="pin-btn" title="Fijar panel">📌</button>
+  </div>
+  
+  <div class="panel-content">
+    <details class="properties-section" open>
+      <summary class="section-header">
+        <span class="arrow"></span>
+        Transformación
+      </summary>
+      <div class="section-content">
+        <!-- El binding al hijo ahora también es seguro -->
+        <app-transform-properties 
+          [selectedObject]="selectedObject" 
+          (transformChange)="onTransformChange($event)">
+        </app-transform-properties>
+      </div>
+    </details>
+  
+    <!-- ... resto de las secciones adicionales ... -->
+    <details class="properties-section">
+      <summary class="section-header"><span class="arrow"></span>Relaciones</summary>
+      <div class="section-content placeholder">(Próximamente)</div>
+    </details>
+    <details class="properties-section">
+      <summary class="section-header"><span class="arrow"></span>Colecciones</summary>
+      <div class="section-content placeholder">(Próximamente)</div>
+    </details>
+    <details class="properties-section">
+      <summary class="section-header"><span class="arrow"></span>Instanciado</summary>
+      <div class="section-content placeholder">(Próximamente)</div>
+    </details>
+    <details class="properties-section">
+      <summary class="section-header"><span class="arrow"></span>Trayectorias de movimiento</summary>
+      <div class="section-content placeholder">(Próximamente)</div>
+    </details>
+    <details class="properties-section">
+      <summary class="section-header"><span class="arrow"></span>Visibilidad</summary>
+      <div class="section-content placeholder">(Próximamente)</div>
+    </details>
+    <details class="properties-section">
+      <summary class="section-header"><span class="arrow"></span>Propiedades personalizadas</summary>
+      <!-- ✅ CORRECCIÓN: Se cambió "class." por "class=" -->
+      <div class="section-content placeholder">(Próximamente)</div>
+    </details>
+  </div>
+
+</div>

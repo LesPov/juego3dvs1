@@ -1,0 +1,85 @@
+<!-- src/app/features/admin/world-editor/add-object-modal/add-object-modal.component.html -->
+
+<div class="modal-overlay" (click)="onClose()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <header class="modal-header">
+      <h2>Añadir Nuevo Objeto</h2>
+      <button class="close-button" (click)="onClose()">×</button>
+    </header>
+
+    <main class="modal-body">
+      <form [formGroup]="objectForm" (ngSubmit)="onSubmit()">
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label for="name">Nombre del Objeto</label>
+            <input id="name" type="text" formControlName="name" placeholder="Ej: Luz Principal">
+          </div>
+          <div class="form-group">
+            <label for="type">Tipo de Objeto</label>
+            <select id="type" formControlName="type">
+              <option *ngFor="let type of objectTypes" [value]="type">{{ type }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group" *ngIf="objectForm.get('type')?.value === 'model'">
+            <label for="assetId">Modelo 3D (Asset)</label>
+            <select id="assetId" formControlName="assetId">
+                <option [ngValue]="null" disabled>Selecciona un modelo...</option>
+                <option *ngFor="let asset of modelAssets" [ngValue]="asset.id">{{ asset.name }}</option>
+            </select>
+        </div>
+
+        <fieldset formGroupName="position"><legend>Posición</legend><div class="vector-group"><input type="number" step="0.1" formControlName="x" placeholder="X"><input type="number" step="0.1" formControlName="y" placeholder="Y"><input type="number" step="0.1" formControlName="z" placeholder="Z"></div></fieldset>
+        <fieldset formGroupName="rotation"><legend>Rotación (radianes)</legend><div class="vector-group"><input type="number" step="0.1" formControlName="x" placeholder="X"><input type="number" step="0.1" formControlName="y" placeholder="Y"><input type="number" step="0.1" formControlName="z" placeholder="Z"></div></fieldset>
+        <fieldset formGroupName="scale"><legend>Escala</legend><div class="vector-group"><input type="number" step="0.1" formControlName="x" placeholder="X"><input type="number" step="0.1" formControlName="y" placeholder="Y"><input type="number" step="0.1" formControlName="z" placeholder="Z"></div></fieldset>
+
+        <!-- Contenedor de Propiedades Dinámicas -->
+        <fieldset formGroupName="properties" *ngIf="objectForm.get('properties')?.value && Object.keys(objectForm.get('properties')?.value).length > 0">
+          <legend>Propiedades Específicas</legend>
+          
+          <!-- Usamos ngSwitch para mostrar el formulario correcto según el tipo -->
+          <ng-container [ngSwitch]="objectForm.get('type')?.value">
+              
+              <div *ngSwitchCase="'model'" class="properties-grid">
+                  <div *ngIf="overrideColorControl" class="form-group"><label>Teñir (Color)</label><input type="color" [formControl]="overrideColorControl"></div>
+              </div>
+
+              <div *ngSwitchCase="'camera'" class="properties-grid grid-3-cols">
+                  <div class="form-group"><label>FOV</label><input type="number" step="1" formControlName="fov"></div>
+                  <div class="form-group"><label>Near</label><input type="number" step="0.1" formControlName="near"></div>
+                  <div class="form-group"><label>Far</label><input type="number" step="10" formControlName="far"></div>
+              </div>
+
+              <div *ngSwitchCase="'ambientLight'" class="properties-grid">
+                  <div *ngIf="colorControl" class="form-group"><label>Color</label><input type="color" [formControl]="colorControl"></div>
+                  <div class="form-group"><label>Intensidad</label><input type="number" step="0.1" formControlName="intensity"></div>
+              </div>
+
+              <div *ngSwitchCase="'directionalLight'" class="properties-grid">
+                  <div *ngIf="colorControl" class="form-group"><label>Color</label><input type="color" [formControl]="colorControl"></div>
+                  <div class="form-group"><label>Intensidad</label><input type="number" step="0.1" formControlName="intensity"></div>
+              </div>
+
+              <div *ngSwitchCase="'pointLight'" class="properties-grid grid-2-cols">
+                  <div *ngIf="colorControl" class="form-group"><label>Color</label><input type="color" [formControl]="colorControl"></div>
+                  <div class="form-group"><label>Intensidad</label><input type="number" step="0.1" formControlName="intensity"></div>
+                  <div class="form-group"><label>Distancia</label><input type="number" step="1" formControlName="distance"></div>
+                  <div class="form-group"><label>Decay</label><input type="number" step="0.1" formControlName="decay"></div>
+              </div>
+
+              <div *ngSwitchDefault class="properties-grid">
+                  <div *ngIf="colorControl" class="form-group"><label>Color</label><input type="color" [formControl]="colorControl"></div>
+              </div>
+          </ng-container>
+        </fieldset>
+        
+        <footer class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="onClose()">Cancelar</button>
+          <button type="submit" class="btn btn-primary" [disabled]="objectForm.invalid">Crear Objeto</button>
+        </footer>
+      </form>
+    </main>
+  </div>
+</div>

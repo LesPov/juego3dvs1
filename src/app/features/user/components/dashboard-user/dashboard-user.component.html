@@ -1,0 +1,100 @@
+<div class="dashboard-user-page">
+
+  <!-- ==== Barra de búsqueda ==== -->
+  <div class="search-bar">
+    <input type="text" placeholder="¿Qué necesitas hoy?" />
+    <button class="filter-btn"><i class='bx bxs-filter-alt' ></i></button>
+  </div>
+
+  <!-- ==== Banner principal ==== -->
+  <section class="sponsor-banner"
+    [ngStyle]="{
+      'background': 'linear-gradient(135deg, ' + sponsorBanner.gradientStart + ', ' + sponsorBanner.gradientEnd + ')'
+    }">
+    <div class="banner-content">
+      <h2>{{ sponsorBanner.title }}</h2>
+      <p>{{ sponsorBanner.subtitle }}</p>
+      <a class="btn-banner" [routerLink]="sponsorBanner.link">{{ sponsorBanner.buttonText }}</a>
+    </div>
+  </section>
+
+ 
+  <!-- ==== Categorías ==== -->
+ <section class="categories-section">
+  <div class="section-header">
+    <h3>Categorías</h3>
+    <a class="see-all" routerLink="/categorias">Ver todas</a>
+  </div>
+  <div class="categories-grid">
+    <a *ngFor="let c of categories"
+       class="category-card"
+       [routerLink]="c.link">
+      <!-- Mostramos la imagen -->
+      <div class="cat-image">
+        <img [src]="c.imgUrl" [alt]="c.name" />
+      </div>
+      <div class="cat-info">
+        <span class="cat-name">{{ c.name }}</span>
+        <span class="cat-count">{{ c.count }}</span>
+      </div>
+    </a>
+  </div>
+</section>
+
+ <!-- ==== Banner “¿Eres Campesino?” ==== -->
+  <section class="sponsor-banner farmer"
+    [ngStyle]="{
+      'background': 'linear-gradient(135deg, ' + farmerBanner.gradientStart + ', ' + farmerBanner.gradientEnd + ')'
+    }">
+    <div class="banner-content">
+      <i class="bx bxs-award icon-farmer"></i>
+      <h3>{{ farmerBanner.title }}</h3>
+      <p>{{ farmerBanner.subtitle }}</p>
+      <a class="btn-banner" [routerLink]="farmerBanner.link">{{ farmerBanner.buttonText }}</a>
+    </div>
+  </section>
+
+  <!-- ==== Cerca de Ti ==== -->
+  <section class="nearby-section">
+    <div class="section-header">
+      <h3><i class="bx bx-current-location"></i> Cerca de Ti</h3>
+      <a class="see-all" routerLink="/mapa">Ver mapa</a>
+    </div>
+    <div class="nearby-list">
+      <div *ngFor="let item of nearby" class="nearby-card">
+        <div class="nearby-img">
+          <span *ngIf="item.isBio" class="bio-badge">Bio</span>
+          <button class="fav-btn" (click)="toggleFavorite(item)">
+            <i class="bx" [ngClass]=" item.isFavorite ? 'bxs-heart' : 'bx-heart' "></i>
+          </button>
+        </div>
+        <div class="nearby-info">
+          <h4>{{ item.title }}</h4>
+          <p class="producer">
+            <i class="bx bx-user"></i> {{ item.producer }}
+            <span class="distance">· {{ item.distanceKm }} km</span>
+          </p>
+          <p class="rating">
+            <i class="bx bxs-star"></i> {{ item.rating }} ({{ item.reviews }})
+            <span class="time"><i class="bx bx-time-five"></i> {{ item.timeRange }}</span>
+          </p>
+          <div class="price-row">
+            <span class="price">\${{ item.price | number }}</span>
+            <span class="old-price">\${{ item.oldPrice | number }}</span>
+          </div>
+          <button class="btn-add"> Ver</button>
+        </div>
+      </div>
+    </div>
+  </section>
+  <!-- ==== Banner final “Únete a AGRORED” ==== -->
+  <section class="sponsor-banner bottom"
+    [ngStyle]="{
+      'background': 'linear-gradient(135deg, ' + bottomBanner.gradientStart + ', ' + bottomBanner.gradientEnd + ')'
+    }">
+    <div class="banner-content">
+      <h3>{{ bottomBanner.title }}</h3>
+      <p>{{ bottomBanner.subtitle }}</p>
+    </div>
+  </section>
+</div>

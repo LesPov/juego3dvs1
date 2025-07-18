@@ -1,0 +1,30 @@
+:host {
+  display: flex;
+  justify-content: center;   /* Centrado horizontal */
+  align-items: center;       /* Centrado vertical */
+  height: 100vh;             /* Ocupa toda la altura de la ventana */
+  background: #1a2b34;       /* Mismo fondo oscuro de la escena, opcional */
+}
+
+.inicio-container {
+  display: flex;
+  flex-direction: column;    /* Botones uno abajo de otro */
+  gap: 1rem;                 /* Espacio entre botones */
+}
+
+button {
+  padding: 1rem 2rem;
+  font-size: 1.25rem;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: transform 0.1s ease-in-out;
+}
+
+button:hover {
+  transform: scale(1.05);
+}
+
+button:active {
+  transform: scale(0.95);
+}

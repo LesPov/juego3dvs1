@@ -1,0 +1,35 @@
+<div class="panel-header">Ajustes de la Escena</div>
+
+<div class="panel-body">
+  <!-- Barra lateral con los botones de pestañas (iconos) -->
+  <div class="tabs">
+    <button class="tab-button" 
+            [class.active]="activeTab === 'render'" 
+            (click)="setActiveTab('render')"
+            title="Ajustes de Renderizado">
+      ⚙️ <!-- Icono para Renderizado -->
+    </button>
+    <button class="tab-button" 
+            [class.active]="activeTab === 'environment'" 
+            (click)="setActiveTab('environment')"
+            title="Entorno y Fondo">
+      🌍 <!-- Icono para Entorno -->
+    </button>
+  </div>
+
+  <!-- Contenido que cambia según la pestaña activa -->
+  <div class="tab-content">
+    <ng-container [ngSwitch]="activeTab">
+      <!-- Contenido de la pestaña de Renderizado -->
+      <div *ngSwitchCase="'render'">
+        <div class="section-title">RENDERIZADO</div>
+        <p class="placeholder-text">Próximamente: Opciones de niebla, sombras, etc.</p>
+      </div>
+      <!-- Contenido de la pestaña de Entorno -->
+      <div *ngSwitchCase="'environment'">
+        <div class="section-title">ENTORNO</div>
+        <p class="placeholder-text">Próximamente: Opciones de color de fondo, skybox, etc.</p>
+      </div>
+    </ng-container>
+  </div>
+</div>

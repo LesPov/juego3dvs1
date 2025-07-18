@@ -1,0 +1,100 @@
+<!-- Aplicamos la clase 'transparent' solo cuando isSceneRoute === true -->
+<div class="main-header" [class.transparent]="isSceneRoute">
+  <div class="header-left" (click)="toggleDropdown()">
+    <!-- Icono para ABRIR el menú lateral -->
+    <img class="icon-menu" src="../../../../../../assets/img/inicio/icon.png" alt=""  >
+    <img src="../../../../../../assets/img/inicio/agroredtitle.png" alt="AgroRed">
+
+  </div>
+  <!-- Título principal de la app -->
+  <!-- Icono de voz (si lo sigues necesitando aquí) -->
+  <div class="icons">
+    <i class='bx bx-bell'></i>
+    <i class='bx bxs-user-voice voice-icon' (click)="speakBot()"></i>
+  </div>
+</div>
+
+<!-- Este es el Menú Lateral Desplegable (Dropdown) -->
+<!-- Usamos *ngIf para mostrarlo/ocultarlo -->
+<div class="dropdown-menu" *ngIf="dropdownVisible">
+
+  <!-- Cabecera VERDE dentro del menú -->
+  <div class="dropdown-header">
+    <div class="logo-container">
+      <!-- Puedes usar una imagen o un icono para el logo -->
+      <img src="../../../../../../assets/img/inicio/icon.png" alt="">
+      <img src="../../../../../../assets/img/inicio/agroredtitle.png" alt="">
+      <i class='bx bx-x close-icon' (click)="toggleDropdown()"></i>
+
+    </div>
+  </div>
+
+  <!-- Contenido principal del menú (con scroll si es necesario) -->
+  <div class="dropdown-content">
+
+    <!-- Sección de Navegación -->
+    <div class="menu-section">
+      <h4 class="section-title">NAVEGACIÓN</h4>
+      <ul>
+        <!-- Añade routerLink cuando tengas las rutas -->
+        <li>
+          <i class='bx bx-home-alt'></i>
+          <span>Inicio</span>
+        </li>
+        <li>
+          <i class='bx bx-map'></i>
+          <span>Explorar Territorio</span>
+        </li>
+        <li>
+          <i class='bx bx-purchase-tag-alt'></i> <!-- O bx-shopping-bag -->
+          <span>Productos</span>
+        </li>
+        <li>
+          <i class='bx bx-group'></i>
+          <span>Campiamigos</span>
+        </li>
+        <li>
+          <i class='bx bx-info-circle'></i>
+          <span>Cómo Funciona</span>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Sección Explorar por Clima -->
+    <div class="menu-section">
+      <h4 class="section-title">EXPLORAR POR CLIMA</h4>
+      <ul>
+        <!-- Añade routerLink cuando tengas las rutas -->
+        <li>
+          <i class='bx bx-cloud'></i>
+          <span>Clima Frío</span>
+          <i class='bx bx-chevron-right arrow-icon'></i>
+        </li>
+        <li>
+          <i class='bx bx-sun'></i>
+          <span>Clima Cálido</span>
+          <i class='bx bx-chevron-right arrow-icon'></i>
+        </li>
+      </ul>
+    </div>
+
+  </div> <!-- Fin de dropdown-content -->
+
+  <!-- Pie de página del menú (botones y soporte) -->
+  <div class="dropdown-footer">
+
+
+    <!-- Enlace de Soporte -->
+    <!-- Mantenemos tu routerLink existente -->
+    <a class="support-link" routerLink="/soporte" (click)="dropdownVisible=false">
+      <i class='bx bx-help-circle'></i> <!-- Icono de pregunta -->
+      <span>Soporte</span>
+    </a>
+
+    <span class="version-info">Versión 1.0.0</span>
+  </div>
+
+</div> <!-- Fin de dropdown-menu -->
+
+<!-- Overlay para oscurecer el fondo cuando el menú está abierto (Opcional pero recomendado) -->
+<div class="dropdown-overlay" *ngIf="dropdownVisible" (click)="toggleDropdown()"></div>

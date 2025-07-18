@@ -1,0 +1,53 @@
+/* app.component.css (COMPLETO Y CORREGIDO) */
+
+/* Primero, asegúrate de que la variable esté disponible aquí también. 
+   Si la pones en tu styles.css global, no necesitas repetirla. */
+:host {
+    --header-height: 4.5rem; /* Debe ser el MISMO valor que en el header */
+}
+
+.body {
+    width: 100%;
+    
+    /* =================================================================== */
+    /*               AQUÍ ESTÁ LA MAGIA Y LA LÓGICA                        */
+    /* =================================================================== */
+    /* LÓGICA 1: Usamos padding-top en lugar de margin-top.
+       Esto crea un espacio DENTRO del contenedor del body, empujando el
+       contenido hacia abajo sin crear un espacio físico "fuera" del elemento.
+       Si tu header es semi-transparente, el fondo del body se verá detrás,
+       lo cual es un efecto visual mucho más agradable. */
+
+    /* LÓGICA 2: Usamos nuestra variable CSS.
+       Esto garantiza que el espacio que creamos es EXACTAMENTE la altura del header.
+       Si cambias la altura del header en el futuro, este valor se actualizará
+       automáticamente, manteniendo la alineación perfecta. */
+    padding-top: var(--header-height);
+
+    /* LÓGICA 3: Usamos min-height en lugar de height.
+       'height: 100vh' hace que el contenedor mida el 100% de la pantalla, pero
+       al añadirle padding-top, el tamaño total sería 100vh + la altura del header,
+       lo que causa un scroll innecesario.
+       'min-height: 100vh' asegura que el body ocupe AL MENOS toda la altura de
+       la pantalla (incluyendo el padding), pero puede crecer si el contenido es largo.
+       Esto es mucho más robusto. */
+    min-height: 100vh;
+    
+    /* Importante para que el padding no aumente el tamaño total del elemento */
+    box-sizing: border-box; 
+    
+    /* El overflow-y: auto es correcto aquí. Si el contenido dentro del body es más
+       largo que el espacio visible, aparecerá una barra de scroll. */
+    overflow-y: auto; 
+    
+    z-index: 1; /* Correcto, debe estar detrás del header */
+    color: #000;
+    
+    /* Tus estilos para ocultar la barra de scroll están bien, los mantenemos */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.body::-webkit-scrollbar {
+    display: none;
+}

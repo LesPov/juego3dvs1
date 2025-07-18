@@ -1,0 +1,81 @@
+<div class="epi-container">
+
+    <!-- ESTADO DE CARGA -->
+    <div *ngIf="isLoading" class="loading-state">
+        <p>Cargando episodios...</p> <!-- Aquí puedes poner un spinner -->
+    </div>
+
+    <!-- ESTADO DE ERROR -->
+    <div *ngIf="errorMessage && !isLoading" class="error-state">
+        <p>{{ errorMessage }}</p>
+        <button (click)="loadEpisodes()">Reintentar</button>
+    </div>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <ng-container *ngIf="!isLoading && !errorMessage">
+        <div class="epi-main">
+            <div class="preview">
+                <!-- Usamos la nueva propiedad 'thumbnailUrl' y una imagen por defecto -->
+                <img [src]="episodes.length > 0 ? (episodes[activeIndex].thumbnailUrl || 'assets/img/default-zone.png') : 'assets/img/default-zone.png'"
+                    alt="Portada episodio" />
+            </div>
+            <ul class="epi-list">
+                <li *ngFor="let ep of episodes; let i = index" [class.active]="i === activeIndex"
+                    (click)="selectEpisode(i)">
+                    <span class="label">{{ ep.title }}</span>
+                    <small>{{ ep.description }}</small>
+                </li>
+                <li *ngIf="episodes.length === 0" class="empty-state">
+                    No hay episodios. ¡Crea el primero!
+                </li>
+            </ul>
+        </div>
+        <footer class="epi-footer">
+            <button (click)="openCreateModal()">CREAR</button>
+            <button (click)="deleteEpisode()">BORRAR</button>
+            <button (click)="back()">ATRÁS</button>
+            <button (click)="editEpisode()">EDITAR</button>
+        </footer>
+    </ng-container>
+</div>
+
+<!-- =========== MODAL DE CREACIÓN DE EPISODIO =========== -->
+<!-- Se muestra u oculta basado en la variable 'isModalOpen' -->
+<div class="modal-overlay" *ngIf="isModalOpen">
+    <div class="modal-content">
+        <h2>Crear Nuevo Episodio</h2>
+        <!-- Usamos el FormGroup 'createEpisodeForm' y el evento 'ngSubmit' -->
+        <form [formGroup]="createEpisodeForm" (ngSubmit)="onSubmit()">
+
+            <div class="form-group">
+                <label for="title">Título</label>
+                <input id="title" type="text" formControlName="title" placeholder="Título del episodio">
+                <!-- Mensajes de error (opcional pero recomendado) -->
+            </div>
+
+            <div class="form-group">
+                <label for="description">Descripción</label>
+                <textarea id="description" formControlName="description" rows="4"
+                    placeholder="Describe brevemente el episodio..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="thumbnail">Imagen de Portada</label>
+                <!-- (change) detecta cuando se selecciona un archivo -->
+                <input id="thumbnail" type="file" accept="image/*" (change)="onFileSelected($event)">
+            </div>
+
+            <!-- Previsualización de la imagen -->
+            <div *ngIf="imagePreview" class="image-preview">
+                <img [src]="imagePreview" alt="Previsualización">
+            </div>
+
+            <div class="modal-actions">
+                <!-- El botón de tipo 'submit' dispara el evento (ngSubmit) del formulario -->
+                <button type="submit" [disabled]="createEpisodeForm.invalid">Guardar Episodio</button>
+                <!-- El botón de tipo 'button' no envía el formulario, solo cierra el modal -->
+                <button type="button" class="btn-secondary" (click)="closeModal()">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>

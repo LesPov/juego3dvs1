@@ -1,0 +1,24 @@
+.body {
+    width: 100%;
+
+    /* Creamos un espacio superior igual a la altura del header (9%) */
+ 
+    /* Hacemos que el contenedor del body ocupe toda la altura de la pantalla */
+    height: 100vh;
+    
+    /* Importante para que el padding no desborde el contenedor */
+    box-sizing: border-box; 
+    
+    /* Habilitamos el scroll interno si el contenido es más largo que el espacio visible */
+    overflow-y: auto; 
+    
+    z-index: 1;
+    color: #000;
+    scrollbar-width: none; /* Tu estilo para ocultar scrollbar */
+    -ms-overflow-style: none; /* Tu estilo para ocultar scrollbar */
+}
+
+/* Tu estilo para ocultar scrollbar en Chrome/Safari */
+.body::-webkit-scrollbar {
+    display: none;
+}

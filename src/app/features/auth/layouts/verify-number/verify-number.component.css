@@ -1,0 +1,278 @@
+/* CSS COMPLETO Y MEJORADO - verify-number.component.css */
+
+@import url('https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css');
+
+:host {
+  display: block;
+  font-family: 'Poppins', 'system-ui', sans-serif;
+}
+
+.auth-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #eef5f3, #d4e4e0);
+  padding: 20px;
+}
+
+.form-wrapper {
+  position: relative;
+  background: #ffffff;
+  padding: 40px 30px;
+  border-radius: 20px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 420px;
+  text-align: center;
+  animation: slide-up-fade-in 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+@keyframes slide-up-fade-in {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- Botones Superiores --- */
+.back-button, .close-button {
+  position: absolute;
+  top: 15px;
+  background: #f0f4f3;
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #333;
+  font-size: 22px;
+  transition: all 0.3s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.back-button { left: 15px; }
+.close-button { right: 15px; }
+.back-button:hover, .close-button:hover {
+  background: #e1e9e7;
+  transform: scale(1.1);
+}
+
+/* --- Título y Mensajes --- */
+.title {
+  margin-bottom: 25px;
+}
+.title h2 {
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: #2c3e50;
+  margin: 0 0 10px 0;
+}
+.welcome-message {
+  font-size: 1rem;
+  color: #555;
+}
+.username-highlight {
+  font-weight: 600;
+  color: #27ae60;
+  background-color: rgba(39, 174, 96, 0.1);
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.instructions {
+  font-size: 0.95rem;
+  color: #7f8c8d;
+  margin-bottom: 25px;
+}
+
+/* --- Inputs de Código --- */
+.code-inputs {
+  display: flex;
+  justify-content: center;
+  align-items: center; /* Para alinear el guion */
+  gap: 10px;
+  margin-bottom: 25px;
+}
+.digit-input {
+  width: 45px;
+  height: 55px;
+  text-align: center;
+  font-size: 1.8rem;
+  font-weight: 500;
+  border: 1px solid #dfe6e9;
+  border-radius: 10px;
+  background: #f9fafb;
+  color: #2c3e50;
+  outline: none;
+  transition: all 0.3s ease;
+}
+.digit-input:focus {
+  border-color: #27ae60;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(39, 174, 96, 0.15);
+}
+.digit-input:disabled {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+}
+.hyphen {
+  font-size: 1.5rem;
+  color: #bdc3c7;
+  padding: 0 5px;
+}
+
+/* --- Botón Principal de Verificación --- */
+.btn-submit {
+  width: 100%;
+  padding: 15px;
+  background: linear-gradient(90deg, #2ecc71, #27ae60);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 50px;
+}
+.btn-submit:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow: 0 5px 15px rgba(39, 174, 96, 0.3);
+}
+.btn-submit:disabled {
+  background: #bdc3c7;
+  cursor: not-allowed;
+}
+
+/* --- Sección de Reenvío --- */
+.resend-section {
+  margin-top: 20px;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.timer {
+  font-size: 0.9rem;
+  color: #555;
+}
+.timer-text {
+  font-weight: 600;
+  color: #e74c3c;
+}
+.btn-resend {
+  background: none;
+  border: none;
+  color: #27ae60;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-resend:disabled {
+  color: #95a5a6;
+  cursor: not-allowed;
+}
+.btn-resend:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+/* --- Footer --- */
+.form-footer {
+  margin-top: 25px;
+  font-size: 0.8rem;
+  color: #95a5a6;
+}
+.form-footer a {
+  color: #7f8c8d;
+  font-weight: 500;
+  text-decoration: none;
+}
+.form-footer a:hover {
+  text-decoration: underline;
+}
+
+/* --- Spinners --- */
+.spinner { /* Spinner grande */
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  animation: spin 1s ease-in-out infinite;
+}
+.spinner-small { /* Spinner pequeño para el botón de reenviar */
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(39, 174, 96, 0.3);
+  border-radius: 50%;
+  border-top-color: #27ae60;
+  animation: spin 1s ease-in-out infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* --- Diálogo de Confirmación --- */
+.confirmation-overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+}
+.confirmation-dialog {
+  background: white;
+  padding: 25px;
+  border-radius: 15px;
+  width: 90%;
+  max-width: 380px;
+  text-align: center;
+  box-shadow: 0 5px 25px rgba(0, 0, 0, 0.15);
+  animation: slide-up-fade-in 0.4s ease-out;
+}
+.confirmation-dialog h4 {
+  margin: 0 0 10px 0;
+  font-size: 1.2rem;
+  color: #2c3e50;
+}
+.confirmation-dialog p {
+  color: #555;
+  margin-bottom: 20px;
+}
+.dialog-actions {
+  display: flex;
+  gap: 10px;
+}
+.btn-dialog-secondary, .btn-dialog-primary {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-dialog-secondary {
+  background: #ecf0f1;
+  color: #34495e;
+}
+.btn-dialog-secondary:hover {
+  background: #dfe6e9;
+}
+.btn-dialog-primary {
+  background: #e74c3c;
+  color: white;
+}
+.btn-dialog-primary:hover {
+  background: #c0392b;
+}

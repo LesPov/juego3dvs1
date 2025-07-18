@@ -1,0 +1,66 @@
+<!-- departamentos.component.html -->
+<div class="container_zona">
+  <p>
+    <i class='bx bx-chevron-left' (click)="goBack()" role="button" aria-label="Volver"></i>
+    Departamentos
+    <i class='bx bx-filter' (click)="openFilterModal()" role="button" aria-label="Buscar departamento"></i>
+  </p>
+  
+  <!-- Contenedor del carrusel Swiper (ESTRUCTURA NUEVA) -->
+  <div class="departamentos-carousel-container" role="region" aria-label="Carrusel de Departamentos">
+    <!-- El contenedor principal de Swiper con su referencia de template -->
+    <div class="swiper-container" #departamentosSwiperContainer>
+      <!-- El wrapper que contiene todos los slides -->
+      <div class="swiper-wrapper">
+        <!-- Cada slide se genera con el *ngFor -->
+        <div class="swiper-slide" *ngFor="let ciudad of ciudadesUnicas; let i = index" role="group" [attr.aria-label]="'Departamento ' + ciudad.departamentoName" [id]="'dpto-slide-' + i">
+          
+          <!-- TU DISEÑO DE CARD ORIGINAL (NO SE TOCA) -->
+          <div class="card one">
+            <div class="wrapper">
+              <img class="cover_image" [src]="ciudad.cityImage" [alt]="'Paisaje de ' + ciudad.departamentoName" loading="lazy">
+              <h3 class="title" (click)="navigateToZone(ciudad)">
+                {{ ciudad.departamentoName }}
+                <i class="bx bxs-hand-right bx-flashing bx-flip-horizontal icon-click"></i>
+              </h3>
+            </div>
+            <span *ngIf="ciudad.characterImage !== ''" class="best-campiamigo">CampiAmigo Destacado</span>
+            <img *ngIf="ciudad.characterImage !== ''" class="character" [src]="ciudad.characterImage" [alt]="'Personaje de ' + ciudad.departamentoName" loading="lazy">
+            <span *ngIf="ciudad.characterImage !== ''" class="best">de</span>
+            <div *ngIf="proximamenteDepartamentosNormalized.includes(normalizeName(ciudad.departamentoName))" class="overlay">
+              <span class="overlay-text">Próximamente</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Botones de Navegación de Swiper -->
+    <button type="button" class="swiper-button-prev departamentos-swiper-button-prev" aria-label="Departamento anterior"></button>
+    <button type="button" class="swiper-button-next departamentos-swiper-button-next" aria-label="Siguiente departamento"></button>
+
+    <!-- Paginación Custom con Puntos -->
+    <div class="custom-pagination" role="tablist" aria-label="Seleccionar Departamento">
+      <span *ngFor="let ciudad of ciudadesUnicas; let idx = index" class="dot" role="tab"
+        [attr.aria-selected]="idx === currentSlideIndex"
+        [attr.aria-controls]="'dpto-slide-' + idx"
+        [class.active]="idx === currentSlideIndex"
+        (click)="goToSlide(idx)"
+        tabindex="0"
+        [attr.aria-label]="'Ir al departamento ' + (idx + 1)"></span>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para búsqueda (NO SE TOCA) -->
+<div class="modal-backdrop" *ngIf="filterModalOpen">
+  <div class="modal-content">
+    <h2>Buscar Departamento</h2>
+    <input type="text" placeholder="Ingrese el nombre" [(ngModel)]="filterQuery" (keyup.enter)="searchDepartment()">
+    <div class="modal-buttons">
+      <button (click)="searchDepartment()">Buscar</button>
+      <button (click)="closeFilterModal()">Cancelar</button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,16 @@
+/* src/app/features/admin/components/scene/scene.component.css */
+
+:host {
+    display: block;
+    /* Ocupa todo el espacio que su contenedor padre (.viewport) le da */
+    width: 100%;
+    height: 100%;
+}
+
+/* El canvas debe llenar el componente host */
+.scene-container,
+canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}

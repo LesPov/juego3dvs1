@@ -1,0 +1,42 @@
+<div class="form update-minimal-profile-container">
+    <div class="title">
+      <h3>Registro de Campiamigo</h3>
+      <h6>Ingresa tus datos para registrarte como Campiamigo</h6>
+    </div>
+    <form (ngSubmit)="updateMinimalProfile()">
+      <div class="group">
+        <label class="lbl" for="identificationType">Tipo de Identificación</label>
+        <select id="identificationType" [(ngModel)]="minimalProfileData.identificationType"
+          name="identificationType" class="input" (ngModelChange)="setModified()" required>
+          <option value="">Seleccione</option>
+          <option *ngFor="let type of identificationTypes" [value]="type">
+            {{ type }}
+          </option>
+        </select>
+      </div>
+      <div class="group">
+        <label class="lbl" for="identificationNumber">Número de Identificación</label>
+        <input id="identificationNumber" type="text" [(ngModel)]="minimalProfileData.identificationNumber"
+          name="identificationNumber" class="input" placeholder="Ingrese su número"
+          (ngModelChange)="setModified()" required>
+      </div>
+      <div class="group">
+        <label class="lbl" for="direccion">Dirección</label>
+        <textarea id="direccion" [(ngModel)]="minimalProfileData.direccion" name="direccion" class="input" disabled required
+          placeholder="Ingrese su dirección" (ngModelChange)="setModified()"></textarea>
+      </div>
+      <div class="group checkbox-wrapper">
+        <!-- Contenedor de checkbox y texto -->
+        <label for="campiamigo">
+          <input type="checkbox" id="campiamigo" [(ngModel)]="minimalProfileData.campiamigo"
+            name="campiamigo" (ngModelChange)="setModified()">
+          <span class="checkbox"></span>
+        </label>
+        <span class="checkbox-text">Campiamigo</span>
+      </div>
+      <button type="submit" class="btn" [disabled]="!isModified || !minimalProfileData.campiamigo">
+        Actualizar Datos
+      </button>
+    </form>
+  </div>
+  

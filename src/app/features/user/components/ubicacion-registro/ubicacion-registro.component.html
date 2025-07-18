@@ -1,0 +1,28 @@
+<div class="ubicacion-wrapper">
+  <div class="map-container">
+    <!-- Input oculto para mostrar la dirección completa -->
+    <div class="ubicacion-input">
+      <input
+        type="text"
+        [value]="direccionSeleccionada"
+        readonly
+        [class.loading]="isLoading"
+        placeholder="Selecciona un punto en el mapa">
+    </div>
+
+    <!-- Botón para volver a la ubicación del dispositivo -->
+    <button
+      class="btn-ubicacion-actual"
+      (click)="centrarEnMiUbicacion()"
+      [disabled]="!deviceLocation">
+      <i class="bx bx-target-lock bx-tada"></i>
+    </button>
+
+    <!-- Contenedor donde Leaflet renderiza el mapa -->
+    <div id="map"></div>
+  </div>
+
+  <button class="btn-continuar" (click)="handleContinue()">
+    Continuar
+  </button>
+</div>

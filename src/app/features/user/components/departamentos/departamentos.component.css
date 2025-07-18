@@ -1,0 +1,416 @@
+/* departamentos.component.css */
+
+/* 1. Importaciones de Swiper (AÑADIDO) */
+@import 'swiper/css';
+@import 'swiper/css/navigation';
+@import 'swiper/css/pagination';
+@import 'swiper/css/autoplay';
+
+/* 2. Contenedor general (CONSERVADO) */
+.container_zona {
+  height: 82vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+}
+
+.container_zona p {
+  font-size: 30px;
+  font-weight: bold;
+  width: 100%;
+  padding: 8px 20px;
+  position: fixed;
+  margin-top: 0;
+  background: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #232949;
+  z-index: 1000;
+}
+
+.container_zona p .bx {
+  width: 30px;
+  height: 30px;
+  color: #232949;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  font-size: 35px;
+}
+
+/* --- ESTILOS ANTIGUOS DEL CARRUSEL (ELIMINADOS) --- */
+/* .carousel-container, .carousel-slides, .slide, .carousel-button { ... } */
+
+
+/* 3. Estilos de la card (CONSERVADOS - NO SE TOCAN) */
+.card {
+  height: 60vh;
+  aspect-ratio: 12 / 22;
+  max-width: 100%;
+  max-height: 500px;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  padding: 0 2rem;
+  box-sizing: border-box;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ... resto de estilos de .card, .wrapper, .title, .character, etc. ... */
+/* Se mantienen exactamente como los tenías, ya que el diseño de la card no cambia */
+.cover_image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 20px
+}
+
+.wrapper {
+  transition: all .5s;
+  position: absolute;
+  width: 110%;
+  height: 100%;
+  z-index: 0;
+  border-radius: 20px;
+  -webkit-tap-highlight-color: transparent;
+  pointer-events: none;
+  display: flex;
+  justify-content: center;
+  align-items: center
+}
+
+.title {
+  display: flex;
+  flex-direction: column;
+  position: absolute;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  color: #fff;
+  bottom: 410px;
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 10;
+  text-align: center;
+  text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000;
+  transition: transform .5s, font-size .5s;
+  white-space: normal;
+  line-height: 1.2
+}
+
+.title.proximamente {
+  color: #000;
+  text-shadow: -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff, 2px 2px 0 #fff;
+  font-size: 30px
+}
+
+.card:hover .title {
+  transform: translateY(400px);
+  font-size: 40px
+}
+
+.character {
+  width: 90%;
+  opacity: 0;
+  position: absolute;
+  z-index: -1;
+  transition: all .5s;
+  cursor: none
+}
+
+.card:hover .wrapper {
+  transform: perspective(900px) translateY(-5%) rotateX(25deg) translateZ(0);
+  box-shadow: 0 35px 32px -8px rgba(0, 0, 0, .75)
+}
+
+.card:hover .wrapper::before,
+.card:hover .wrapper::after {
+  opacity: 1
+}
+
+.card:hover .wrapper::after {
+  height: 120px
+}
+
+.one:hover .character {
+  opacity: 1;
+  cursor: pointer;
+  z-index: 1;
+  transform: translate3d(0%, -95%, -100px) scale(1.1)
+}
+
+.icon-click {
+  position: absolute;
+  bottom: -134px;
+  left: 225px;
+  display: none;
+  font-size: 35px;
+  color: #fff;
+  z-index: 100;
+  transition: transform 8s ease-in-out
+}
+
+.card:hover .icon-click {
+  transform: translateY(-100px) rotateY(180deg) rotateZ(-50deg);
+  animation: pulse 1.5s infinite;
+  display: block
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1) translateY(-100px) rotateY(180deg) rotateZ(-50deg)
+  }
+
+  50% {
+    transform: scale(1.2) translateY(-100px) rotateY(180deg) rotateZ(-50deg)
+  }
+
+  100% {
+    transform: scale(1) translateY(-100px) rotateY(180deg) rotateZ(-50deg)
+  }
+}
+
+.best-campiamigo {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #ffcc00;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 10px;
+  font-size: 33px;
+  text-align: center;
+  opacity: 0;
+  transition: opacity .3s ease-in-out
+}
+
+.best {
+  position: absolute;
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #ffcc00;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 10px;
+  font-size: 33px;
+  text-align: center;
+  opacity: 0;
+  transition: opacity .3s ease-in-out
+}
+
+.best-campiamigo,
+.best {
+  text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000
+}
+
+.one:hover .best-campiamigo,
+.one:hover .best {
+  opacity: 1
+}
+
+.overlay {
+  position: absolute;
+  width: 110%;
+  height: 100%;
+  background: linear-gradient(180deg, rgb(0 255 195 / 45%) 0%, #000 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  border-radius: 20px;
+  transition: all .5s ease-out
+}
+
+.overlay-text {
+  color: #fff;
+  font-size: 28px;
+  font-weight: 700;
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, .8)
+}
+
+.card:hover .overlay {
+  transform: perspective(900px) translateY(-5%) rotateX(25deg) translateZ(0);
+  box-shadow: 0 35px 32px -8px rgba(0, 0, 0, .75)
+}
+
+
+/* 4. Estilos del Carrusel Swiper (AÑADIDO Y ADAPTADO) */
+.departamentos-carousel-container {
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 60px;
+  padding: 0 1rem 50px 1rem;
+  box-sizing: border-box;
+}
+
+.swiper-container {
+  width: 100%;
+  overflow: visible;
+  /* Importante para que los efectos 3D no se corten */
+  position: relative;
+  z-index: 1;
+}
+
+.swiper-slide {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.departamentos-swiper-button-prev,
+.departamentos-swiper-button-next {
+  width: 35px;
+  height: 35px;
+  top: 40%;
+  color: #232949;
+  background-color: #FFF;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px #232949;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  border: none;
+  z-index: 10;
+}
+
+.departamentos-swiper-button-prev:hover,
+.departamentos-swiper-button-next:hover {
+  background-color: #3e4a7c;
+  transform: scale(1.05);
+  color: #FFF;
+}
+
+.departamentos-swiper-button-prev::after,
+.departamentos-swiper-button-next::after {
+  font-size: 15px;
+  font-weight: bold;
+}
+
+.swiper-button-disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.custom-pagination {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  z-index: 10;
+}
+
+.custom-pagination .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #cccccc;
+  cursor: pointer;
+  transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+.custom-pagination .dot.active {
+  width: 25px;
+  background: #232949;
+  border-radius: 5px;
+}
+
+
+/* 5. Estilos para el Modal (CONSERVADO) */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, .5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300
+}
+
+.modal-content {
+  background: #fff;
+  padding: 20px 30px;
+  border-radius: 10px;
+  width: 300px;
+  text-align: center;
+  animation: modalIn .5s ease-out
+}
+
+@keyframes modalIn {
+  from {
+    transform: scale(.8);
+    opacity: 0
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1
+  }
+}
+
+.modal-content h2 {
+  margin-top: 0
+}
+
+.modal-content input[type=text] {
+  width: 100%;
+  padding: 10px;
+  margin-top: 15px;
+  border-radius: 5px;
+  border: 1px solid #ccc
+}
+
+.modal-buttons {
+  margin-top: 20px;
+  display: flex;
+  justify-content: space-around
+}
+
+.modal-buttons button {
+  padding: 8px 16px;
+  border: none;
+  background: #232949;
+  color: #fff;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background .3s
+}
+
+.modal-buttons button:hover {
+  background: #1a1f39
+}
+
+
+@media (max-width: 330px) {
+  .card {
+    /* En pantallas muy estrechas, reducimos un poco el padding para dar más espacio. */
+    height: 40vh;
+    aspect-ratio: 20 / 25;
+    max-width: 100%;
+    max-height: 400px;
+  }
+
+  /*
+    Ajustamos el efecto hover del personaje para que no se salga de la pantalla
+    cuando la tarjeta es más pequeña.
+  */
+  .one:hover .character {
+    transform: translate3d(0%, -55%, -0px) scale(1.05);
+  }
+
+  .two:hover .character {
+    transform: translate3d(0%, -140%, -0px) scale(1.2);
+  }
+}

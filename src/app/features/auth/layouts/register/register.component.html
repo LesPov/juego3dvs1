@@ -1,0 +1,84 @@
+<!-- CÓDIGO HTML COMPLETO Y MEJORADO -->
+
+<div class="auth-container">
+  <div class="form-wrapper">
+
+    <!-- Botón de regreso, más integrado y accesible -->
+    <button class="back-button" (click)="goBack()" aria-label="Volver atrás">
+      <i class='bx bx-arrow-back'></i>
+    </button>
+
+    <div class="title">
+      <h2>Crea tu Cuenta</h2>
+      <p>Ingresa tus datos para continuar</p>
+    </div>
+
+    <!-- Usamos la etiqueta <form> para una mejor semántica y manejo de envíos -->
+    <form (ngSubmit)="addUser()" #registerForm="ngForm" novalidate>
+      
+      <!-- Grupo de Input: Usuario -->
+      <div class="input-group">
+        <i class='bx bxs-user'></i>
+        <input 
+          type="text" 
+          id="username"
+          name="username" 
+          [(ngModel)]="user.username" 
+          placeholder="Nombre de usuario" 
+          required 
+          autocomplete="username">
+      </div>
+      
+      <!-- Grupo de Input: Email -->
+      <div class="input-group">
+        <i class='bx bxs-envelope'></i>
+        <input 
+          type="email" 
+          id="email"
+          name="email" 
+          [(ngModel)]="user.email" 
+          placeholder="Correo electrónico" 
+          required 
+          autocomplete="email">
+      </div>
+
+      <!-- Grupo de Input: Contraseña -->
+      <div class="input-group">
+        <i class='bx bxs-lock-alt'></i>
+        <input 
+          type="password" 
+          id="password"
+          name="password" 
+          [(ngModel)]="user.password" 
+          placeholder="Contraseña" 
+          required 
+          autocomplete="new-password">
+      </div>
+
+      <!-- Grupo de Input: Confirmar Contraseña -->
+      <div class="input-group">
+        <i class='bx bxs-lock-alt'></i>
+        <input 
+          type="password" 
+          id="confirmPassword"
+          name="confirmPassword" 
+          [(ngModel)]="confirmPassword" 
+          placeholder="Repite la contraseña" 
+          required 
+          autocomplete="new-password">
+      </div>
+      
+      <!-- Botón de Registro con estado de carga -->
+      <button type="submit" class="btn-submit" [disabled]="isLoading || !registerForm.form.valid">
+        <span *ngIf="!isLoading">Crear Cuenta</span>
+        <div *ngIf="isLoading" class="spinner"></div>
+      </button>
+
+    </form>
+
+    <div class="form-footer">
+      <p>¿Ya tienes una cuenta? <a routerLink="/auth/login">Inicia sesión</a></p>
+    </div>
+
+  </div>
+</div>

@@ -1,0 +1,77 @@
+<!-- src/app/features/admin/views/world-editor/transform-properties/transform-properties.component.html -->
+<div class="transform-container" [formGroup]="transformForm">
+  <!-- Posición -->
+  <div class="prop-group" formGroupName="position">
+    <div class="prop-row">
+      <label for="posX">Posición X</label>
+      <input id="posX" type="number" step="0.1" formControlName="x"><span class="unit">m</span>
+      <button class="lock-btn" title="Bloquear Posición X">🔓</button>
+      <button class="keyframe-btn" title="Añadir Keyframe"></button>
+    </div>
+    <div class="prop-row">
+      <label for="posY">Y</label>
+      <input id="posY" type="number" step="0.1" formControlName="y"><span class="unit">m</span>
+      <button class="lock-btn" title="Bloquear Posición Y">🔓</button>
+      <button class="keyframe-btn" title="Añadir Keyframe"></button>
+    </div>
+    <div class="prop-row">
+      <label for="posZ">Z</label>
+      <input id="posZ" type="number" step="0.1" formControlName="z"><span class="unit">m</span>
+      <button class="lock-btn" title="Bloquear Posición Z">🔓</button>
+      <button class="keyframe-btn" title="Añadir Keyframe"></button>
+    </div>
+  </div>
+
+  <!-- Rotación -->
+  <div class="prop-group" formGroupName="rotation">
+    <div class="prop-row">
+      <label for="rotX">Rotación X</label>
+      <input id="rotX" type="number" step="1" formControlName="x"><span class="unit">°</span>
+      <button class="lock-btn" title="Bloquear Rotación X">🔓</button>
+      <button class="keyframe-btn" title="Añadir Keyframe"></button>
+    </div>
+    <div class="prop-row">
+      <label for="rotY">Y</label>
+      <input id="rotY" type="number" step="1" formControlName="y"><span class="unit">°</span>
+      <button class="lock-btn" title="Bloquear Rotación Y">🔓</button>
+      <button class="keyframe-btn" title="Añadir Keyframe"></button>
+    </div>
+    <div class="prop-row">
+      <label for="rotZ">Z</label>
+      <input id="rotZ" type="number" step="1" formControlName="z"><span class="unit">°</span>
+      <button class="lock-btn" title="Bloquear Rotación Z">🔓</button>
+      <button class="keyframe-btn" title="Añadir Keyframe"></button>
+    </div>
+  </div>
+
+  <!-- Modo de Rotación -->
+  <div class="prop-row mode-selector">
+      <label for="rotMode">Modo</label>
+      <select id="rotMode">
+        <option *ngFor="let mode of rotationModes" [value]="mode">{{ mode }}</option>
+      </select>
+  </div>
+
+
+  <!-- Escala -->
+  <div class="prop-group" formGroupName="scale">
+    <div class="prop-row">
+      <label for="scaleX">Escala X</label>
+      <input id="scaleX" type="number" step="0.1" formControlName="x">
+      <button class="lock-btn" title="Bloquear Escala X">🔓</button>
+      <button class="keyframe-btn" title="Añadir Keyframe"></button>
+    </div>
+    <div class="prop-row">
+      <label for="scaleY">Y</label>
+      <input id="scaleY" type="number" step="0.1" formControlName="y">
+      <button class="lock-btn" title="Bloquear Escala Y">🔓</button>
+      <button class="keyframe-btn" title="Añadir Keyframe"></button>
+    </div>
+    <div class="prop-row">
+      <label for="scaleZ">Z</label>
+      <input id="scaleZ" type="number" step="0.1" formControlName="z">
+      <button class="lock-btn" title="Bloquear Escala Z">🔓</button>
+      <button class="keyframe-btn" title="Añadir Keyframe"></button>
+    </div>
+  </div>
+</div>

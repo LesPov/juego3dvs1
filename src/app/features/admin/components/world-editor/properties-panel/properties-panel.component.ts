@@ -1,0 +1,49 @@
+// src/app/features/admin/views/world-editor/properties-panel/properties-panel.component.ts
+import { Component, Input, Output, EventEmitter, OnChanges, SimpleChanges } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { TransformPropertiesComponent, TransformUpdate } from '../transform-properties/transform-properties.component';
+import { SceneObjectResponse } from '../../../services/admin.service';
+
+export interface NameUpdate {
+  type: 'property';
+  path: 'name';
+  value: string;
+}
+export type PropertyUpdate = TransformUpdate | NameUpdate;
+
+@Component({
+  selector: 'app-properties-panel',
+  standalone: true,
+  imports: [CommonModule, FormsModule, TransformPropertiesComponent],
+  templateUrl: './properties-panel.component.html',
+  styleUrls: ['./properties-panel.component.css']
+})
+export class PropertiesPanelComponent implements OnChanges {
+  @Input() selectedObject: SceneObjectResponse | null = null;
+  @Output() objectUpdate = new EventEmitter<PropertyUpdate>();
+  
+  editableObjectName: string = '';
+
+  constructor() {}
+
+  ngOnChanges(changes: SimpleChanges): void {
+      if (changes['selectedObject'] && this.selectedObject) {
+          this.editableObjectName = this.selectedObject.name;
+      }
+  }
+
+  onTransformChange(update: TransformUpdate): void {
+    this.objectUpdate.emit(update);
+  }
+
+  onNameChange(): void {
+    if (!this.selectedObject || this.selectedObject.name === this.editableObjectName) return;
+    
+    this.objectUpdate.emit({
+        type: 'property',
+        path: 'name',
+        value: this.editableObjectName
+    });
+  }
+}

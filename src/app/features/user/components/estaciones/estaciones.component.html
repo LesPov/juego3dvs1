@@ -1,0 +1,38 @@
+<!-- estaciones.component.html -->
+<!-- NO SE REQUIEREN CAMBIOS EN ESTE ARCHIVO -->
+<div class="container_zona">
+  <p>Nuestros Climas</p>
+  <div class="estaciones-carousel-container" role="region" aria-label="Carrusel de Estaciones Climáticas">
+    <div class="swiper-container" #estacionesSwiperContainer>
+      <div class="swiper-wrapper">
+        <div class="swiper-slide" *ngFor="let estacion of estaciones; let i = index" role="group"
+          [attr.aria-label]="'Estación de ' + estacion.tipo" [id]="'estacion-slide-' + i">
+
+          <div class="card" [ngClass]="estacion.claseCss">
+            <div class="wrapper">
+              <img class="cover_image" [src]="estacion.coverImage" [alt]="estacion.altCover" loading="lazy">
+              <i class='bx bxs-hand-right bx-flashing bx-flip-horizontal icon-click' aria-hidden="true"></i>
+            </div>
+            <img class="title" [src]="estacion.titleImage" [alt]="estacion.altTitle" loading="lazy">
+            <img class="character" [src]="estacion.characterImage" [alt]="estacion.altCharacter" loading="lazy"
+              (click)="seleccionarZona(estacion.tipo); $event.stopPropagation()">
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <button type="button" class="swiper-button-prev estaciones-swiper-button-prev"
+      aria-label="Estación anterior"></button>
+    <button type="button" class="swiper-button-next estaciones-swiper-button-next"
+      aria-label="Siguiente estación"></button>
+
+    <div class="custom-pagination" role="tablist" aria-label="Seleccionar Estación">
+      <span *ngFor="let estacion of estaciones; let idx = index" class="dot" role="tab"
+        [attr.aria-selected]="idx === currentSlideIndex" [attr.aria-controls]="'estacion-slide-' + idx"
+        [class.active]="idx === currentSlideIndex" (click)="goToSlide(idx)" tabindex="0"
+        [attr.aria-label]="'Ir a la estación ' + (idx + 1)"></span>
+    </div>
+
+  </div>
+</div>

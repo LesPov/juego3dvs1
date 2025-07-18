@@ -1,0 +1,120 @@
+<!-- Carga API -->
+<div *ngIf="isLoadingData" class="preloader-overlay">
+  <div class="preloader-content">
+    <h1>Obteniendo datos del episodio...</h1>
+  </div>
+</div>
+
+<!-- Carga escena -->
+<div *ngIf="!isLoadingData && isRenderingScene" class="preloader-overlay">
+  <div class="preloader-content">
+    <h1>Cargando Escena...</h1>
+    <div class="progress-bar-container">
+      <div class="progress-bar" [style.width.%]="loadingProgress"></div>
+    </div>
+    <p class="progress-text">{{ loadingProgress | number:'1.0-0' }}%</p>
+  </div>
+</div>
+
+<!-- Modal nuevo objeto -->
+<app-add-object-modal *ngIf="isAddObjectModalVisible"
+  (close)="closeAddObjectModal()"
+  (create)="createSceneObject($event)">
+</app-add-object-modal>
+
+<!-- Editor -->
+<div *ngIf="!isLoadingData && !errorMessage && episodeId" class="editor-layout"
+     [style.visibility]="isRenderingScene ? 'hidden' : 'visible'">
+
+  <header class="editor-header">
+    <span>Editor - {{ episodeTitle }}</span>
+  </header>
+
+  <main class="viewport">
+    <app-toolbar></app-toolbar>
+
+    <app-scene
+      [initialObjects]="sceneObjects"
+      (loadingProgress)="handleLoadingProgress($event)"
+      (loadingComplete)="handleLoadingComplete()">
+    </app-scene>
+    <app-brujula></app-brujula>
+  </main>
+
+  <!-- ✅ BARRA LATERAL MODIFICADA PARA MÓVIL -->
+  <!-- Usamos [class.visible-mobile] para mostrar/ocultar en móviles -->
+  <aside class="sidebar" [class.visible-mobile]="isMobileSidebarVisible">
+    <!-- Lista Objetos -->
+    <div class="panel scene-list-panel">
+      <div class="panel-header">Elementos en la Escena</div>
+      <div class="panel-content">
+        <ul class="scene-object-list">
+          <li *ngFor="let e of combinedEntities$ | async"
+              class="scene-object-item"
+              [class.selected]="e.uuid === selectedEntityUuid"
+              [class.placeholder-item]="e.uuid.startsWith('placeholder-')"
+              (click)="onEntitySelect(e)">
+            <span *ngIf="!e.uuid.startsWith('placeholder-')" class="object-icon">
+              {{ e.type === 'Camera' ? '📷' : e.type==='Light'?'💡':'📦' }}
+            </span>
+            {{ e.name }}
+          </li>
+          <li *ngIf="!(combinedEntities$ | async)?.length" class="empty-state">
+            La escena está vacía.
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Propiedades -->
+    <div class="properties-container">
+      <div class="properties-tabs">
+        <button class="tab-button" title="Render" [class.active]="activePropertiesTab==='render'" (click)="selectPropertiesTab('render')">📷</button>
+        <button class="tab-button" title="Output" [class.active]="activePropertiesTab==='output'" (click)="selectPropertiesTab('output')">🖨️</button>
+        <button class="tab-button" title="ViewLayer" [class.active]="activePropertiesTab==='view-layer'" (click)="selectPropertiesTab('view-layer')">🖼️</button>
+        <button class="tab-button" title="Scene" [class.active]="activePropertiesTab==='scene'" (click)="selectPropertiesTab('scene')">🏞️</button>
+        <button class="tab-button" title="World" [class.active]="activePropertiesTab==='world'" (click)="selectPropertiesTab('world')">🌍</button>
+        <ng-container *ngIf="selectedObject">
+          <div class="tabs-separator"></div>
+          <button class="tab-button" title="Object" [class.active]="activePropertiesTab==='object'" (click)="selectPropertiesTab('object')">🧊</button>
+          <button class="tab-button" title="Modifiers" [class.active]="activePropertiesTab==='modifiers'" (click)="selectPropertiesTab('modifiers')">🔧</button>
+          <button class="tab-button" title="Constraints" [class.active]="activePropertiesTab==='constraints'" (click)="selectPropertiesTab('constraints')">🔗</button>
+          <button class="tab-button" title="Data" [class.active]="activePropertiesTab==='data'" (click)="selectPropertiesTab('data')">🟢</button>
+          <button class="tab-button" title="Material" [class.active]="activePropertiesTab==='material'" (click)="selectPropertiesTab('material')">🌐</button>
+        </ng-container>
+      </div>
+      <div class="properties-content">
+        <ng-container [ngSwitch]="activePropertiesTab">
+          <ng-container *ngSwitchCase="'object'">
+            <app-properties-panel
+              [selectedObject]="selectedObject"
+              (objectUpdate)="handleObjectUpdate($event)">
+            </app-properties-panel>
+          </ng-container>
+          <div *ngSwitchCase="'render'" class="placeholder-panel">
+            <h2>Propiedades de Render</h2><p>(Próximamente)</p>
+          </div>
+          <ng-container *ngSwitchCase="'scene'">
+            <app-scene-settings-panel></app-scene-settings-panel>
+          </ng-container>
+          <div *ngSwitchDefault class="placeholder-panel">
+            <h2>{{ activePropertiesTab | titlecase }}</h2>
+            <p>Selecciona una pestaña para ver sus propiedades.</p>
+            <p>(Próximamente)</p>
+          </div>
+        </ng-container>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ✅ NUEVO BOTÓN FLOTANTE PARA MÓVIL -->
+  <button class="mobile-sidebar-toggle" (click)="toggleMobileSidebar()" title="Mostrar/Ocultar Paneles">
+    <!-- Icono de panel/menú -->
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+    </svg>
+  </button>
+  
+</div>
+
+<div *ngIf="errorMessage" class="error-state">{{ errorMessage }}</div>

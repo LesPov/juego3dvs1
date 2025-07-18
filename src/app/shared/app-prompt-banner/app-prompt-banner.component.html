@@ -1,0 +1,34 @@
+<!-- src/app/shared/components/app-prompt-banner/app-prompt-banner.component.html -->
+
+<div class="smart-banner__container" (click)="openAppOrStore()">
+  
+  <!-- Botón de cerrar -->
+  <button class="smart-banner__close-btn" (click)="closeBanner($event)" aria-label="Cerrar banner">
+    × <!-- Símbolo de multiplicación, más estándar para "cerrar" -->
+  </button>
+  
+  <!-- Contenido principal del banner -->
+  <div class="smart-banner__content">
+    
+    <!-- Ícono de la App (ahora más grande) -->
+    <div class="smart-banner__icon-wrapper">
+      <img src="assets/img/logobaner.png" alt="Logo de la App" class="smart-banner__icon-img">
+    </div>
+    
+    <!-- Información de texto -->
+    <div class="smart-banner__info">
+      <span class="smart-banner__app-name">{{ appName }}</span>
+      <span class="smart-banner__app-slogan">Disponible en la tienda</span>
+      <!-- Opcional: Añadir estrellas de calificación -->
+      <div class="smart-banner__rating">
+        <span>★★★★★</span>
+        <!-- <span class="smart-banner__rating-count">(+1k)</span> -->
+      </div>
+    </div>
+
+  </div>
+  
+  <!-- Botón de acción -->
+  <a class="smart-banner__view-btn" aria-label="Abrir en la aplicación">ABRIR</a>
+
+</div>

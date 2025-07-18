@@ -1,0 +1,66 @@
+<!-- CÓDIGO HTML COMPLETO Y MEJORADO -->
+
+<div class="login-container">
+  <div class="login-form-wrapper">
+
+    <!-- Botón de regreso, más integrado al diseño -->
+    <button class="back-button" routerLink="/inicio" aria-label="Volver a inicio">
+      <i class='bx bx-arrow-back'></i>
+    </button>
+
+    <div class="title">
+      <h2>¡Bienvenido!</h2>
+      <p>Inicia sesión para continuar</p>
+    </div>
+
+    <form (ngSubmit)="loginUser()" #loginForm="ngForm" novalidate>
+      
+      <!-- Grupo de Input con Icono -->
+      <div class="input-group">
+        <i class='bx bxs-user'></i>
+        <input 
+          type="text" 
+          id="username"
+          name="username" 
+          [(ngModel)]="user.username" 
+          placeholder="Nombre de usuario" 
+          required 
+          autocomplete="username">
+      </div>
+      
+      <!-- Grupo de Input con Icono -->
+      <div class="input-group">
+        <i class='bx bxs-lock-alt'></i>
+        <input 
+          type="password" 
+          id="password"
+          name="passwordorrandomPassword" 
+          [(ngModel)]="user.passwordorrandomPassword" 
+          placeholder="Contraseña" 
+          required 
+          autocomplete="current-password">
+      </div>
+
+      <!-- Opciones del formulario (Recordarme y Olvidé contraseña) -->
+      <div class="form-options">
+        <div class="remember-me">
+          <input type="checkbox" id="rememberMe" name="rememberMe" [(ngModel)]="rememberMe">
+          <label for="rememberMe">Recordarme</label>
+        </div>
+        <a routerLink="/auth/passwordrecovery" class="forgot-password">¿Olvidaste tu contraseña?</a>
+      </div>
+      
+      <!-- Botón de Login con estado de carga -->
+      <button type="submit" class="btn-login" [disabled]="isLoading">
+        <span *ngIf="!isLoading">Iniciar Sesión</span>
+        <div *ngIf="isLoading" class="spinner"></div>
+      </button>
+
+    </form>
+
+    <div class="form-footer">
+      <p>¿No tienes una cuenta? <a routerLink="/auth/register">Regístrate ahora</a></p>
+    </div>
+
+  </div>
+</div>

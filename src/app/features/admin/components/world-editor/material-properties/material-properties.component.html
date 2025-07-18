@@ -1,0 +1,25 @@
+<div class="section-title">MATERIAL</div>
+
+<div class="property-group">
+  <!-- Si el objeto es un modelo, mostramos la opción para "teñir" -->
+  <div *ngIf="selectedObject.type === 'model'" class="color-property">
+    <label for="overrideColor">Teñir Modelo</label>
+    <input type="color" 
+           id="overrideColor" 
+           [value]="getCurrentColor('overrideColor')"
+           (input)="onColorChange('overrideColor', $event)">
+  </div>
+  
+  <!-- Si es una primitiva (cubo, esfera, etc.), mostramos el color base -->
+  <div *ngIf="selectedObject.type === 'cube' || selectedObject.type === 'sphere'" class="color-property">
+    <label for="color">Color del Objeto</label>
+    <input type="color" 
+           id="color"
+           [value]="getCurrentColor('color')"
+           (input)="onColorChange('color', $event)">
+  </div>
+
+  <div *ngIf="selectedObject.type !== 'model' && selectedObject.type !== 'cube' && selectedObject.type !== 'sphere'">
+    <p class="empty-state">Este tipo de objeto no tiene propiedades de material editables.</p>
+  </div>
+</div>

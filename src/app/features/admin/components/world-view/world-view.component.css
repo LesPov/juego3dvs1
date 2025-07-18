@@ -1,0 +1,326 @@
+/* Estilos base (sin cambios) */
+:host {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  background: #1e1e1e;
+  color: #ccc;
+  font-family: Segoe UI;
+  overflow: hidden;
+}
+:host { 
+  display: block; 
+  width: 100vw; 
+  height: 100vh; 
+  background: #1e1e1e; 
+  color: #ccc; 
+  font-family: Segoe UI, sans-serif; 
+  overflow: hidden; 
+}
+
+/* --- ✅ ESTILOS DE PRELOADER MEJORADOS --- */
+
+.preloader-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(30, 30, 30, 0.95); /* Fondo oscuro semitransparente */
+  z-index: 9999;
+  display: flex; /* Usamos flexbox para centrar */
+  align-items: center; /* Centrado vertical */
+  justify-content: center; /* Centrado horizontal */
+  transition: opacity 0.5s ease;
+}
+
+.preloader-content {
+  text-align: center;
+  color: #e0e0e0;
+  width: 80%;
+  max-width: 400px; /* Ancho máximo para la barra */
+}
+
+.preloader-content h1 {
+  font-size: 1.5rem;
+  font-weight: 300;
+  margin-bottom: 20px;
+  letter-spacing: 1px;
+}
+
+.progress-bar-container {
+  width: 100%;
+  height: 12px;
+  background-color: #3a3a3a; /* Fondo de la barra */
+  border-radius: 6px; /* Bordes redondeados */
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.4);
+}
+
+.progress-bar {
+  height: 100%;
+  background-color: #5294e2; /* Color de la barra */
+  border-radius: 6px;
+  /* Transición suave para el ancho */
+  transition: width 0.2s ease-out; 
+}
+
+.progress-text {
+  margin-top: 15px;
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: #ffffff;
+}
+
+/* ---- ESTILOS DE EDITOR (sin cambios importantes) ---- */
+
+.editor-layout {
+  display: grid;
+  grid-template-areas:
+    "header header"
+    "viewport sidebar";
+  grid-template-columns: 1fr 380px;
+  grid-template-rows: 40px 1fr;
+  width:100%; height:100%;
+}
+
+.editor-header {
+  grid-area: header;
+  background: #2b2b2b;
+  border-bottom: 1px solid #202020;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  font-weight: bold;
+}
+
+.viewport {
+  grid-area: viewport;
+  position: relative;
+  overflow: hidden;
+}
+
+.sidebar {
+  grid-area: sidebar;
+  background: #2b2b2b;
+  border-left: 1px solid #202020;
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-sidebar-toggle {
+  display: none;
+}
+
+/* Oculto en escritorio */
+
+/* Resto de estilos de paneles, listas, etc. (sin cambios) */
+.scene-list-panel {
+  flex: 1 1 50%;
+  border: none;
+  border-bottom: 1px solid #202020;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-header {
+  background: #353535;
+  padding: 8px 12px;
+  border-bottom: 1px solid #202020;
+  font-weight: 500;
+}
+
+.panel-content {
+  background: #2b2b2b;
+  overflow-y: auto;
+  flex-grow: 1;
+}
+
+.scene-object-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.scene-object-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background .2s;
+  font-size: 13px;
+}
+
+.scene-object-item:hover {
+  background: #3f3f46
+}
+
+.scene-object-item.selected {
+  background: #5294e2;
+  color: #fff;
+  font-weight: 500;
+}
+
+.placeholder-item {
+  font-style: italic;
+  color: #666
+}
+
+.object-icon {
+  width: 20px;
+  text-align: center;
+}
+
+.properties-container {
+  flex: 1 1 50%;
+  display: flex;
+  min-height: 0;
+}
+
+.properties-tabs {
+  width: 40px;
+  background: #2b2b2b;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  border-right: 1px solid #202020;
+  padding: 5px 0;
+}
+
+.tab-button {
+  width: 100%;
+  background: none;
+  border: none;
+  color: #a0a0a0;
+  font-size: 20px;
+  padding: 6px 0;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: background .2s, color .2s;
+}
+
+.tab-button:hover {
+  background: #4a4a4a
+}
+
+.tab-button.active {
+  background: #353535;
+  color: #f5b300;
+  border-left-color: #f5b300
+}
+
+.tabs-separator {
+  width: 70%;
+  height: 1px;
+  background: #444;
+  margin: 5px 0
+}
+
+.properties-content {
+  flex-grow: 1;
+  background: #353535;
+  position: relative;
+  overflow-y: auto;
+}
+
+.properties-content>* {
+  width: 100%;
+  height: 100%;
+}
+
+.placeholder-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  padding: 20px;
+}
+
+.placeholder-panel h2 {
+  margin-bottom: 10px;
+  color: #ccc;
+}
+
+app-brujula {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  width: 120px;
+  height: 120px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* ---- ✅ ESTILOS PARA MÓVIL (PANTALLAS PEQUEÑAS) ---- */
+/* Usamos 768px como punto de quiebre, puedes ajustarlo */
+@media (max-width: 768px) {
+  .editor-layout {
+    /* En móvil, el viewport ocupa todo el espacio */
+    grid-template-areas:
+      "header"
+      "viewport";
+    grid-template-columns: 1fr;
+    /* Una sola columna */
+    grid-template-rows: 40px 1fr;
+  }
+
+  .sidebar {
+    /* Por defecto, la sidebar está fuera de la pantalla */
+    position: fixed;
+    top: 40px;
+    /* Debajo del header */
+    right: 0;
+    bottom: 0;
+    width: 80%;
+    /* Ocupa el 80% del ancho */
+    max-width: 320px;
+    /* Pero no más de 320px */
+    z-index: 1000;
+    transform: translateX(100%);
+    /* La movemos fuera */
+    transition: transform 0.3s ease-in-out;
+    border-left: none;
+    /* Quitamos el borde que tenía en desktop */
+  }
+
+  .sidebar.visible-mobile {
+    /* Cuando tiene la clase, se desliza hacia adentro */
+    transform: translateX(0);
+    box-shadow: -5px 0 15px rgba(0, 0, 0, 0.5);
+    /* Le damos una sombra */
+  }
+
+  .mobile-sidebar-toggle {
+    /* Mostramos el botón flotante */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 50px;
+    height: 50px;
+    background-color: #5294e2;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    z-index: 1001;
+    /* Por encima de la sidebar */
+    transition: background-color 0.2s;
+  }
+
+  .mobile-sidebar-toggle:hover {
+    background-color: #4177b8;
+  }
+
+  .mobile-sidebar-toggle svg {
+    width: 28px;
+    height: 28px;
+  }
+}
