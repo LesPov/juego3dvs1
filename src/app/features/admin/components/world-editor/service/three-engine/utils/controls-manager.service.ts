@@ -12,7 +12,7 @@ import { ToolMode } from '../../../toolbar/toolbar.component';
 })
 export class ControlsManagerService implements OnDestroy {
   private orbitControls!: OrbitControls;
-  private transformControls!: TransformControls & THREE.Object3D;
+  private transformControls!: TransformControls;
   private camera!: THREE.PerspectiveCamera;
   private domElement!: HTMLElement;
   private focusPivot!: THREE.Object3D;
@@ -40,7 +40,7 @@ export class ControlsManagerService implements OnDestroy {
     this.isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
     this.createOrbitControls(camera, domElement);
-    this.createTransformControls(camera, domElement, scene);
+    this.createTransformControls(camera, domElement);
     this.addEventListeners();
     this.orbitControls.target.copy(this.focusPivot.position);
     this.orbitControls.update();
@@ -54,39 +54,32 @@ export class ControlsManagerService implements OnDestroy {
     
     if (this.isTouchDevice) {
       console.log("[ControlsManager] Dispositivo táctil detectado. Habilitando controles táctiles.");
-      this.orbitControls.enableZoom = true; // Habilita el "dolly" con el gesto de pellizco
+      this.orbitControls.enableZoom = true;
       this.orbitControls.zoomSpeed = 0.7;
-      // En touch, un dedo rota, dos dedos hacen pan y pellizco.
-      this.orbitControls.touches = {
-        ONE: THREE.TOUCH.ROTATE,
-        TWO: THREE.TOUCH.DOLLY_PAN
-      };
+      this.orbitControls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
     } else {
       console.log("[ControlsManager] Dispositivo de escritorio detectado.");
-      this.orbitControls.enableZoom = false; // El zoom se maneja con la rueda del ratón (dolly)
-      this.orbitControls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.PAN };
+      this.orbitControls.enableZoom = false;
+      this.orbitControls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
     }
   }
 
-  private createTransformControls(camera: THREE.PerspectiveCamera, domElement: HTMLElement, scene: THREE.Scene): void {
-    this.transformControls = new TransformControls(camera, domElement) as TransformControls & THREE.Object3D;
+  private createTransformControls(camera: THREE.PerspectiveCamera, domElement: HTMLElement): void {
+    this.transformControls = new TransformControls(camera, domElement);
     this.transformControls.addEventListener('dragging-changed', (event) => {
       this.orbitControls.enabled = !event.value;
-      if (!this.isTouchDevice) {
-        this.isFlyEnabled = !event.value;
-      }
+      if (!this.isTouchDevice) { this.isFlyEnabled = !event.value; }
     });
-    this.transformControls.addEventListener('mouseUp', () => this.transformEndSubject.next());
-    this.transformControls.visible = false;
+    this.transformControls.addEventListener('objectChange', () => this.transformEndSubject.next());
+    
+    // ✅ CORRECCIÓN: Eliminamos el acceso a .visible. La visibilidad se controla con attach/detach.
+    // this.transformControls.visible = false; 
     this.transformControls.enabled = false;
-    scene.add(this.transformControls);
   }
   
   public enableNavigation(): void { 
     this.isOrbitEnabled = true; 
-    if (!this.isTouchDevice) {
-      this.isFlyEnabled = true;
-    }
+    if (!this.isTouchDevice) { this.isFlyEnabled = true; }
     this.orbitControls.enabled = true; 
   }
 
@@ -99,12 +92,8 @@ export class ControlsManagerService implements OnDestroy {
 
   public update = (delta: number, keyMap: Map<string, boolean>): boolean => { 
     let moved = false; 
-    if (this.isFlyEnabled) { 
-      moved = this.handleKeyboardFly(delta, keyMap); 
-    } 
-    if (this.isOrbitEnabled) { 
-      this.orbitControls.update(); 
-    } 
+    if (this.isFlyEnabled) { moved = this.handleKeyboardFly(delta, keyMap); } 
+    if (this.isOrbitEnabled) { this.orbitControls.update(); } 
     return moved; 
   };
   
@@ -113,15 +102,31 @@ export class ControlsManagerService implements OnDestroy {
   };
   
   private addEventListeners = () => { 
-    if (!this.isTouchDevice) {
-      this.domElement.addEventListener('wheel', this.onDocumentMouseWheel, { passive: false }); 
-    }
+    if (!this.isTouchDevice) { this.domElement.addEventListener('wheel', this.onDocumentMouseWheel, { passive: false }); }
     this.orbitControls.addEventListener('change', this.syncPivotToControlsTarget); 
   };
 
-  public attach = (object: THREE.Object3D) => { this.transformControls.attach(object); this.setTransformMode(this.currentToolMode); };
-  public detach = () => { this.transformControls.detach(); };
-  public setTransformMode = (mode: ToolMode) => { this.currentToolMode = mode; const hasObject = !!this.transformControls.object; const isGizmoActive = hasObject && (mode === 'translate' || mode === 'rotate' || mode === 'scale'); this.transformControls.enabled = isGizmoActive; this.transformControls.visible = isGizmoActive; if (isGizmoActive) { this.transformControls.setMode(mode as 'translate' | 'rotate' | 'scale'); } };
+  public attach = (object: THREE.Object3D) => { 
+    this.transformControls.attach(object); 
+    this.transformControls.enabled = true;
+    // ✅ CORRECCIÓN: La propiedad visible no existe, se elimina la línea.
+    // this.transformControls.visible = true;
+  };
+
+  public detach = () => { 
+    this.transformControls.detach(); 
+    this.transformControls.enabled = false;
+    // ✅ CORRECCIÓN: La propiedad visible no existe, se elimina la línea.
+    // this.transformControls.visible = false;
+  };
+
+  public setTransformMode = (mode: ToolMode): void => {
+    this.currentToolMode = mode;
+    if (mode === 'rotate' || mode === 'scale') {
+      this.transformControls.setMode(mode);
+    }
+  };
+
   public getCurrentToolMode = (): ToolMode => this.currentToolMode;
   public getControls = (): OrbitControls => this.orbitControls;
   public getGizmoObject = (): THREE.Object3D | undefined => this.transformControls.object;
@@ -129,24 +134,14 @@ export class ControlsManagerService implements OnDestroy {
   private syncPivotToControlsTarget = (): void => { if (this.focusPivot) { this.focusPivot.position.copy(this.orbitControls.target); } };
   
   private onDocumentMouseWheel = (event: WheelEvent) => { 
-    if (this.isOrbitEnabled) { 
-      event.preventDefault(); 
-      this.dolly((event.deltaY < 0 ? 1 : -1) * this.DOLLY_SPEED); 
-    } 
+    if (this.isOrbitEnabled) { event.preventDefault(); this.dolly((event.deltaY < 0 ? 1 : -1) * this.DOLLY_SPEED); } 
   };
   
   private dolly = (dollyDelta: number) => { const offset = new THREE.Vector3().copy(this.camera.position).sub(this.orbitControls.target); const dist = Math.max(0.1, offset.length() * (1 - dollyDelta)); offset.setLength(dist); this.camera.position.copy(this.orbitControls.target).add(offset); };
   
   public ngOnDestroy = () => { 
-    if (this.domElement && !this.isTouchDevice) { 
-      this.domElement.removeEventListener('wheel', this.onDocumentMouseWheel); 
-    } 
-    if (this.orbitControls) { 
-      this.orbitControls.removeEventListener('change', this.syncPivotToControlsTarget); 
-      this.orbitControls.dispose(); 
-    } 
-    if(this.transformControls) { 
-      this.transformControls.dispose(); 
-    } 
+    if (this.domElement && !this.isTouchDevice) { this.domElement.removeEventListener('wheel', this.onDocumentMouseWheel); } 
+    if (this.orbitControls) { this.orbitControls.removeEventListener('change', this.syncPivotToControlsTarget); this.orbitControls.dispose(); } 
+    if(this.transformControls) { this.transformControls.dispose(); } 
   };
 }

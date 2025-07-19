@@ -4,7 +4,10 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { EngineService } from '../service/three-engine/engine.service';
 
-export type ToolMode = 'select' | 'helper' | 'translate' | 'rotate' | 'scale';
+// ✅ CAMBIO: Hemos añadido 'move' y eliminado 'translate' para mayor claridad.
+// 'move' usará el helper interactivo.
+// 'helper' queda reservado para una futura visualización de ejes no interactiva.
+export type ToolMode = 'select' | 'move' | 'rotate' | 'scale' | 'helper';
 
 @Component({
   selector: 'app-toolbar',
@@ -20,14 +23,12 @@ export class ToolbarComponent {
   constructor(private engineService: EngineService) { }
 
   setTool(tool: ToolMode): void {
-    // Lógica para deseleccionar si se pulsa la misma herramienta
     if (this.activeTool === tool) {
-      this.activeTool = 'select'; // Vuelve al modo de selección por defecto
+      this.activeTool = 'select';
     } else {
       this.activeTool = tool;
     }
-
-    // Informa al EngineService del cambio de herramienta
+    
     this.engineService.setToolMode(this.activeTool);
     
     console.log(`[Toolbar] Herramienta cambiada a: ${this.activeTool}`);
