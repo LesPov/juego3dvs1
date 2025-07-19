@@ -9,8 +9,7 @@ import { EngineService } from '../service/three-engine/engine.service';
 
 @Component({
   selector: 'app-brujula',
-  standalone: true,
-  imports: [CommonModule],
+   imports: [CommonModule],
   templateUrl: './brujula.component.html',
   styleUrls: ['./brujula.component.css']
 })

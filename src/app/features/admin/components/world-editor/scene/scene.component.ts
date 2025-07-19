@@ -1,7 +1,7 @@
 import { AfterViewInit, Component, ElementRef, Input, Output, EventEmitter, OnDestroy, ViewChild } from '@angular/core';
-import { EngineService } from '../service/three-engine/engine.service';
-import { SceneObjectResponse } from '../../../services/admin.service';
+ import { SceneObjectResponse } from '../../../services/admin.service';
 import { CommonModule } from '@angular/common';
+import { EngineService } from '../service/three-engine/engine.service';
 
 
 @Component({

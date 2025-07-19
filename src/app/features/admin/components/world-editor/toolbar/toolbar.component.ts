@@ -17,7 +17,7 @@ export type ToolMode = 'select' | 'move' | 'rotate' | 'scale' | 'helper';
   styleUrls: ['./toolbar.component.css']
 })
 export class ToolbarComponent {
-  
+
   activeTool: ToolMode = 'select';
 
   constructor(private engineService: EngineService) { }
@@ -28,9 +28,9 @@ export class ToolbarComponent {
     } else {
       this.activeTool = tool;
     }
-    
+
     this.engineService.setToolMode(this.activeTool);
-    
+
     console.log(`[Toolbar] Herramienta cambiada a: ${this.activeTool}`);
   }
 }

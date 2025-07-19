@@ -3,7 +3,6 @@
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 
-// ¡NUEVO! Definimos un tipo de retorno para ser más claros.
 export interface CameraWithHelper {
   camera: THREE.PerspectiveCamera;
   helper: THREE.CameraHelper;
@@ -21,7 +20,7 @@ export class CameraManagerService {
     fieldOfView: number,
     nearClipping: number,
     farClipping: number
-  ): CameraWithHelper { // <-- Retornamos el objeto CameraWithHelper
+  ): CameraWithHelper {
     const camera = new THREE.PerspectiveCamera(
       fieldOfView,
       aspectRatio,
@@ -29,12 +28,8 @@ export class CameraManagerService {
       farClipping
     );
     camera.position.set(0, 5, 10);
-
     const cameraHelper = new THREE.CameraHelper(camera);
-    cameraHelper.visible = false; 
-
-    // Ya no adjuntamos el helper a la cámara.
-    // Los mantenemos separados para un mejor control en la escena.
+    cameraHelper.visible = false;
     return { camera, helper: cameraHelper };
   }
 }

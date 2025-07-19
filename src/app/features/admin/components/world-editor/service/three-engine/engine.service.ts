@@ -29,18 +29,23 @@ export class EngineService implements OnDestroy {
   private onTransformEndSubject = new Subject<void>();
   public onTransformEnd$ = this.onTransformEndSubject.asObservable();
 
-  // Propiedades del helper de pivote interactivo
-  private isDraggingPivot = false;
+  // --- Propiedades para el arrastre de objetos ---
+  private isDraggingObject = false;
   private raycaster = new THREE.Raycaster();
   private dragPlane = new THREE.Plane();
-  private dragOffset = new THREE.Vector3();
   private intersectionPoint = new THREE.Vector3();
   private originalMaterials = new Map<string, THREE.Material | THREE.Material[]>();
+
+  // 🧠 LÓGICA DE PROYECCIÓN 🧠
+  // Vector para almacenar el offset en el espacio de la pantalla (2D)
+  private screenSpaceOffset = new THREE.Vector2();
+
+  // --- Propiedades del helper visual ---
   private centerPivotHelper?: THREE.Group;
-  private pivotSphere?: THREE.Mesh;
   private axesHelper?: THREE.AxesHelper;
   private controlsSubscription?: Subscription;
   private readonly HELPER_SCREEN_SCALE_FACTOR = 0.1;
+  private hitboxVisualizer?: THREE.Mesh;
 
   // =================================================================
   // --- SECCIÓN: Ciclo de Vida e Inicialización ---
@@ -57,7 +62,6 @@ export class EngineService implements OnDestroy {
   public init(canvasRef: ElementRef<HTMLCanvasElement>, objects: SceneObjectResponse[], onProgress: (p: number) => void, onLoaded: () => void): void {
     const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     if (isTouchDevice) {
-      console.log("[EngineService] Dispositivo táctil detectado. Optimizando pixel ratio para rendimiento.");
       this.sceneManager.renderer?.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     }
 
@@ -96,7 +100,7 @@ export class EngineService implements OnDestroy {
     if (this.selectedObject) {
       switch (mode) {
         case 'move':
-          this.createInteractiveHelper(this.selectedObject);
+          this.createVisualHelper(this.selectedObject);
           break;
         case 'rotate':
         case 'scale':
@@ -119,7 +123,7 @@ export class EngineService implements OnDestroy {
     if (this.selectedObject) {
       switch (currentTool) {
         case 'move':
-          this.createInteractiveHelper(this.selectedObject);
+          this.createVisualHelper(this.selectedObject);
           break;
         case 'rotate':
         case 'scale':
@@ -131,95 +135,167 @@ export class EngineService implements OnDestroy {
   }
 
   // =================================================================
-  // --- SECCIÓN: Lógica del Helper Interactivo (Herramienta Mover) ---
+  // --- SECCIÓN: Lógica del Helper Visual y Arrastre (Herramienta Mover) ---
   // =================================================================
 
-  private createInteractiveHelper(object: THREE.Object3D): void {
+  private createVisualHelper(object: THREE.Object3D): void {
     if (this.centerPivotHelper) this.cleanupInteractiveHelper();
+
     const box = new THREE.Box3().setFromObject(object);
     const center = new THREE.Vector3();
     box.getCenter(center);
     const baseSize = 1;
+
     this.centerPivotHelper = new THREE.Group();
     this.centerPivotHelper.position.copy(center);
     this.sceneManager.scene.add(this.centerPivotHelper);
+    
+    this.centerPivotHelper.raycast = () => {};
+
     this.axesHelper = new THREE.AxesHelper(baseSize * 1.5);
     (this.axesHelper.material as THREE.Material).depthTest = false;
     this.centerPivotHelper.add(this.axesHelper);
+
     const visibleSphereGeo = new THREE.SphereGeometry(baseSize * 0.1, 16, 16);
-    const visibleSphereMat = new THREE.MeshBasicMaterial({ color: 0xffff00, depthTest: false });
+    const visibleSphereMat = new THREE.MeshBasicMaterial({ color: 0xffff00, depthTest :false });
     const visibleSphere = new THREE.Mesh(visibleSphereGeo, visibleSphereMat);
     this.centerPivotHelper.add(visibleSphere);
-    const hitboxGeo = new THREE.SphereGeometry(baseSize, 8, 8);
-    const hitboxMat = new THREE.MeshBasicMaterial({ visible: false, depthTest: false });
-    this.pivotSphere = new THREE.Mesh(hitboxGeo, hitboxMat);
-    this.centerPivotHelper.add(this.pivotSphere);
+
     this.updateHelperScale();
-    this.sceneManager.renderer.domElement.addEventListener('pointerdown', this.onPivotPointerDown);
-    this.sceneManager.renderer.domElement.addEventListener('pointermove', this.onPivotPointerMove);
-    this.sceneManager.renderer.domElement.addEventListener('pointerup', this.onPivotPointerUp);
+
+    this.sceneManager.renderer.domElement.addEventListener('pointerdown', this.onObjectDragStart);
+    this.sceneManager.renderer.domElement.addEventListener('pointermove', this.onObjectDragMove);
+    this.sceneManager.renderer.domElement.addEventListener('pointerup', this.onObjectDragEnd);
   }
 
   private cleanupInteractiveHelper(): void {
-    if (this.isDraggingPivot) {
-      this.onPivotPointerUp();
-    }
-    this.sceneManager.renderer.domElement.removeEventListener('pointerdown', this.onPivotPointerDown);
-    this.sceneManager.renderer.domElement.removeEventListener('pointermove', this.onPivotPointerMove);
-    this.sceneManager.renderer.domElement.removeEventListener('pointerup', this.onPivotPointerUp);
-    if (this.selectedObject && this.selectedObject.parent !== this.sceneManager.scene) { this.sceneManager.scene.attach(this.selectedObject); }
+    if (this.isDraggingObject) { this.onObjectDragEnd(); }
+    
+    this.sceneManager.renderer.domElement.removeEventListener('pointerdown', this.onObjectDragStart);
+    this.sceneManager.renderer.domElement.removeEventListener('pointermove', this.onObjectDragMove);
+    this.sceneManager.renderer.domElement.removeEventListener('pointerup', this.onObjectDragEnd);
+
     if (this.selectedObject) { this.restoreObjectMaterial(this.selectedObject); }
+    
+    if (this.hitboxVisualizer) {
+        this.hitboxVisualizer.geometry.dispose();
+        (this.hitboxVisualizer.material as THREE.Material).dispose();
+        this.sceneManager.scene.remove(this.hitboxVisualizer);
+        this.hitboxVisualizer = undefined;
+    }
+
     if (this.centerPivotHelper) {
       this.centerPivotHelper.traverse(child => { if (child instanceof THREE.Mesh) { child.geometry.dispose(); (child.material as THREE.Material).dispose(); } });
       this.sceneManager.scene.remove(this.centerPivotHelper);
       this.axesHelper?.dispose();
       this.centerPivotHelper = undefined;
       this.axesHelper = undefined;
-      this.pivotSphere = undefined;
     }
     this.controlsManager.enableNavigation();
     this.requestRender();
   }
 
-  private onPivotPointerDown = (event: PointerEvent): void => {
-    if (event.button !== 0) return;
+  private onObjectDragStart = (event: PointerEvent): void => {
+    if (event.button !== 1 || !this.selectedObject) return;
+    
     const pointer = new THREE.Vector2();
     pointer.x = (event.clientX / this.sceneManager.renderer.domElement.clientWidth) * 2 - 1;
     pointer.y = - (event.clientY / this.sceneManager.renderer.domElement.clientHeight) * 2 + 1;
     this.raycaster.setFromCamera(pointer, this.sceneManager.editorCamera);
-    const intersects = this.raycaster.intersectObject(this.pivotSphere!);
-    if (intersects.length > 0 && this.selectedObject) {
-      this.isDraggingPivot = true;
+    
+    const intersects = this.raycaster.intersectObject(this.selectedObject, true);
+
+    if (intersects.length > 0) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      this.isDraggingObject = true;
       this.controlsManager.disableNavigation();
+      
+      this.makeObjectOpaque(this.selectedObject);
+
+      // --- 🧠 LÓGICA DE PROYECCIÓN (Inicio) 🧠 ---
+
+      // 1. Crear el plano de arrastre que pasa por el pivote del objeto
       const cameraDirection = new THREE.Vector3();
       this.sceneManager.editorCamera.getWorldDirection(cameraDirection);
-      this.dragPlane.setFromNormalAndCoplanarPoint(cameraDirection, intersects[0].point);
-      this.dragOffset.copy(intersects[0].point).sub(this.centerPivotHelper!.position);
-      this.makeObjectOpaque(this.selectedObject);
-      this.centerPivotHelper!.attach(this.selectedObject);
+      this.dragPlane.setFromNormalAndCoplanarPoint(cameraDirection, this.selectedObject.position);
+
+      // 2. Proyectar la posición 3D del objeto al espacio 2D de la pantalla
+      const objectScreenPosition = this.selectedObject.position.clone().project(this.sceneManager.editorCamera);
+
+      // 3. Calcular el offset en el espacio 2D de la pantalla
+      this.screenSpaceOffset.copy(pointer).sub(objectScreenPosition);
+
+      // (El visualizador de hitbox sigue siendo útil para depuración)
+      const hitMesh = intersects[0].object as THREE.Mesh;
+      if (hitMesh && hitMesh.geometry) {
+        const debugMaterial = new THREE.MeshBasicMaterial({ color: 0xff00ff, wireframe: true, transparent: true, opacity: 0.7, depthTest: false });
+        this.hitboxVisualizer = new THREE.Mesh(hitMesh.geometry, debugMaterial);
+        const worldPosition = new THREE.Vector3();
+        const worldQuaternion = new THREE.Quaternion();
+        const worldScale = new THREE.Vector3();
+        hitMesh.matrixWorld.decompose(worldPosition, worldQuaternion, worldScale);
+        this.hitboxVisualizer.position.copy(worldPosition);
+        this.hitboxVisualizer.quaternion.copy(worldQuaternion);
+        this.hitboxVisualizer.scale.copy(worldScale);
+        this.sceneManager.scene.add(this.hitboxVisualizer);
+      }
+      
       this.requestRender();
     }
   }
 
-  private onPivotPointerMove = (event: PointerEvent): void => {
-    if (!this.isDraggingPivot) return;
+  private onObjectDragMove = (event: PointerEvent): void => {
+    if (!this.isDraggingObject) return;
+    event.preventDefault();
+    event.stopPropagation();
+
     const pointer = new THREE.Vector2();
     pointer.x = (event.clientX / this.sceneManager.renderer.domElement.clientWidth) * 2 - 1;
     pointer.y = - (event.clientY / this.sceneManager.renderer.domElement.clientHeight) * 2 + 1;
-    this.raycaster.setFromCamera(pointer, this.sceneManager.editorCamera);
+
+    // --- 🧠 LÓGICA DE PROYECCIÓN (Movimiento) 🧠 ---
+
+    // 1. Calcular la nueva posición del objeto en el espacio de pantalla 2D
+    const newObjectScreenPosition = pointer.clone().sub(this.screenSpaceOffset);
+
+    // 2. Crear un nuevo rayo desde la nueva posición de pantalla
+    this.raycaster.setFromCamera(newObjectScreenPosition, this.sceneManager.editorCamera);
+    
+    // 3. Encontrar el punto de intersección de este nuevo rayo con el plano de arrastre original
     this.raycaster.ray.intersectPlane(this.dragPlane, this.intersectionPoint);
-    this.centerPivotHelper!.position.copy(this.intersectionPoint).sub(this.dragOffset);
+
+    // 4. Mover el objeto a ese punto de intersección 3D
+    this.selectedObject!.position.copy(this.intersectionPoint);
+
+    // Actualizar el helper visual para que siga al objeto
+    const box = new THREE.Box3().setFromObject(this.selectedObject!);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    if (this.centerPivotHelper) {
+      this.centerPivotHelper.position.copy(center);
+    }
+    
     this.requestRender();
   }
 
-  private onPivotPointerUp = (): void => {
-    if (!this.isDraggingPivot) return;
-    this.isDraggingPivot = false;
+  private onObjectDragEnd = (): void => {
+    if (!this.isDraggingObject) return;
+    this.isDraggingObject = false;
+
     if (this.selectedObject) {
-      this.sceneManager.scene.attach(this.selectedObject);
       this.restoreObjectMaterial(this.selectedObject);
       this.onTransformEndSubject.next();
     }
+    
+    if (this.hitboxVisualizer) {
+        this.hitboxVisualizer.geometry.dispose();
+        (this.hitboxVisualizer.material as THREE.Material).dispose();
+        this.sceneManager.scene.remove(this.hitboxVisualizer);
+        this.hitboxVisualizer = undefined;
+    }
+
     this.controlsManager.enableNavigation();
     this.requestRender();
   }
@@ -233,17 +309,33 @@ export class EngineService implements OnDestroy {
     this.requestRender();
   }
 
+  // (El resto del archivo no necesita cambios)
+  // ...
   // =================================================================
   // --- SECCIÓN: Manipulación de Materiales ---
   // =================================================================
 
   private makeObjectOpaque(object: THREE.Object3D): void {
     this.originalMaterials.clear();
-    object.traverse(child => { if (child instanceof THREE.Mesh) { this.originalMaterials.set(child.uuid, child.material); const newMaterial = (Array.isArray(child.material) ? child.material[0] : child.material).clone() as THREE.MeshStandardMaterial; newMaterial.color.set(0xaaaaaa); newMaterial.transparent = true; newMaterial.opacity = 0.6; newMaterial.depthWrite = false; child.material = newMaterial; } });
+    object.traverse(child => {
+      if (child instanceof THREE.Mesh) {
+        this.originalMaterials.set(child.uuid, child.material);
+        const newMaterial = (Array.isArray(child.material) ? child.material[0] : child.material).clone() as THREE.MeshStandardMaterial;
+        newMaterial.color.set(0xaaaaaa);
+        newMaterial.transparent = true;
+        newMaterial.opacity = 0.6;
+        newMaterial.depthWrite = false;
+        child.material = newMaterial;
+      }
+    });
   }
 
   private restoreObjectMaterial(object: THREE.Object3D): void {
-    object.traverse(child => { if (child instanceof THREE.Mesh && this.originalMaterials.has(child.uuid)) { child.material = this.originalMaterials.get(child.uuid)!; } });
+    object.traverse(child => {
+      if (child instanceof THREE.Mesh && this.originalMaterials.has(child.uuid)) {
+        child.material = this.originalMaterials.get(child.uuid)!;
+      }
+    });
     this.originalMaterials.clear();
   }
 
@@ -255,10 +347,12 @@ export class EngineService implements OnDestroy {
     this.animationFrameId = requestAnimationFrame(this.animate);
     this.statsManager.begin();
     const delta = this.clock.getDelta();
+
     if (this.controlsManager.update(delta, this.keyMap)) {
       this.requestRender();
       this.updateHelperScale();
     }
+
     this.sceneManager.editorCamera.getWorldQuaternion(this.tempQuaternion);
     if (!this.tempQuaternion.equals(this.cameraOrientation.getValue())) {
       this.cameraOrientation.next(this.tempQuaternion.clone());
@@ -282,7 +376,9 @@ export class EngineService implements OnDestroy {
     window.addEventListener('resize', this.onWindowResize);
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
-    this.controlsSubscription = this.controlsManager.onTransformEnd$.subscribe(() => { this.onTransformEndSubject.next(); });
+    this.controlsSubscription = this.controlsManager.onTransformEnd$.subscribe(() => {
+      this.onTransformEndSubject.next();
+    });
   };
 
   private removeEventListeners = () => {
@@ -303,7 +399,6 @@ export class EngineService implements OnDestroy {
   };
 
   private onKeyDown = (e: KeyboardEvent) => this.keyMap.set(e.key.toLowerCase(), true);
-
   private onKeyUp = (e: KeyboardEvent) => this.keyMap.set(e.key.toLowerCase(), false);
 
   // =================================================================
@@ -315,7 +410,21 @@ export class EngineService implements OnDestroy {
   public getGizmoAttachedObject = (): THREE.Object3D | undefined => this.selectedObject;
   public addObjectToScene = (objData: SceneObjectResponse) => { this.entityManager.createObjectFromData(objData); this.entityManager.publishSceneEntities(); this.requestRender(); };
   public updateObjectName = (uuid: string, newName: string) => { this.entityManager.updateObjectName(uuid, newName); this.requestRender(); };
-  public updateObjectTransform = (uuid: string, path: 'position' | 'rotation' | 'scale', value: { x: number, y: number, z: number }) => { const obj = this.entityManager.getObjectByUuid(uuid); if (obj) { obj[path].set(value.x, value.y, value.z); this.requestRender(); } };
+
+  public updateObjectTransform = (uuid: string, path: 'position' | 'rotation' | 'scale', value: { x: number, y: number, z: number }) => {
+    const obj = this.entityManager.getObjectByUuid(uuid);
+    if (obj) {
+      obj[path].set(value.x, value.y, value.z);
+      if (path === 'position' && this.centerPivotHelper) {
+        const box = new THREE.Box3().setFromObject(obj);
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        this.centerPivotHelper.position.copy(center);
+      }
+      this.requestRender();
+    }
+  };
+  
   public setCameraView = (axisName: string) => { const c = this.controlsManager.getControls(); if (!c) return; const t = this.sceneManager.focusPivot.position; const d = Math.max(this.sceneManager.editorCamera.position.distanceTo(t), 5); const p = new THREE.Vector3(); switch (axisName) { case 'axis-x': p.set(d, 0, 0); break; case 'axis-x-neg': p.set(-d, 0, 0); break; case 'axis-y': p.set(0, d, 0); break; case 'axis-y-neg': p.set(0, -d, 0.0001); break; case 'axis-z': p.set(0, 0, d); break; case 'axis-z-neg': p.set(0, 0, -d); break; default: return; } this.sceneManager.editorCamera.position.copy(t).add(p); this.sceneManager.editorCamera.lookAt(t); c.target.copy(t); c.update(); this.requestRender(); };
   public requestRender = () => { this.needsRender = true; };
 }
