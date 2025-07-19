@@ -1,5 +1,4 @@
 // src/app/features/admin/components/world-editor/service/three-engine/utils/controls-manager.service.ts
-
 import { Injectable, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';

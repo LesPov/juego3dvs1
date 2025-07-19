@@ -13,7 +13,7 @@ import { SceneObjectService } from '../../services/scene-object.service';
 import { AddObjectModalComponent, NewSceneObjectData } from '../world-editor/add-object-modal/add-object-modal.component';
 import { PropertiesPanelComponent, PropertyUpdate } from '../world-editor/properties-panel/properties-panel.component';
 import { SceneSettingsPanelComponent } from '../world-editor/scene-settings-panel/scene-settings-panel.component';
- import { SceneEntity } from '../world-editor/service/three-engine/utils/entity-manager.service';
+import { SceneEntity } from '../world-editor/service/three-engine/utils/entity-manager.service';
 import { ToolbarComponent } from '../world-editor/toolbar/toolbar.component';
 import { SceneObjectResponse, AdminService } from '../../services/admin.service';
 import { EngineService } from '../world-editor/service/three-engine/engine.service';
@@ -28,7 +28,6 @@ import { BrujulaComponent } from '../world-editor/brujula/brujula.component';
   providers: [EngineService]
 })
 export class WorldViewComponent implements OnInit, OnDestroy {
-  // --- Propiedades ---
   episodeId?: number;
   isLoadingData = true;
   isRenderingScene = false;
@@ -41,8 +40,6 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   combinedEntities$: Observable<SceneEntity[]>;
   isAddObjectModalVisible = false;
   activePropertiesTab: string = 'object';
-
-  // ✅ NUEVA PROPIEDAD PARA EL MODO MÓVIL
   isMobileSidebarVisible = false;
 
   private propertyUpdate$ = new Subject<PropertyUpdate>();
@@ -82,7 +79,6 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     this.transformEndSubscription?.unsubscribe();
   }
 
-  // ✅ NUEVO MÉTODO PARA ALTERNAR LA BARRA LATERAL EN MÓVIL
   toggleMobileSidebar(): void {
     this.isMobileSidebarVisible = !this.isMobileSidebarVisible;
   }
@@ -90,39 +86,20 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   private setupTransformEndSubscription(): void {
     this.transformEndSubscription = this.engineService.onTransformEnd$.subscribe(() => {
       const transformedObject = this.engineService.getGizmoAttachedObject();
-
       if (!transformedObject || !this.selectedObject || !this.episodeId) {
         return;
       }
-
       const newPosition = { x: transformedObject.position.x, y: transformedObject.position.y, z: transformedObject.position.z };
       const newRotationInRadians = { x: transformedObject.rotation.x, y: transformedObject.rotation.y, z: transformedObject.rotation.z };
       const newScale = { x: transformedObject.scale.x, y: transformedObject.scale.y, z: transformedObject.scale.z };
-
-      const newRotationInDegrees = {
-        x: THREE.MathUtils.radToDeg(newRotationInRadians.x),
-        y: THREE.MathUtils.radToDeg(newRotationInRadians.y),
-        z: THREE.MathUtils.radToDeg(newRotationInRadians.z)
-      };
-
+      const newRotationInDegrees = { x: THREE.MathUtils.radToDeg(newRotationInRadians.x), y: THREE.MathUtils.radToDeg(newRotationInRadians.y), z: THREE.MathUtils.radToDeg(newRotationInRadians.z) };
       this.selectedObject = { ...this.selectedObject, position: newPosition, rotation: newRotationInDegrees, scale: newScale };
       this.cdr.detectChanges();
-
-      const dataToSave: Partial<SceneObjectResponse> = {
-        position: newPosition,
-        rotation: newRotationInRadians,
-        scale: newScale
-      };
-
+      const dataToSave: Partial<SceneObjectResponse> = { position: newPosition, rotation: newRotationInRadians, scale: newScale };
       this.sceneObjectService.updateSceneObject(this.episodeId, this.selectedObject.id, dataToSave)
         .subscribe({
           next: updatedObjectFromServer => {
-            updatedObjectFromServer.rotation = {
-              x: THREE.MathUtils.radToDeg(updatedObjectFromServer.rotation.x),
-              y: THREE.MathUtils.radToDeg(updatedObjectFromServer.rotation.y),
-              z: THREE.MathUtils.radToDeg(updatedObjectFromServer.rotation.z),
-            };
-
+            updatedObjectFromServer.rotation = { x: THREE.MathUtils.radToDeg(updatedObjectFromServer.rotation.x), y: THREE.MathUtils.radToDeg(updatedObjectFromServer.rotation.y), z: THREE.MathUtils.radToDeg(updatedObjectFromServer.rotation.z), };
             this.selectedObject = { ...this.selectedObject!, ...updatedObjectFromServer };
             const idx = this.sceneObjects.findIndex(o => o.id === this.selectedObject!.id);
             if (idx !== -1) {
@@ -140,31 +117,19 @@ export class WorldViewComponent implements OnInit, OnDestroy {
       debounceTime(400),
       switchMap(update => {
         if (!this.episodeId || !this.selectedObject) return of(null);
-
         let dataToUpdate: Partial<Omit<SceneObjectResponse, 'id' | 'asset' | 'type' | 'name'>>;
-
         if (update.path === 'rotation') {
-          const rotationInRadians = {
-            x: THREE.MathUtils.degToRad((update.value as any).x),
-            y: THREE.MathUtils.degToRad((update.value as any).y),
-            z: THREE.MathUtils.degToRad((update.value as any).z),
-          };
+          const rotationInRadians = { x: THREE.MathUtils.degToRad((update.value as any).x), y: THREE.MathUtils.degToRad((update.value as any).y), z: THREE.MathUtils.degToRad((update.value as any).z), };
           dataToUpdate = { [update.path]: rotationInRadians };
         } else {
           dataToUpdate = { [update.path]: update.value };
         }
-
         const objectApiId = this.selectedObject.id;
         return this.sceneObjectService.updateSceneObject(this.episodeId, objectApiId, dataToUpdate);
       }),
       tap(updatedObjectFromServer => {
         if (updatedObjectFromServer && this.selectedObject) {
-          updatedObjectFromServer.rotation = {
-            x: THREE.MathUtils.radToDeg(updatedObjectFromServer.rotation.x),
-            y: THREE.MathUtils.radToDeg(updatedObjectFromServer.rotation.y),
-            z: THREE.MathUtils.radToDeg(updatedObjectFromServer.rotation.z),
-          };
-
+          updatedObjectFromServer.rotation = { x: THREE.MathUtils.radToDeg(updatedObjectFromServer.rotation.x), y: THREE.MathUtils.radToDeg(updatedObjectFromServer.rotation.y), z: THREE.MathUtils.radToDeg(updatedObjectFromServer.rotation.z), };
           this.selectedObject = { ...this.selectedObject!, ...updatedObjectFromServer };
           const idx = this.sceneObjects.findIndex(o => o.id === this.selectedObject!.id);
           if (idx !== -1) {
@@ -178,42 +143,26 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     });
   }
 
-
-  // ✅ MÉTODO CON LA LÓGICA DE CARGA MEJORADA
   loadEpisodeData(id: number): void {
     this.isLoadingData = true;
     this.adminService.getEpisodeForEditor(id).subscribe({
       next: (data) => {
         this.episodeTitle = data.title;
-        this.sceneObjects = (data.sceneObjects || []).map(obj => ({
-          ...obj,
-          rotation: {
-            x: THREE.MathUtils.radToDeg(obj.rotation.x),
-            y: THREE.MathUtils.radToDeg(obj.rotation.y),
-            z: THREE.MathUtils.radToDeg(obj.rotation.z)
-          }
-        }));
+        this.sceneObjects = (data.sceneObjects || []).map(obj => ({ ...obj, rotation: { x: THREE.MathUtils.radToDeg(obj.rotation.x), y: THREE.MathUtils.radToDeg(obj.rotation.y), z: THREE.MathUtils.radToDeg(obj.rotation.z) } }));
         this.isLoadingData = false;
         this.isRenderingScene = true;
-
-        // Comprobamos si hay modelos para cargar
         const hasModels = this.sceneObjects.some(o => o.type === 'model' && o.asset?.path);
-
-        // Si NO hay modelos, simulamos una carga rápida para mejorar la UX
         if (!hasModels) {
-          console.log("[WorldView] No hay modelos para cargar, simulando progreso...");
           let progress = 0;
           const interval = setInterval(() => {
             progress += 10;
             this.handleLoadingProgress(progress);
             if (progress >= 100) {
               clearInterval(interval);
-              // Llamamos a loadingComplete después de la animación
               this.handleLoadingComplete();
             }
-          }, 30); // Cada 30ms, aumenta un 10%, tarda 300ms en total
+          }, 30);
         }
-        // Si SÍ hay modelos, el LoadingManager de Three.js se encargará del progreso real.
       },
       error: () => {
         this.errorMessage = "Error al cargar el episodio.";
@@ -236,10 +185,13 @@ export class WorldViewComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // 🎯 LÓGICA DE DESELECCIÓN 🎯
+    // Si el usuario vuelve a hacer clic en el mismo objeto, lo deseleccionamos.
     if (this.selectedEntityUuid === entity.uuid) {
       this.selectedEntityUuid = null;
       this.selectedObject = null;
-      this.engineService.selectObjectByUuid(entity.uuid);
+      // Llamamos al engine con `null` para que quite el borde amarillo.
+      this.engineService.selectObjectByUuid(null); 
       this.selectPropertiesTab('render');
     } else {
       this.selectedEntityUuid = entity.uuid;
@@ -251,21 +203,15 @@ export class WorldViewComponent implements OnInit, OnDestroy {
 
   handleObjectUpdate(update: PropertyUpdate) {
     if (!this.selectedObject) return;
-
     if (update.type === 'transform') {
       let valueForEngine = update.value;
       if (update.path === 'rotation') {
-        valueForEngine = {
-          x: THREE.MathUtils.degToRad((update.value as any).x),
-          y: THREE.MathUtils.degToRad((update.value as any).y),
-          z: THREE.MathUtils.degToRad((update.value as any).z)
-        };
+        valueForEngine = { x: THREE.MathUtils.degToRad((update.value as any).x), y: THREE.MathUtils.degToRad((update.value as any).y), z: THREE.MathUtils.degToRad((update.value as any).z) };
       }
       this.engineService.updateObjectTransform(this.selectedObject.id.toString(), update.path as any, valueForEngine);
     } else if (update.path === 'name') {
       this.engineService.updateObjectName(this.selectedObject.id.toString(), update.value as any);
     }
-
     this.propertyUpdate$.next(update);
   }
 
@@ -278,11 +224,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
       next: obj => {
         this.closeAddObjectModal();
         this.engineService.addObjectToScene(obj);
-        obj.rotation = {
-          x: THREE.MathUtils.radToDeg(obj.rotation.x),
-          y: THREE.MathUtils.radToDeg(obj.rotation.y),
-          z: THREE.MathUtils.radToDeg(obj.rotation.z)
-        };
+        obj.rotation = { x: THREE.MathUtils.radToDeg(obj.rotation.x), y: THREE.MathUtils.radToDeg(obj.rotation.y), z: THREE.MathUtils.radToDeg(obj.rotation.z) };
         this.sceneObjects.push(obj);
       },
       error: err => console.error(err)
