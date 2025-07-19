@@ -14,12 +14,16 @@ export class DragInteractionManagerService {
 
   private isDragging = false;
   private objectToMove?: THREE.Object3D;
-  private interactionTargets: THREE.Object3D[] = []; // Ahora puede haber múltiples objetivos
+  private interactionTargets: THREE.Object3D[] = [];
 
   private raycaster = new THREE.Raycaster();
   private dragPlane = new THREE.Plane();
   private intersectionPoint = new THREE.Vector3();
   private dragOffset = new THREE.Vector3();
+
+  // 🎯 NUEVA LÓGICA: Almacena el eje restringido y la posición inicial del arrastre.
+  private constrainedAxis: 'x' | 'y' | 'z' | null = null;
+  private dragStartPosition = new THREE.Vector3();
 
   private onDragEndSubject = new Subject<void>();
   public onDragEnd$ = this.onDragEndSubject.asObservable();
@@ -30,13 +34,9 @@ export class DragInteractionManagerService {
     this.camera = camera;
     this.domElement = domElement;
     this.controlsManager = controlsManager;
-    // 🎯 LÓGICA MEJORADA: El raycaster ahora ve la capa 0 (invisible) y la 1 (helpers visibles).
     this.raycaster.layers.enableAll();
   }
 
-  /**
-   * Comienza a escuchar eventos de arrastre para un objeto y sus posibles helpers.
-   */
   public startListening(objectToMove: THREE.Object3D, helperManager: InteractionHelperManagerService): void {
     this.objectToMove = objectToMove;
     this.interactionTargets = [];
@@ -44,7 +44,6 @@ export class DragInteractionManagerService {
     const interactionSphere = helperManager.getInteractionSphere();
     const pivotPoint = helperManager.getPivotPoint();
     
-    // Añadimos los objetivos de interacción si existen.
     if (interactionSphere) this.interactionTargets.push(interactionSphere);
     if (pivotPoint) this.interactionTargets.push(pivotPoint);
 
@@ -62,6 +61,13 @@ export class DragInteractionManagerService {
     this.domElement.removeEventListener('pointerup', this.onPointerUp);
     this.interactionTargets = [];
     this.objectToMove = undefined;
+    // 🎯 NUEVA LÓGICA: Reiniciamos la restricción al detener la escucha.
+    this.constrainedAxis = null;
+  }
+
+  // 🎯 NUEVA LÓGICA: Método público para que EngineService establezca la restricción.
+  public setAxisConstraint(axis: 'x' | 'y' | 'z' | null): void {
+    this.constrainedAxis = axis;
   }
 
   private onPointerDown = (event: PointerEvent): void => {
@@ -70,7 +76,6 @@ export class DragInteractionManagerService {
     const pointer = new THREE.Vector2((event.clientX / this.domElement.clientWidth) * 2 - 1, -(event.clientY / this.domElement.clientHeight) * 2 + 1);
     this.raycaster.setFromCamera(pointer, this.camera);
     
-    // 🎯 LÓGICA MEJORADA: Intersecta con todos los objetivos posibles.
     const intersects = this.raycaster.intersectObjects(this.interactionTargets);
 
     if (intersects.length > 0) {
@@ -84,6 +89,10 @@ export class DragInteractionManagerService {
       this.camera.getWorldDirection(cameraDirection);
       this.dragPlane.setFromNormalAndCoplanarPoint(cameraDirection, intersectionPoint);
       this.dragOffset.copy(this.objectToMove.position).sub(intersectionPoint);
+
+      // 🎯 NUEVA LÓGICA: Guardamos la posición inicial del objeto al comenzar el arrastre.
+      // Esto es crucial para restringir el movimiento en los otros dos ejes.
+      this.dragStartPosition.copy(this.objectToMove.position);
     }
   }
 
@@ -96,7 +105,30 @@ export class DragInteractionManagerService {
     this.raycaster.setFromCamera(pointer, this.camera);
     
     if (this.raycaster.ray.intersectPlane(this.dragPlane, this.intersectionPoint)) {
-      this.objectToMove.position.copy(this.intersectionPoint).add(this.dragOffset);
+      // Calculamos la nueva posición potencial sin restricciones.
+      const potentialNewPos = this.intersectionPoint.clone().add(this.dragOffset);
+
+      // 🎯 LÓGICA MODIFICADA: Aplicamos la restricción del eje si existe.
+      if (this.constrainedAxis) {
+        switch (this.constrainedAxis) {
+          case 'x':
+            // Movemos solo en X, manteniendo Y y Z de la posición inicial.
+            this.objectToMove.position.set(potentialNewPos.x, this.dragStartPosition.y, this.dragStartPosition.z);
+            break;
+          case 'y':
+            // Movemos solo en Y, manteniendo X y Z de la posición inicial.
+            this.objectToMove.position.set(this.dragStartPosition.x, potentialNewPos.y, this.dragStartPosition.z);
+            break;
+          case 'z':
+            // Movemos solo en Z, manteniendo X e Y de la posición inicial.
+            this.objectToMove.position.set(this.dragStartPosition.x, this.dragStartPosition.y, potentialNewPos.z);
+            break;
+        }
+      } else {
+        // Si no hay restricción, movemos libremente como antes.
+        this.objectToMove.position.copy(potentialNewPos);
+      }
+
       this.onDragEndSubject.next();
     }
   }

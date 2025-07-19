@@ -32,17 +32,23 @@
 
   <main class="viewport">
     <app-toolbar></app-toolbar>
-
+  <!-- 🎯 Indicador de Eje Bloqueado con el nuevo diseño -->
+    <!-- Este div se mostrará y desaparecerá gracias al *ngIf, activando las animaciones CSS -->
+    <div *ngIf="(axisLock$ | async) as lockedAxis" class="axis-lock-indicator" [ngClass]="'lock-' + lockedAxis">
+      Moviendo en Eje: <b>{{ lockedAxis | uppercase }}</b>
+    </div>
     <app-scene
       [initialObjects]="sceneObjects"
       (loadingProgress)="handleLoadingProgress($event)"
       (loadingComplete)="handleLoadingComplete()">
+      
     </app-scene>
+    
     <app-brujula></app-brujula>
+
+   
   </main>
 
-  <!-- ✅ BARRA LATERAL MODIFICADA PARA MÓVIL -->
-  <!-- Usamos [class.visible-mobile] para mostrar/ocultar en móviles -->
   <aside class="sidebar" [class.visible-mobile]="isMobileSidebarVisible">
     <!-- Lista Objetos -->
     <div class="panel scene-list-panel">
@@ -107,9 +113,7 @@
     </div>
   </aside>
 
-  <!-- ✅ NUEVO BOTÓN FLOTANTE PARA MÓVIL -->
   <button class="mobile-sidebar-toggle" (click)="toggleMobileSidebar()" title="Mostrar/Ocultar Paneles">
-    <!-- Icono de panel/menú -->
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
       <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
     </svg>

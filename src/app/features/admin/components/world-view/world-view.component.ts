@@ -1,5 +1,3 @@
-// src/app/features/admin/components/world-view/world-view.component.ts
-
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
@@ -18,7 +16,7 @@ import { ToolbarComponent } from '../world-editor/toolbar/toolbar.component';
 import { SceneObjectResponse, AdminService } from '../../services/admin.service';
 import { EngineService } from '../world-editor/service/three-engine/engine.service';
 import { BrujulaComponent } from '../world-editor/brujula/brujula.component';
- 
+
 @Component({
   selector: 'app-world-view',
   standalone: true,
@@ -42,6 +40,9 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   activePropertiesTab: string = 'object';
   isMobileSidebarVisible = false;
 
+  // 🎯 NUEVA LÓGICA: Observable para recibir el estado del bloqueo de eje desde el servicio.
+  public axisLock$: Observable<'x' | 'y' | 'z' | null>;
+
   private propertyUpdate$ = new Subject<PropertyUpdate>();
   private propertyUpdateSubscription?: Subscription;
   private transformEndSubscription?: Subscription;
@@ -60,6 +61,9 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     this.combinedEntities$ = this.engineService.getSceneEntities().pipe(
       map((real: SceneEntity[]) => [...real, ...placeholders])
     );
+    
+    // 🎯 NUEVA LÓGICA: Asignamos el observable del servicio a nuestra propiedad.
+    this.axisLock$ = this.engineService.axisLockState$;
   }
 
   ngOnInit(): void {
@@ -185,13 +189,10 @@ export class WorldViewComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // 🎯 LÓGICA DE DESELECCIÓN 🎯
-    // Si el usuario vuelve a hacer clic en el mismo objeto, lo deseleccionamos.
     if (this.selectedEntityUuid === entity.uuid) {
       this.selectedEntityUuid = null;
       this.selectedObject = null;
-      // Llamamos al engine con `null` para que quite el borde amarillo.
-      this.engineService.selectObjectByUuid(null); 
+      this.engineService.selectObjectByUuid(null);
       this.selectPropertiesTab('render');
     } else {
       this.selectedEntityUuid = entity.uuid;

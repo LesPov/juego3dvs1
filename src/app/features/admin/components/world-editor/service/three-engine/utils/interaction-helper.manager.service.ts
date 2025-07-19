@@ -21,9 +21,9 @@ export class InteractionHelperManagerService {
   private axesHelper?: THREE.AxesHelper;
   
   // Estado
-  private isSpecialObject = false; // Flag para saber si estamos manejando una luz/cámara.
+  private isSpecialObject = false; 
   private readonly HELPER_SCREEN_SCALE_FACTOR = 0.08;
-  private readonly SPECIAL_OBJECT_INTERACTION_SCALE_FACTOR = 0.15; // Factor más grande para la esfera invisible
+  private readonly SPECIAL_OBJECT_INTERACTION_SCALE_FACTOR = 0.15;
 
   private originalMaterials = new Map<string, THREE.Material | THREE.Material[]>();
 
@@ -43,20 +43,17 @@ export class InteractionHelperManagerService {
     let interactionRadius: number;
 
     if (isGeometyObject(object)) {
-      this.isSpecialObject = false; // Es un objeto normal
+      this.isSpecialObject = false;
       const boundingBox = new THREE.Box3().setFromObject(object);
       const boundingSphere = new THREE.Sphere();
       boundingBox.getBoundingSphere(boundingSphere);
       center = boundingSphere.center;
       interactionRadius = Math.max(boundingSphere.radius, 0.2); 
     } else {
-      this.isSpecialObject = true; // Es una luz, cámara, etc.
+      this.isSpecialObject = true;
       center = object.position.clone();
-      // El radio base es 1, pero se escalará dinámicamente.
       interactionRadius = 1.0;
     }
-
-    // --- Creación de Helpers ---
 
     this.centerPivotHelper = new THREE.Group();
     this.centerPivotHelper.position.copy(center);
@@ -79,7 +76,6 @@ export class InteractionHelperManagerService {
     this.interactionSphere.position.copy(center);
     this.scene.add(this.interactionSphere);
 
-    // Primera actualización de escala al crear.
     this.updateScale();
   }
 
@@ -100,24 +96,18 @@ export class InteractionHelperManagerService {
       this.centerPivotHelper = undefined;
       this.pivotPoint = undefined;
     }
-    this.isSpecialObject = false; // Reseteamos el flag
+    this.isSpecialObject = false;
   }
 
-  /**
-   * Actualiza la escala de los helpers para que mantengan un tamaño constante en pantalla.
-   * Para objetos especiales (luz/cámara), también escala la esfera de interacción.
-   */
   public updateScale(): void {
     if (!this.centerPivotHelper) return;
 
     const distance = this.centerPivotHelper.position.distanceTo(this.camera.position);
     const clampedDistance = Math.max(distance, 0.1);
 
-    // 1. Escalar el helper visual (ejes, punto amarillo)
     const visualHelperScale = clampedDistance * this.HELPER_SCREEN_SCALE_FACTOR;
     this.centerPivotHelper.scale.set(visualHelperScale, visualHelperScale, visualHelperScale);
 
-    // 2. 🎯 LÓGICA MEJORADA: Escalar la esfera de interacción SOLO para objetos especiales.
     if (this.isSpecialObject && this.interactionSphere) {
       const interactionScale = clampedDistance * this.SPECIAL_OBJECT_INTERACTION_SCALE_FACTOR;
       this.interactionSphere.scale.set(interactionScale, interactionScale, interactionScale);

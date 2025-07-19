@@ -19,7 +19,7 @@ export class EngineService implements OnDestroy {
   // == SECCIÓN 1: PROPIEDADES Y API PÚBLICA =========================================================
   // =================================================================================================
   
-  public onTransformEnd$: Observable<void>; // <-- 🎯 1. SOLO SE DECLARA AQUÍ
+  public onTransformEnd$: Observable<void>;
   private selectedObject?: THREE.Object3D;
   
   // --- Bucle de Renderizado y Estado ---
@@ -29,6 +29,12 @@ export class EngineService implements OnDestroy {
 
   // --- Estado de Teclado y Cámara ---
   private keyMap = new Map<string, boolean>();
+  private axisLock: 'x' | 'y' | 'z' | null = null;
+
+  // 🎯 NUEVA LÓGICA: Subject para notificar el estado del bloqueo de ejes a la UI.
+  private axisLockStateSubject = new BehaviorSubject<'x' | 'y' | 'z' | null>(null);
+  public axisLockState$ = this.axisLockStateSubject.asObservable();
+  
   private cameraOrientation = new BehaviorSubject<THREE.Quaternion>(new THREE.Quaternion());
   private tempQuaternion = new THREE.Quaternion();
 
@@ -39,35 +45,29 @@ export class EngineService implements OnDestroy {
   // =================================================================================================
   
   constructor(
-    // Servicios principales de la escena
     private sceneManager: SceneManagerService,
     private entityManager: EntityManagerService,
     private controlsManager: ControlsManagerService,
     private selectionManager: SelectionManagerService,
     private statsManager: StatsManagerService,
-    // Nuevos servicios de interacción
     private interactionHelperManager: InteractionHelperManagerService,
     private dragInteractionManager: DragInteractionManagerService
   ) {
-    // 🎯 2. SE INICIALIZA EN EL CONSTRUCTOR, DONDE dragInteractionManager YA EXISTE
-    this.onTransformEnd$ = this.dragInteractionManager.onDragEnd$.pipe(debounceTime(400)); // Ajusté el debounce a 400ms que es un valor más común para autoguardado.
+    this.onTransformEnd$ = this.dragInteractionManager.onDragEnd$.pipe(debounceTime(400));
   }
 
   public init(canvasRef: ElementRef<HTMLCanvasElement>, objects: SceneObjectResponse[], onProgress: (p: number) => void, onLoaded: () => void): void {
     const canvas = canvasRef.nativeElement;
     
-    // 1. Configurar la escena y servicios base
     this.sceneManager.setupBasicScene(canvas);
     this.entityManager.init(this.sceneManager.scene);
     this.statsManager.init();
     this.selectionManager.init(this.sceneManager.scene, this.sceneManager.editorCamera, this.sceneManager.renderer, canvas);
     this.controlsManager.init(this.sceneManager.editorCamera, canvas, this.sceneManager.scene, this.sceneManager.focusPivot);
     
-    // 2. Inicializar los nuevos servicios de interacción
     this.interactionHelperManager.init(this.sceneManager.scene, this.sceneManager.editorCamera);
     this.dragInteractionManager.init(this.sceneManager.editorCamera, canvas, this.controlsManager);
 
-    // 3. Cargar datos y empezar
     const lm = this.entityManager.getLoadingManager();
     lm.onProgress = (_, i, t) => onProgress((i / t) * 100);
     lm.onLoad = () => { onLoaded(); this.entityManager.publishSceneEntities(); this.requestRender(); };
@@ -100,13 +100,16 @@ export class EngineService implements OnDestroy {
     this.dragInteractionManager.stopListening();
     this.controlsManager.detach();
 
+    // 🎯 NUEVA LÓGICA: Notificamos que no hay bloqueo de eje al cambiar de herramienta.
+    this.axisLock = null;
+    this.dragInteractionManager.setAxisConstraint(null);
+    this.axisLockStateSubject.next(null);
+
     if (this.selectedObject) {
       switch (mode) {
         case 'move':
           this.interactionHelperManager.createHelpers(this.selectedObject);
           this.interactionHelperManager.makeObjectOpaque(this.selectedObject);
-          
-          // 🎯 LÓGICA MEJORADA: Se le pasa el helper manager al drag manager.
           this.dragInteractionManager.startListening(this.selectedObject, this.interactionHelperManager);
           break;
         case 'rotate':
@@ -123,6 +126,11 @@ export class EngineService implements OnDestroy {
     this.interactionHelperManager.cleanupHelpers(this.selectedObject);
     this.dragInteractionManager.stopListening();
     this.controlsManager.detach();
+
+    // 🎯 NUEVA LÓGICA: Notificamos que no hay bloqueo al cambiar de objeto.
+    this.axisLock = null;
+    this.dragInteractionManager.setAxisConstraint(null);
+    this.axisLockStateSubject.next(null);
 
     if (!uuid) {
       this.selectedObject = undefined;
@@ -174,11 +182,8 @@ export class EngineService implements OnDestroy {
     window.addEventListener('resize', this.onWindowResize);
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
-    this.controlsSubscription = this.controlsManager.onTransformEnd$.subscribe(() => {
-        // Futuras notificaciones desde TransformControls (rotar/escalar)
-    });
+    this.controlsSubscription = this.controlsManager.onTransformEnd$.subscribe(() => {});
     
-    // Escucha el movimiento en tiempo real del drag para actualizar helpers
     this.dragInteractionManager.onDragEnd$.subscribe(() => {
         if (this.selectedObject) {
             this.interactionHelperManager.updateHelperPositions(this.selectedObject);
@@ -202,7 +207,28 @@ export class EngineService implements OnDestroy {
     this.interactionHelperManager.updateScale();
     this.requestRender();
   };
-  private onKeyDown = (e: KeyboardEvent) => this.keyMap.set(e.key.toLowerCase(), true);
+
+  private onKeyDown = (e: KeyboardEvent) => {
+    const key = e.key.toLowerCase();
+    this.keyMap.set(key, true);
+
+    // Solo reaccionar a las teclas de eje si la herramienta activa es 'mover'
+    if (this.controlsManager.getCurrentToolMode() === 'move') {
+      if (key === 'x' || key === 'y' || key === 'z') {
+        // Si el eje presionado ya estaba bloqueado, lo desbloqueamos. Si no, lo bloqueamos.
+        this.axisLock = this.axisLock === key ? null : key;
+        
+        // Notificamos al gestor de arrastre sobre la restricción actual.
+        this.dragInteractionManager.setAxisConstraint(this.axisLock);
+
+        // 🎯 NUEVA LÓGICA: Emitimos el nuevo estado del bloqueo a la UI.
+        this.axisLockStateSubject.next(this.axisLock);
+
+        console.log(`Bloqueo de eje cambiado a: ${this.axisLock?.toUpperCase() ?? 'NINGUNO'}`);
+      }
+    }
+  };
+
   private onKeyUp = (e: KeyboardEvent) => this.keyMap.set(e.key.toLowerCase(), false);
   public requestRender = () => { this.needsRender = true; };
 
@@ -237,7 +263,6 @@ export class EngineService implements OnDestroy {
   };
 
   public setCameraView = (axisName: string) => {
-    // ... (este método no cambia, se queda aquí ya que es una acción de alto nivel)
     const controls = this.controlsManager.getControls();
     if (!controls) return;
     const target = this.sceneManager.focusPivot.position;
