@@ -18,7 +18,7 @@ import { SceneEntity } from '../world-editor/service/three-engine/utils/entity-m
 import { ToolbarComponent } from '../world-editor/toolbar/toolbar.component';
 import { SceneObjectResponse, AdminService } from '../../services/admin.service';
 import { EngineService } from '../world-editor/service/three-engine/engine.service';
- 
+  
 @Component({
   selector: 'app-world-view',
   standalone: true,
@@ -239,7 +239,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     if (this.selectedEntityUuid === entity.uuid) {
       this.selectedEntityUuid = null;
       this.selectedObject = null;
-      this.engineService.selectObjectByUuid(null);
+this.engineService.selectObjectByUuid(entity.uuid);
       this.selectPropertiesTab('render');
     } else {
       this.selectedEntityUuid = entity.uuid;

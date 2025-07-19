@@ -14,7 +14,11 @@ import { SceneObjectResponse } from '../../../../services/admin.service';
 
 @Injectable()
 export class EngineService implements OnDestroy {
-  // --- Propiedades ---
+
+  // =================================================================
+  // --- SECCIÓN: Propiedades del Servicio ---
+  // =================================================================
+
   private clock = new THREE.Clock();
   private animationFrameId?: number;
   private keyMap = new Map<string, boolean>();
@@ -24,20 +28,23 @@ export class EngineService implements OnDestroy {
   private selectedObject?: THREE.Object3D;
   private onTransformEndSubject = new Subject<void>();
   public onTransformEnd$ = this.onTransformEndSubject.asObservable();
-  
+
+  // Propiedades del helper de pivote interactivo
   private isDraggingPivot = false;
   private raycaster = new THREE.Raycaster();
   private dragPlane = new THREE.Plane();
   private dragOffset = new THREE.Vector3();
   private intersectionPoint = new THREE.Vector3();
-
   private originalMaterials = new Map<string, THREE.Material | THREE.Material[]>();
   private centerPivotHelper?: THREE.Group;
   private pivotSphere?: THREE.Mesh;
   private axesHelper?: THREE.AxesHelper;
   private controlsSubscription?: Subscription;
-  
   private readonly HELPER_SCREEN_SCALE_FACTOR = 0.1;
+
+  // =================================================================
+  // --- SECCIÓN: Ciclo de Vida e Inicialización ---
+  // =================================================================
 
   constructor(
     private sceneManager: SceneManagerService,
@@ -69,16 +76,23 @@ export class EngineService implements OnDestroy {
     this.animate();
   }
 
-  // ✅ LÓGICA DE HERRAMIENTAS CORREGIDA Y SIMPLIFICADA
-  public setToolMode(mode: ToolMode): void {
-    // 1. SIEMPRE actualizamos la herramienta en el manager. Esta es ahora la fuente de verdad.
-    this.controlsManager.setTransformMode(mode);
+  ngOnDestroy = () => {
+    this.removeEventListeners();
+    this.cleanupInteractiveHelper();
+    if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId);
+    this.statsManager.destroy(); this.controlsManager.ngOnDestroy();
+    if (this.sceneManager.renderer) this.sceneManager.renderer.dispose();
+  };
 
-    // 2. Limpiamos cualquier estado anterior
+  // =================================================================
+  // --- SECCIÓN: Gestión de Herramientas y Selección ---
+  // =================================================================
+
+  public setToolMode(mode: ToolMode): void {
+    this.controlsManager.setTransformMode(mode);
     this.cleanupInteractiveHelper();
     this.controlsManager.detach();
 
-    // 3. Si hay un objeto seleccionado, APLICAMOS la nueva herramienta
     if (this.selectedObject) {
       switch (mode) {
         case 'move':
@@ -88,27 +102,20 @@ export class EngineService implements OnDestroy {
         case 'scale':
           this.controlsManager.attach(this.selectedObject);
           break;
-        // En caso de 'select', no hacemos nada más que limpiar, lo cual ya se hizo.
       }
     }
-    
     this.requestRender();
   }
 
-  // ✅ LÓGICA DE SELECCIÓN CORREGIDA Y SIMPLIFICADA
   public selectObjectByUuid(uuid: string | null): void {
-    // 1. Limpiamos helpers del objeto anterior
     this.cleanupInteractiveHelper();
     this.controlsManager.detach();
 
-    // 2. Actualizamos el objeto seleccionado
     this.selectedObject = uuid ? this.entityManager.getObjectByUuid(uuid) : undefined;
     this.entityManager.selectObjectByUuid(uuid, this.sceneManager.focusPivot);
-    
-    // 3. Obtenemos la herramienta que YA ESTÁ ACTIVA en el manager
+
     const currentTool = this.controlsManager.getCurrentToolMode();
-    
-    // 4. Si hay un nuevo objeto seleccionado, APLICAMOS la herramienta activa
+
     if (this.selectedObject) {
       switch (currentTool) {
         case 'move':
@@ -120,9 +127,12 @@ export class EngineService implements OnDestroy {
           break;
       }
     }
-
     this.requestRender();
   }
+
+  // =================================================================
+  // --- SECCIÓN: Lógica del Helper Interactivo (Herramienta Mover) ---
+  // =================================================================
 
   private createInteractiveHelper(object: THREE.Object3D): void {
     if (this.centerPivotHelper) this.cleanupInteractiveHelper();
@@ -161,13 +171,13 @@ export class EngineService implements OnDestroy {
     if (this.selectedObject) { this.restoreObjectMaterial(this.selectedObject); }
     if (this.centerPivotHelper) {
       this.centerPivotHelper.traverse(child => { if (child instanceof THREE.Mesh) { child.geometry.dispose(); (child.material as THREE.Material).dispose(); } });
-      this.sceneManager.scene.remove(this.centerPivotHelper); 
-      this.axesHelper?.dispose(); 
-      this.centerPivotHelper = undefined; 
-      this.axesHelper = undefined; 
+      this.sceneManager.scene.remove(this.centerPivotHelper);
+      this.axesHelper?.dispose();
+      this.centerPivotHelper = undefined;
+      this.axesHelper = undefined;
       this.pivotSphere = undefined;
     }
-    this.controlsManager.enableNavigation(); 
+    this.controlsManager.enableNavigation();
     this.requestRender();
   }
 
@@ -223,6 +233,10 @@ export class EngineService implements OnDestroy {
     this.requestRender();
   }
 
+  // =================================================================
+  // --- SECCIÓN: Manipulación de Materiales ---
+  // =================================================================
+
   private makeObjectOpaque(object: THREE.Object3D): void {
     this.originalMaterials.clear();
     object.traverse(child => { if (child instanceof THREE.Mesh) { this.originalMaterials.set(child.uuid, child.material); const newMaterial = (Array.isArray(child.material) ? child.material[0] : child.material).clone() as THREE.MeshStandardMaterial; newMaterial.color.set(0xaaaaaa); newMaterial.transparent = true; newMaterial.opacity = 0.6; newMaterial.depthWrite = false; child.material = newMaterial; } });
@@ -233,6 +247,69 @@ export class EngineService implements OnDestroy {
     this.originalMaterials.clear();
   }
 
+  // =================================================================
+  // --- SECCIÓN: Bucle Principal de Animación (Render Loop) ---
+  // =================================================================
+
+  private animate = () => {
+    this.animationFrameId = requestAnimationFrame(this.animate);
+    this.statsManager.begin();
+    const delta = this.clock.getDelta();
+    if (this.controlsManager.update(delta, this.keyMap)) {
+      this.requestRender();
+      this.updateHelperScale();
+    }
+    this.sceneManager.editorCamera.getWorldQuaternion(this.tempQuaternion);
+    if (!this.tempQuaternion.equals(this.cameraOrientation.getValue())) {
+      this.cameraOrientation.next(this.tempQuaternion.clone());
+    }
+    if (this.needsRender) {
+      this.selectionManager.composer.render();
+      this.needsRender = false;
+    }
+    this.statsManager.end();
+  };
+
+  // =================================================================
+  // --- SECCIÓN: Gestión de Eventos del Navegador ---
+  // =================================================================
+
+  private addEventListeners = () => {
+    this.controlsManager.getControls().addEventListener('change', () => {
+      this.updateHelperScale();
+      this.requestRender();
+    });
+    window.addEventListener('resize', this.onWindowResize);
+    window.addEventListener('keydown', this.onKeyDown);
+    window.addEventListener('keyup', this.onKeyUp);
+    this.controlsSubscription = this.controlsManager.onTransformEnd$.subscribe(() => { this.onTransformEndSubject.next(); });
+  };
+
+  private removeEventListeners = () => {
+    this.controlsManager.getControls()?.removeEventListener('change', this.requestRender);
+    window.removeEventListener('resize', this.onWindowResize);
+    window.removeEventListener('keydown', this.onKeyDown);
+    window.removeEventListener('keyup', this.onKeyUp);
+    this.controlsSubscription?.unsubscribe();
+  };
+
+  private onWindowResize = () => {
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (isTouchDevice) { this.sceneManager.renderer?.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); }
+    this.sceneManager.onWindowResize();
+    this.selectionManager.onResize(this.sceneManager.renderer.domElement.width, this.sceneManager.renderer.domElement.height);
+    this.updateHelperScale();
+    this.requestRender();
+  };
+
+  private onKeyDown = (e: KeyboardEvent) => this.keyMap.set(e.key.toLowerCase(), true);
+
+  private onKeyUp = (e: KeyboardEvent) => this.keyMap.set(e.key.toLowerCase(), false);
+
+  // =================================================================
+  // --- SECCIÓN: API Pública y Métodos de Acceso ---
+  // =================================================================
+
   public getSceneEntities = (): Observable<SceneEntity[]> => this.entityManager.getSceneEntities();
   public getCameraOrientation = (): Observable<THREE.Quaternion> => this.cameraOrientation.asObservable();
   public getGizmoAttachedObject = (): THREE.Object3D | undefined => this.selectedObject;
@@ -241,57 +318,4 @@ export class EngineService implements OnDestroy {
   public updateObjectTransform = (uuid: string, path: 'position' | 'rotation' | 'scale', value: { x: number, y: number, z: number }) => { const obj = this.entityManager.getObjectByUuid(uuid); if (obj) { obj[path].set(value.x, value.y, value.z); this.requestRender(); } };
   public setCameraView = (axisName: string) => { const c = this.controlsManager.getControls(); if (!c) return; const t = this.sceneManager.focusPivot.position; const d = Math.max(this.sceneManager.editorCamera.position.distanceTo(t), 5); const p = new THREE.Vector3(); switch (axisName) { case 'axis-x': p.set(d, 0, 0); break; case 'axis-x-neg': p.set(-d, 0, 0); break; case 'axis-y': p.set(0, d, 0); break; case 'axis-y-neg': p.set(0, -d, 0.0001); break; case 'axis-z': p.set(0, 0, d); break; case 'axis-z-neg': p.set(0, 0, -d); break; default: return; } this.sceneManager.editorCamera.position.copy(t).add(p); this.sceneManager.editorCamera.lookAt(t); c.target.copy(t); c.update(); this.requestRender(); };
   public requestRender = () => { this.needsRender = true; };
-
-  private addEventListeners = () => {
-    this.controlsManager.getControls().addEventListener('change', () => {
-      this.updateHelperScale();
-      this.requestRender();
-    });
-    window.addEventListener('resize', this.onWindowResize); window.addEventListener('keydown', this.onKeyDown); window.addEventListener('keyup', this.onKeyUp);
-    this.controlsSubscription = this.controlsManager.onTransformEnd$.subscribe(() => { this.onTransformEndSubject.next(); });
-  };
-
-  private removeEventListeners = () => {
-    this.controlsManager.getControls()?.removeEventListener('change', this.requestRender);
-    window.removeEventListener('resize', this.onWindowResize); window.removeEventListener('keydown', this.onKeyDown); window.removeEventListener('keyup', this.onKeyUp);
-    this.controlsSubscription?.unsubscribe();
-  };
-
-  private onWindowResize = () => {
-    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    if (isTouchDevice) { this.sceneManager.renderer?.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); }
-    this.sceneManager.onWindowResize(); this.selectionManager.onResize(this.sceneManager.renderer.domElement.width, this.sceneManager.renderer.domElement.height); 
-    this.updateHelperScale();
-    this.requestRender();
-  };
-
-  private onKeyDown = (e: KeyboardEvent) => this.keyMap.set(e.key.toLowerCase(), true);
-  private onKeyUp = (e: KeyboardEvent) => this.keyMap.set(e.key.toLowerCase(), false);
-
-  private animate = () => {
-    this.animationFrameId = requestAnimationFrame(this.animate); 
-    this.statsManager.begin();
-    const delta = this.clock.getDelta();
-    if (this.controlsManager.update(delta, this.keyMap)) { 
-      this.requestRender(); 
-      this.updateHelperScale();
-    }
-    this.sceneManager.editorCamera.getWorldQuaternion(this.tempQuaternion);
-    if (!this.tempQuaternion.equals(this.cameraOrientation.getValue())) {
-      this.cameraOrientation.next(this.tempQuaternion.clone());
-    }
-    if (this.needsRender) { 
-      this.selectionManager.composer.render(); 
-      this.needsRender = false; 
-    }
-    this.statsManager.end();
-  };
-
-  ngOnDestroy = () => {
-    this.removeEventListeners(); 
-    this.cleanupInteractiveHelper();
-    if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId);
-    this.statsManager.destroy(); this.controlsManager.ngOnDestroy();
-    if (this.sceneManager.renderer) this.sceneManager.renderer.dispose();
-  };
 }
