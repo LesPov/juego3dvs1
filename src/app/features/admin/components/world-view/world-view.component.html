@@ -32,8 +32,6 @@
 
   <main class="viewport">
     <app-toolbar></app-toolbar>
-  <!-- 🎯 Indicador de Eje Bloqueado con el nuevo diseño -->
-    <!-- Este div se mostrará y desaparecerá gracias al *ngIf, activando las animaciones CSS -->
     <div *ngIf="(axisLock$ | async) as lockedAxis" class="axis-lock-indicator" [ngClass]="'lock-' + lockedAxis">
       Moviendo en Eje: <b>{{ lockedAxis | uppercase }}</b>
     </div>
@@ -41,12 +39,8 @@
       [initialObjects]="sceneObjects"
       (loadingProgress)="handleLoadingProgress($event)"
       (loadingComplete)="handleLoadingComplete()">
-      
     </app-scene>
-    
     <app-brujula></app-brujula>
-
-   
   </main>
 
   <aside class="sidebar" [class.visible-mobile]="isMobileSidebarVisible">
@@ -54,21 +48,41 @@
     <div class="panel scene-list-panel">
       <div class="panel-header">Elementos en la Escena</div>
       <div class="panel-content">
+        
+        <!-- 🎯 CORRECCIÓN: Usamos *ngIf para garantizar que los datos no sean nulos -->
+        <ng-container *ngIf="realEntities$ | async as realEntities">
+          <ul class="scene-object-list"
+              cdkDropList
+              [cdkDropListData]="realEntities" 
+              (cdkDropListDropped)="onDrop($event)">
+
+            <!-- Bucle para los OBJETOS REALES (arrastrables) -->
+            <li *ngFor="let e of realEntities"
+                cdkDrag
+                class="scene-object-item"
+                [class.selected]="e.uuid === selectedEntityUuid"
+                [ngClass]="getColorClassForEntity(e)"
+                (click)="onEntitySelect(e)">
+              
+              <span class="object-icon">{{ e.type === 'Camera' ? '📷' : e.type==='Light'?'💡':'📦' }}</span>
+              <span class="object-name">{{ e.name }}</span>
+            </li>
+          </ul>
+        </ng-container>
+
+        <!-- La lista de placeholders se renderiza por separado y no es parte del drag-drop -->
         <ul class="scene-object-list">
-          <li *ngFor="let e of combinedEntities$ | async"
-              class="scene-object-item"
-              [class.selected]="e.uuid === selectedEntityUuid"
-              [class.placeholder-item]="e.uuid.startsWith('placeholder-')"
+          <li *ngFor="let e of placeholderEntities"
+              class="scene-object-item placeholder-item"
               (click)="onEntitySelect(e)">
-            <span *ngIf="!e.uuid.startsWith('placeholder-')" class="object-icon">
-              {{ e.type === 'Camera' ? '📷' : e.type==='Light'?'💡':'📦' }}
-            </span>
             {{ e.name }}
           </li>
-          <li *ngIf="!(combinedEntities$ | async)?.length" class="empty-state">
-            La escena está vacía.
-          </li>
         </ul>
+
+        <!-- Mensaje de estado vacío -->
+        <div *ngIf="!(realEntities$ | async)?.length" class="empty-state">
+          La escena está vacía.
+        </div>
       </div>
     </div>
 

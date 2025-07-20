@@ -1,11 +1,14 @@
+// Imports - Añadimos lo necesario para Drag & Drop y BehaviorSubject
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Observable, Subject, Subscription, of } from 'rxjs';
+import { Observable, Subject, Subscription, of, BehaviorSubject } from 'rxjs';
 import { map, switchMap, tap, debounceTime } from 'rxjs/operators';
 import * as THREE from 'three';
+import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 
+// Imports de tus otros componentes y servicios
 import { SceneComponent } from '../world-editor/scene/scene.component';
 import { SceneObjectService } from '../../services/scene-object.service';
 import { AddObjectModalComponent, NewSceneObjectData } from '../world-editor/add-object-modal/add-object-modal.component';
@@ -20,7 +23,17 @@ import { BrujulaComponent } from '../world-editor/brujula/brujula.component';
 @Component({
   selector: 'app-world-view',
   standalone: true,
-  imports: [CommonModule, FormsModule, SceneComponent, AddObjectModalComponent, PropertiesPanelComponent, SceneSettingsPanelComponent, BrujulaComponent, ToolbarComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    SceneComponent,
+    AddObjectModalComponent,
+    PropertiesPanelComponent,
+    SceneSettingsPanelComponent,
+    BrujulaComponent,
+    ToolbarComponent,
+    DragDropModule
+  ],
   templateUrl: './world-view.component.html',
   styleUrls: ['./world-view.component.css'],
   providers: [EngineService]
@@ -35,17 +48,25 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   episodeTitle = '';
   selectedEntityUuid: string | null = null;
   selectedObject: SceneObjectResponse | null = null;
-  combinedEntities$: Observable<SceneEntity[]>;
   isAddObjectModalVisible = false;
   activePropertiesTab: string = 'object';
   isMobileSidebarVisible = false;
-
-  // 🎯 NUEVA LÓGICA: Observable para recibir el estado del bloqueo de eje desde el servicio.
   public axisLock$: Observable<'x' | 'y' | 'z' | null>;
+
+  public realEntities$ = new BehaviorSubject<SceneEntity[]>([]);
+  public placeholderEntities: SceneEntity[] = [];
+
+  private readonly typeColorMap: { [key: string]: string } = {
+    'Camera': 'color-camera',
+    'Light': 'color-light',
+    'Model': 'color-model',
+    'default': 'color-default'
+  };
 
   private propertyUpdate$ = new Subject<PropertyUpdate>();
   private propertyUpdateSubscription?: Subscription;
   private transformEndSubscription?: Subscription;
+  private sceneEntitiesSubscription?: Subscription;
 
   constructor(
     private route: ActivatedRoute,
@@ -55,14 +76,9 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     private cdr: ChangeDetectorRef,
     private sceneObjectService: SceneObjectService,
   ) {
-    const placeholders: SceneEntity[] = Array.from({ length: 5 }, (_, i) => ({
+    this.placeholderEntities = Array.from({ length: 1 }, (_, i) => ({
       uuid: `placeholder-${i + 1}`, name: `Añadir objeto nuevo...`, type: 'Model',
     }));
-    this.combinedEntities$ = this.engineService.getSceneEntities().pipe(
-      map((real: SceneEntity[]) => [...real, ...placeholders])
-    );
-    
-    // 🎯 NUEVA LÓGICA: Asignamos el observable del servicio a nuestra propiedad.
     this.axisLock$ = this.engineService.axisLockState$;
   }
 
@@ -73,6 +89,10 @@ export class WorldViewComponent implements OnInit, OnDestroy {
       this.loadEpisodeData(this.episodeId);
       this.setupPropertyUpdateSubscription();
       this.setupTransformEndSubscription();
+
+      this.sceneEntitiesSubscription = this.engineService.getSceneEntities().subscribe(entities => {
+        this.realEntities$.next(entities);
+      });
     } else {
       this.router.navigate(['/admin/episodios']);
     }
@@ -81,6 +101,18 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.propertyUpdateSubscription?.unsubscribe();
     this.transformEndSubscription?.unsubscribe();
+    this.sceneEntitiesSubscription?.unsubscribe();
+  }
+
+  onDrop(event: CdkDragDrop<SceneEntity[]>) {
+    moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
+    this.realEntities$.next([...event.container.data]);
+    const newOrderUuids = event.container.data.map(entity => entity.uuid);
+    console.log('Nuevo orden de UUIDs para guardar:', newOrderUuids);
+  }
+
+  getColorClassForEntity(entity: SceneEntity): string {
+    return this.typeColorMap[entity.type] || this.typeColorMap['default'];
   }
 
   toggleMobileSidebar(): void {
@@ -218,11 +250,14 @@ export class WorldViewComponent implements OnInit, OnDestroy {
 
   handleLoadingProgress(p: number) { this.loadingProgress = p; this.cdr.detectChanges(); }
   handleLoadingComplete() { this.loadingProgress = 100; setTimeout(() => { this.isRenderingScene = false; this.cdr.detectChanges(); }, 500); }
+
   closeAddObjectModal() { this.isAddObjectModalVisible = false; }
+
   createSceneObject(data: NewSceneObjectData) {
     if (!this.episodeId) return;
     this.sceneObjectService.createSceneObject(this.episodeId, data).subscribe({
       next: obj => {
+        // 🎯 CORRECCIÓN: Se cambió el guion (-) por la sintaxis correcta de "camelCase".
         this.closeAddObjectModal();
         this.engineService.addObjectToScene(obj);
         obj.rotation = { x: THREE.MathUtils.radToDeg(obj.rotation.x), y: THREE.MathUtils.radToDeg(obj.rotation.y), z: THREE.MathUtils.radToDeg(obj.rotation.z) };

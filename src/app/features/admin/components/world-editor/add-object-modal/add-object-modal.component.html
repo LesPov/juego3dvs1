@@ -1,85 +1,141 @@
-<!-- src/app/features/admin/world-editor/add-object-modal/add-object-modal.component.html -->
+<!-- src/app/features/admin/components/world-editor/add-object-modal/add-object-modal.component.html -->
 
 <div class="modal-overlay" (click)="onClose()">
   <div class="modal-content" (click)="$event.stopPropagation()">
     <header class="modal-header">
-      <h2>Añadir Nuevo Objeto</h2>
-      <button class="close-button" (click)="onClose()">×</button>
+      <h2>Añadir Objeto a la Escena</h2>
+      <button class="close-button" (click)="onClose()" title="Cerrar">×</button>
     </header>
 
     <main class="modal-body">
-      <form [formGroup]="objectForm" (ngSubmit)="onSubmit()">
-        
-        <div class="form-row">
-          <div class="form-group">
-            <label for="name">Nombre del Objeto</label>
-            <input id="name" type="text" formControlName="name" placeholder="Ej: Luz Principal">
-          </div>
-          <div class="form-group">
-            <label for="type">Tipo de Objeto</label>
-            <select id="type" formControlName="type">
-              <option *ngFor="let type of objectTypes" [value]="type">{{ type }}</option>
-            </select>
+      <div class="tabs">
+        <button class="tab-button" [class.active]="activeTab === 'library'" (click)="activeTab = 'library'">
+          📚 Biblioteca
+        </button>
+        <button class="tab-button" [class.active]="activeTab === 'advanced'" (click)="activeTab = 'advanced'">
+          ⚙️ Detalles
+        </button>
+      </div>
+
+      <div class="tab-content">
+        <!-- PESTAÑA BIBLIOTECA -->
+        <div class="library-container" *ngIf="activeTab === 'library'">
+          <div *ngFor="let category of prefabCategories" class="library-category">
+            <h3 class="category-title">{{ category.name }}</h3>
+            <div class="library-grid">
+              <div *ngFor="let prefab of category.items" class="prefab-card" (click)="selectPrefab(prefab)">
+                <div class="prefab-icon">{{ prefab.icon }}</div>
+                <div class="prefab-info">
+                  <h4 class="prefab-title">{{ prefab.name }}</h4>
+                  <p class="prefab-description">{{ prefab.description }}</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-
-        <div class="form-group" *ngIf="objectForm.get('type')?.value === 'model'">
-            <label for="assetId">Modelo 3D (Asset)</label>
-            <select id="assetId" formControlName="assetId">
-                <option [ngValue]="null" disabled>Selecciona un modelo...</option>
-                <option *ngFor="let asset of modelAssets" [ngValue]="asset.id">{{ asset.name }}</option>
-            </select>
-        </div>
-
-        <fieldset formGroupName="position"><legend>Posición</legend><div class="vector-group"><input type="number" step="0.1" formControlName="x" placeholder="X"><input type="number" step="0.1" formControlName="y" placeholder="Y"><input type="number" step="0.1" formControlName="z" placeholder="Z"></div></fieldset>
-        <fieldset formGroupName="rotation"><legend>Rotación (radianes)</legend><div class="vector-group"><input type="number" step="0.1" formControlName="x" placeholder="X"><input type="number" step="0.1" formControlName="y" placeholder="Y"><input type="number" step="0.1" formControlName="z" placeholder="Z"></div></fieldset>
-        <fieldset formGroupName="scale"><legend>Escala</legend><div class="vector-group"><input type="number" step="0.1" formControlName="x" placeholder="X"><input type="number" step="0.1" formControlName="y" placeholder="Y"><input type="number" step="0.1" formControlName="z" placeholder="Z"></div></fieldset>
-
-        <!-- Contenedor de Propiedades Dinámicas -->
-        <fieldset formGroupName="properties" *ngIf="objectForm.get('properties')?.value && Object.keys(objectForm.get('properties')?.value).length > 0">
-          <legend>Propiedades Específicas</legend>
-          
-          <!-- Usamos ngSwitch para mostrar el formulario correcto según el tipo -->
-          <ng-container [ngSwitch]="objectForm.get('type')?.value">
-              
-              <div *ngSwitchCase="'model'" class="properties-grid">
-                  <div *ngIf="overrideColorControl" class="form-group"><label>Teñir (Color)</label><input type="color" [formControl]="overrideColorControl"></div>
-              </div>
-
-              <div *ngSwitchCase="'camera'" class="properties-grid grid-3-cols">
-                  <div class="form-group"><label>FOV</label><input type="number" step="1" formControlName="fov"></div>
-                  <div class="form-group"><label>Near</label><input type="number" step="0.1" formControlName="near"></div>
-                  <div class="form-group"><label>Far</label><input type="number" step="10" formControlName="far"></div>
-              </div>
-
-              <div *ngSwitchCase="'ambientLight'" class="properties-grid">
-                  <div *ngIf="colorControl" class="form-group"><label>Color</label><input type="color" [formControl]="colorControl"></div>
-                  <div class="form-group"><label>Intensidad</label><input type="number" step="0.1" formControlName="intensity"></div>
-              </div>
-
-              <div *ngSwitchCase="'directionalLight'" class="properties-grid">
-                  <div *ngIf="colorControl" class="form-group"><label>Color</label><input type="color" [formControl]="colorControl"></div>
-                  <div class="form-group"><label>Intensidad</label><input type="number" step="0.1" formControlName="intensity"></div>
-              </div>
-
-              <div *ngSwitchCase="'pointLight'" class="properties-grid grid-2-cols">
-                  <div *ngIf="colorControl" class="form-group"><label>Color</label><input type="color" [formControl]="colorControl"></div>
-                  <div class="form-group"><label>Intensidad</label><input type="number" step="0.1" formControlName="intensity"></div>
-                  <div class="form-group"><label>Distancia</label><input type="number" step="1" formControlName="distance"></div>
-                  <div class="form-group"><label>Decay</label><input type="number" step="0.1" formControlName="decay"></div>
-              </div>
-
-              <div *ngSwitchDefault class="properties-grid">
-                  <div *ngIf="colorControl" class="form-group"><label>Color</label><input type="color" [formControl]="colorControl"></div>
-              </div>
-          </ng-container>
-        </fieldset>
         
-        <footer class="modal-footer">
-          <button type="button" class="btn btn-secondary" (click)="onClose()">Cancelar</button>
-          <button type="submit" class="btn btn-primary" [disabled]="objectForm.invalid">Crear Objeto</button>
-        </footer>
-      </form>
+        <!-- PESTAÑA DE DETALLES -->
+        <div class="form-container" *ngIf="activeTab === 'advanced'">
+          <form [formGroup]="objectForm" (ngSubmit)="onSubmit()">
+            
+            <div class="form-panel">
+              <h3 class="panel-title">Información Básica</h3>
+              <div class="panel-content basic-info-grid">
+                <div class="form-group full-width">
+                  <label for="name">Nombre del Objeto</label>
+                  <input id="name" type="text" formControlName="name" placeholder="Ej: Pared Izquierda">
+                </div>
+                <div class="form-group full-width" *ngIf="objectForm.get('type')?.value === 'model'">
+                  <label for="assetId">Modelo 3D (Asset)</label>
+                  <select id="assetId" formControlName="assetId">
+                    <option [ngValue]="null" disabled>Selecciona un modelo...</option>
+                    <option *ngFor="let asset of modelAssets" [ngValue]="asset.id">{{ asset.name }}</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- 🎯 SECCIÓN DE TRANSFORMACIÓN MEJORADA (ESTILO PROFESIONAL) 🎯 -->
+            <div class="form-panel">
+              <h3 class="panel-title">Transformación</h3>
+              <div class="panel-content transform-panel-grid">
+                <!-- Fila de Posición -->
+                <label for="position-x">Posición</label>
+                <div class="vector-group" formGroupName="position">
+                  <div class="vector-input">
+                    <span class="vector-label x">X</span>
+                    <input id="position-x" type="number" step="0.1" formControlName="x">
+                  </div>
+                  <div class="vector-input">
+                    <span class="vector-label y">Y</span>
+                    <input type="number" step="0.1" formControlName="y">
+                  </div>
+                  <div class="vector-input">
+                    <span class="vector-label z">Z</span>
+                    <input type="number" step="0.1" formControlName="z">
+                  </div>
+                </div>
+                
+                <!-- Fila de Rotación -->
+                <label for="rotation-x">Rotación</label>
+                <div class="vector-group" formGroupName="rotation">
+                  <div class="vector-input">
+                    <span class="vector-label x">X</span>
+                    <input id="rotation-x" type="number" step="1" formControlName="x">
+                  </div>
+                  <div class="vector-input">
+                    <span class="vector-label y">Y</span>
+                    <input type="number" step="1" formControlName="y">
+                  </div>
+                  <div class="vector-input">
+                    <span class="vector-label z">Z</span>
+                    <input type="number" step="1" formControlName="z">
+                  </div>
+                </div>
+
+                <!-- Fila de Escala -->
+                <label for="scale-x">Escala</label>
+                <div class="vector-group" formGroupName="scale">
+                  <div class="vector-input">
+                    <span class="vector-label x">X</span>
+                    <input id="scale-x" type="number" step="0.1" formControlName="x">
+                  </div>
+                  <div class="vector-input">
+                    <span class="vector-label y">Y</span>
+                    <input type="number" step="0.1" formControlName="y">
+                  </div>
+                  <div class="vector-input">
+                    <span class="vector-label z">Z</span>
+                    <input type="number" step="0.1" formControlName="z">
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Fin de la sección rediseñada -->
+
+            <div class="form-panel" [formGroup]="propertiesFormGroup" *ngIf="Object.keys(propertiesFormGroup.controls).length > 0">
+              <h3 class="panel-title">Propiedades Específicas</h3>
+              <div class="panel-content properties-grid">
+                <ng-container *ngFor="let key of Object.keys(propertiesFormGroup.controls)">
+                  <div class="property-item" [ngClass]="{'span-full': key.toLowerCase().includes('color'), 'span-half': !key.toLowerCase().includes('color')}">
+                    <label [for]="key">{{ key | titlecase }}</label>
+                    <ng-container [ngSwitch]="propertiesFormGroup.get(key)?.value.constructor.name">
+                      <input *ngSwitchCase="'String'" [type]="key.toLowerCase().includes('color') ? 'color' : 'text'" [id]="key" [formControlName]="key" [ngClass]="{'color-picker': key.toLowerCase().includes('color')}">
+                      <input *ngSwitchCase="'Number'" type="number" [id]="key" [formControlName]="key" step="0.1">
+                      <label *ngSwitchCase="'Boolean'" class="switch"><input type="checkbox" [id]="key" [formControlName]="key"><span class="slider round"></span></label>
+                    </ng-container>
+                  </div>
+                </ng-container>
+              </div>
+            </div>
+
+            <footer class="modal-footer">
+              <button type="button" class="btn btn-secondary" (click)="onClose()">Cancelar</button>
+              <button type="submit" class="btn btn-primary" [disabled]="objectForm.invalid">Crear Objeto</button>
+            </footer>
+          </form>
+        </div>
+      </div>
     </main>
   </div>
 </div>

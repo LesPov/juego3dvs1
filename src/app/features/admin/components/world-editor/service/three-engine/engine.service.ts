@@ -1,3 +1,4 @@
+// src/app/features/admin/components/world-editor/service/three-engine/engine.service.ts
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
@@ -15,35 +16,19 @@ import { DragInteractionManagerService } from './utils/drag-interaction.manager.
  
 @Injectable()
 export class EngineService implements OnDestroy {
-  // =================================================================================================
-  // == SECCIÓN 1: PROPIEDADES Y API PÚBLICA =========================================================
-  // =================================================================================================
-  
   public onTransformEnd$: Observable<void>;
   private selectedObject?: THREE.Object3D;
-  
-  // --- Bucle de Renderizado y Estado ---
   private clock = new THREE.Clock();
   private animationFrameId?: number;
   private needsRender = true;
-
-  // --- Estado de Teclado y Cámara ---
   private keyMap = new Map<string, boolean>();
   private axisLock: 'x' | 'y' | 'z' | null = null;
-
-  // 🎯 NUEVA LÓGICA: Subject para notificar el estado del bloqueo de ejes a la UI.
   private axisLockStateSubject = new BehaviorSubject<'x' | 'y' | 'z' | null>(null);
   public axisLockState$ = this.axisLockStateSubject.asObservable();
-  
   private cameraOrientation = new BehaviorSubject<THREE.Quaternion>(new THREE.Quaternion());
   private tempQuaternion = new THREE.Quaternion();
-
   private controlsSubscription?: Subscription;
 
-  // =================================================================================================
-  // == SECCIÓN 2: CICLO DE VIDA Y ORQUESTACIÓN =======================================================
-  // =================================================================================================
-  
   constructor(
     private sceneManager: SceneManagerService,
     private entityManager: EntityManagerService,
@@ -90,17 +75,12 @@ export class EngineService implements OnDestroy {
     if (this.sceneManager.renderer) this.sceneManager.renderer.dispose();
   };
 
-  // =================================================================================================
-  // == SECCIÓN 3: GESTIÓN DE SELECCIÓN Y HERRAMIENTAS ===============================================
-  // =================================================================================================
-  
-   public setToolMode(mode: ToolMode): void {
+  public setToolMode(mode: ToolMode): void {
     this.controlsManager.setTransformMode(mode);
     this.interactionHelperManager.cleanupHelpers(this.selectedObject);
     this.dragInteractionManager.stopListening();
     this.controlsManager.detach();
 
-    // 🎯 NUEVA LÓGICA: Notificamos que no hay bloqueo de eje al cambiar de herramienta.
     this.axisLock = null;
     this.dragInteractionManager.setAxisConstraint(null);
     this.axisLockStateSubject.next(null);
@@ -121,13 +101,11 @@ export class EngineService implements OnDestroy {
     this.requestRender();
   }
 
-
   public selectObjectByUuid(uuid: string | null): void {
     this.interactionHelperManager.cleanupHelpers(this.selectedObject);
     this.dragInteractionManager.stopListening();
     this.controlsManager.detach();
 
-    // 🎯 NUEVA LÓGICA: Notificamos que no hay bloqueo al cambiar de objeto.
     this.axisLock = null;
     this.dragInteractionManager.setAxisConstraint(null);
     this.axisLockStateSubject.next(null);
@@ -149,10 +127,6 @@ export class EngineService implements OnDestroy {
     }
     this.requestRender();
   }
-
-  // =================================================================================================
-  // == SECCIÓN 4: BUCLE PRINCIPAL Y EVENTOS =========================================================
-  // =================================================================================================
 
   private animate = () => {
     this.animationFrameId = requestAnimationFrame(this.animate);
@@ -212,19 +186,11 @@ export class EngineService implements OnDestroy {
     const key = e.key.toLowerCase();
     this.keyMap.set(key, true);
 
-    // Solo reaccionar a las teclas de eje si la herramienta activa es 'mover'
     if (this.controlsManager.getCurrentToolMode() === 'move') {
       if (key === 'x' || key === 'y' || key === 'z') {
-        // Si el eje presionado ya estaba bloqueado, lo desbloqueamos. Si no, lo bloqueamos.
         this.axisLock = this.axisLock === key ? null : key;
-        
-        // Notificamos al gestor de arrastre sobre la restricción actual.
         this.dragInteractionManager.setAxisConstraint(this.axisLock);
-
-        // 🎯 NUEVA LÓGICA: Emitimos el nuevo estado del bloqueo a la UI.
         this.axisLockStateSubject.next(this.axisLock);
-
-        console.log(`Bloqueo de eje cambiado a: ${this.axisLock?.toUpperCase() ?? 'NINGUNO'}`);
       }
     }
   };
@@ -232,10 +198,6 @@ export class EngineService implements OnDestroy {
   private onKeyUp = (e: KeyboardEvent) => this.keyMap.set(e.key.toLowerCase(), false);
   public requestRender = () => { this.needsRender = true; };
 
-  // =================================================================================================
-  // == SECCIÓN 5: API PÚBLICA DEL SERVICIO (GETTERS Y ACTUALIZADORES) ===============================
-  // =================================================================================================
-  
   public getSceneEntities = (): Observable<SceneEntity[]> => this.entityManager.getSceneEntities();
   public getCameraOrientation = (): Observable<THREE.Quaternion> => this.cameraOrientation.asObservable();
   public getGizmoAttachedObject = (): THREE.Object3D | undefined => this.selectedObject;

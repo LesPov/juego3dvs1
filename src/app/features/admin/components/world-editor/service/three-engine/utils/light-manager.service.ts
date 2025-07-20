@@ -14,7 +14,7 @@ export class LightManagerService {
    * Las demás luces las crearás tú con tus objetos de tipo 'directionalLight', 'pointLight', etc.
    */
   public addLightsToScene(scene: THREE.Scene): void {
-    const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+    const ambient = new THREE.AmbientLight(0xffffff, 0.8);
     ambient.name = 'Luz Ambiental';
     scene.add(ambient);
 

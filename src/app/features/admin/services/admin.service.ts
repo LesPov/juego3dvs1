@@ -13,7 +13,7 @@ export interface AssetResponse {
 export interface SceneObjectResponse {
     id: number;
     type: 'cube' | 'sphere' | 'floor' | 'model' |
-          'camera' | 'ambientLight' | 'directionalLight' | 'pointLight';
+          'camera' | 'ambientLight' | 'directionalLight' | 'cone' | 'torus';
     name: string;
     position: { x: number; y: number; z: number };
     rotation: { x: number; y: number; z: number };

@@ -17,97 +17,110 @@
 .progress-bar { height: 100%; background-color: #5294e2; border-radius: 6px; transition: width 0.2s ease-out; }
 .progress-text { margin-top: 15px; font-size: 1.2rem; font-weight: 500; color: #ffffff; }
 
-/* ---- ESTILOS DE EDITOR (sin cambios) ---- */
+/* ---- ESTILOS DE EDITOR ---- */
 .editor-layout { display: grid; grid-template-areas: "header header" "viewport sidebar"; grid-template-columns: 1fr 380px; grid-template-rows: 40px 1fr; width:100%; height:100%; }
 .editor-header { grid-area: header; background: #2b2b2b; border-bottom: 1px solid #202020; display: flex; align-items: center; padding: 0 20px; font-weight: bold; }
-/* IMPORTANTE: El padre del indicador ya tiene position: relative, lo cual es perfecto para la solución. */
 .viewport { grid-area: viewport; position: relative; overflow: hidden; } 
-.sidebar { grid-area: sidebar; background: #2b2b2b; border-left: 1px solid #202020; display: flex; flex-direction: column; }
+.sidebar { grid-area: sidebar; background: #2b2b2b; border-left: 1px solid #202020; display: flex; flex-direction: column; overflow: hidden; }
 .mobile-sidebar-toggle { display: none; }
-.scene-list-panel { flex: 1 1 50%; border: none; border-bottom: 1px solid #202020; min-height: 0; display: flex; flex-direction: column; }
-.panel-header { background: #353535; padding: 8px 12px; border-bottom: 1px solid #202020; font-weight: 500; }
-.panel-content { background: #2b2b2b; overflow-y: auto; flex-grow: 1; }
+.panel-header { background: #353535; padding: 8px 12px; border-bottom: 1px solid #202020; font-weight: 500; user-select: none; }
+
+/* ---- 🎯 NUEVOS ESTILOS: LISTA DE ESCENA TIPO BLENDER ---- */
+.scene-list-panel { flex: 1; border: none; border-bottom: 1px solid #202020; min-height: 0; display: flex; flex-direction: column; }
+.panel-content { background: #252525; overflow-y: auto; flex-grow: 1; }
 .scene-object-list { list-style: none; margin: 0; padding: 0; }
-.scene-object-item { display: flex; align-items: center; gap: 10px; padding: 6px 12px; cursor: pointer; transition: background .2s; font-size: 13px; }
-.scene-object-item:hover { background: #3f3f46 }
-.scene-object-item.selected { background: #5294e2; color: #fff; font-weight: 500; }
-.placeholder-item { font-style: italic; color: #666 }
-.object-icon { width: 20px; text-align: center; }
-.properties-container { flex: 1 1 50%; display: flex; min-height: 0; }
-.properties-tabs { width: 40px; background: #2b2b2b; display: flex; flex-direction: column; align-items: center; gap: 1px; border-right: 1px solid #202020; padding: 5px 0; }
-.tab-button { width: 100%; background: none; border: none; color: #a0a0a0; font-size: 20px; padding: 6px 0; cursor: pointer; border-left: 2px solid transparent; transition: background .2s, color .2s; }
-.tab-button:hover { background: #4a4a4a }
-.tab-button.active { background: #353535; color: #f5b300; border-left-color: #f5b300 }
-.tabs-separator { width: 70%; height: 1px; background: #444; margin: 5px 0 }
+
+.scene-object-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  font-size: 13px;
+  color: #c4c4c4;
+  /* Borde izquierdo que tomará el color de la posición */
+  border-left: 3px solid transparent; 
+  /* Línea divisoria entre elementos, como en Blender */
+  border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+  transition: background .15s, border-color .15s;
+  user-select: none; /* Evita que se seleccione el texto al arrastrar */
+}
+
+/* Cursores para indicar interactividad */
+.scene-object-item:not(.placeholder-item) { cursor: grab; }
+.scene-object-item:not(.placeholder-item):active { cursor: grabbing; }
+.scene-object-item:not(.placeholder-item):hover { background-color: rgba(255, 255, 255, 0.08); }
+
+/* Estilos de los placeholders "Añadir objeto" */
+.placeholder-item { font-style: italic; color: #777; cursor: pointer; }
+.placeholder-item:hover { background-color: rgba(255, 255, 255, 0.05); }
+
+/* Estilos de los iconos */
+.object-icon { width: 16px; text-align: center; opacity: 0.7; font-size: 14px; }
+.object-name { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Estilo para el elemento SELECCIONADO (tiene más prioridad que el hover) */
+.scene-object-item.selected {
+  background-color: #4A82C4; /* Azul de selección de Blender */
+  color: #fff;
+  border-left-color: #F5B300 !important; /* Borde naranja, !important para que siempre gane al color de posición */
+}
+
+/* ---- 🎯 NUEVOS ESTILOS: COLORES POR POSICIÓN EN LA LISTA ---- */
+/* Cada clase corresponde a un color de la paleta en el TS */
+.scene-object-item.list-color-0 { border-left-color: #88a8d1; }
+.scene-object-item.list-color-1 { border-left-color: #a8d188; }
+.scene-object-item.list-color-2 { border-left-color: #d188a8; }
+.scene-object-item.list-color-3 { border-left-color: #d1a888; }
+.scene-object-item.list-color-4 { border-left-color: #88d1d1; }
+.scene-object-item.list-color-5 { border-left-color: #d1d188; }
+
+/* ---- 🎯 NUEVOS ESTILOS: EXPERIENCIA VISUAL DE DRAG & DROP ---- */
+
+/* Estilo del elemento "fantasma" que se arrastra */
+.cdk-drag-preview {
+  box-sizing: border-box;
+  border-radius: 3px;
+  box-shadow: 0 5px 5px -3px rgba(0, 0, 0, 0.2), 0 8px 10px 1px rgba(0, 0, 0, 0.14), 0 3px 14px 2px rgba(0, 0, 0, 0.12);
+  background: #3f3f46;
+  color: #fff;
+}
+
+/* Estilo del espacio que deja el elemento al ser arrastrado */
+.cdk-drag-placeholder {
+  background: rgba(74, 130, 196, 0.2);
+  border-top: 1px solid #4A82C4;
+  border-bottom: 1px solid #4A82C4;
+  opacity: 1;
+  transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* Animación suave para los otros elementos cuando se mueven para hacer espacio */
+.cdk-drop-list-dragging .cdk-drag {
+  transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* Ocultamos el elemento original mientras se arrastra, para que solo se vea el placeholder */
+.cdk-drag-animating {
+  transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* ---- ESTILOS DEL PANEL DE PROPIEDADES (sin cambios) ---- */
+.properties-container { flex: 1; display: flex; min-height: 0; }
+.properties-tabs { width: 40px; background: #2b2b2b; display: flex; flex-direction: column; align-items: center; gap: 1px; border-right: 1px solid #202020; padding: 5px 0; overflow-y: auto; overflow-x: hidden; }
+.tab-button { width: 100%; background: none; border: none; color: #a0a0a0; font-size: 20px; padding: 6px 0; cursor: pointer; border-left: 2px solid transparent; transition: background .2s, color .2s; flex-shrink: 0; }
+.tab-button:hover { background: #4a4a4a; }
+.tab-button.active { background: #353535; color: #f5b300; border-left-color: #f5b300; }
+.tabs-separator { width: 70%; height: 1px; background: #444; margin: 5px 0; flex-shrink: 0; }
 .properties-content { flex-grow: 1; background: #353535; position: relative; overflow-y: auto; }
 .properties-content>* { width: 100%; height: 100%; }
-.placeholder-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #999; padding: 20px; }
+.placeholder-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #999; padding: 20px; text-align: center; }
 .placeholder-panel h2 { margin-bottom: 10px; color: #ccc; }
 app-brujula { position: absolute; top: 15px; right: 15px; width: 120px; height: 120px; z-index: 10; pointer-events: none; }
 
-
-/* 🎯 KEYFRAMES (sin cambios, ya estaban bien) */
-@keyframes slide-in-from-bottom {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 30px); /* El -50% en X lo centra, el 30px en Y lo mueve hacia abajo */
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0); /* El -50% en X lo mantiene centrado, el 0 en Y es su posición final */
-  }
-}
-
-/* 🎯 SOLUCIÓN: Indicador centrado dentro del viewport */
-.axis-lock-indicator {
-  /* CAMBIO 1: De 'fixed' a 'absolute'. 
-     Ahora se posicionará relativo al contenedor .viewport que tiene position: relative */
-  position: absolute;
-  
-  /* CAMBIO 2: Centrado horizontal. 
-     Movemos su borde izquierdo al 50% del ANCHO DEL VIEWPORT. 
-     La animación con 'transform: translate(-50%...)' hará el ajuste final para que quede perfectamente centrado. */
-  left: 50%;
-
-  /* CAMBIO 3 (Opcional): Ajuste de la distancia al borde inferior. 
-     20px suele quedar mejor que 40px, pero puedes ajustarlo a tu gusto. */
-  bottom: 350px;
-
-  /* El resto de tus estilos están perfectos para el efecto deseado */
-  background: rgba(35, 35, 35, 0.5);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  color: #e0e0e0;
-  padding: 10px 24px;
-  border-radius: 25px;
-  font-size: 16px;
-  font-weight: 500;
-  z-index: 10;
-  pointer-events: none; 
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-  animation: slide-in-from-bottom 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
-}
-
-
-/* El resto de estilos para los colores de los ejes no necesitan cambios */
-.axis-lock-indicator b {
-  font-weight: 700;
-  color: #ffffff;
-}
-
-.axis-lock-indicator.lock-x b {
-  color: #ff556f;
-  text-shadow: 0 0 10px #ff556f, 0 0 20px #ff556f;
-}
-
-.axis-lock-indicator.lock-y b {
-  color: #55ff88;
-  text-shadow: 0 0 10px #55ff88, 0 0 20px #55ff88;
-}
-
-.axis-lock-indicator.lock-z b {
-  color: #55aaff;
-  text-shadow: 0 0 10px #55aaff, 0 0 20px #55aaff;
-}
+/* ---- ESTILOS DEL INDICADOR DE EJE (sin cambios) ---- */
+@keyframes slide-in-from-bottom { from { opacity: 0; transform: translate(-50%, 30px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.axis-lock-indicator { position: absolute; left: 50%; bottom: 20px; background: rgba(35, 35, 35, 0.5); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); color: #e0e0e0; padding: 10px 24px; border-radius: 25px; font-size: 16px; font-weight: 500; z-index: 10; pointer-events: none; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 4px 20px rgba(0,0,0,0.3); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); animation: slide-in-from-bottom 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; }
+.axis-lock-indicator b { font-weight: 700; color: #ffffff; }
+.axis-lock-indicator.lock-x b { color: #ff556f; text-shadow: 0 0 10px #ff556f, 0 0 20px #ff556f; }
+.axis-lock-indicator.lock-y b { color: #55ff88; text-shadow: 0 0 10px #55ff88, 0 0 20px #55ff88; }
+.axis-lock-indicator.lock-z b { color: #55aaff; text-shadow: 0 0 10px #55aaff, 0 0 20px #55aaff; }

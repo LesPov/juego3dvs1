@@ -28,9 +28,12 @@ export class ObjectManagerService {
       case 'model':
         this.loadGltfModel(scene, objData, loader);
         break;
+      // Simplemente nos aseguramos de que todos los tipos de mallas se envíen a createPrimitive
       case 'cube':
       case 'sphere':
       case 'floor':
+      case 'cone': // Ya estaba en el router, ahora lo crearemos de verdad
+      case 'torus': // Igual aquí
         this.createPrimitive(scene, objData);
         break;
       default:
@@ -48,12 +51,32 @@ export class ObjectManagerService {
     }
     const material = new THREE.MeshStandardMaterial(materialConfig);
     let geometry: THREE.BufferGeometry;
+
+    // === CAMBIO CLAVE: AÑADIMOS LAS NUEVAS GEOMETRías ===
     switch (objData.type) {
-      case 'cube': geometry = new THREE.BoxGeometry(1, 1, 1); break;
-      case 'sphere': geometry = new THREE.SphereGeometry(0.5, 32, 16); break;
+      case 'cube': 
+        geometry = new THREE.BoxGeometry(1, 1, 1); 
+        break;
+      case 'sphere': 
+        geometry = new THREE.SphereGeometry(0.5, 32, 16); 
+        break;
+      case 'cone': // ¡NUEVO! Creamos la geometría del cono (pirámide)
+        // new THREE.ConeGeometry(radio, altura, segmentos radiales)
+        geometry = new THREE.ConeGeometry(0.5, 1, 32);
+        break;
+      case 'torus': // ¡NUEVO! Creamos la geometría del toroide (dona)
+        // new THREE.TorusGeometry(radio, radio del tubo, segmentos radiales, segmentos del tubo)
+        geometry = new THREE.TorusGeometry(0.5, 0.2, 16, 32);
+        break;
       case 'floor':
-      default: geometry = new THREE.PlaneGeometry(1, 1); break;
+        geometry = new THREE.PlaneGeometry(1, 1); 
+        break;
+      default: 
+        console.warn(`[ObjectManager] Geometría primitiva desconocida: '${objData.type}', usando plano por defecto.`);
+        geometry = new THREE.PlaneGeometry(1, 1); 
+        break;
     }
+    // El resto de la lógica es genérica y funciona para cualquier malla, ¡qué bien!
     const mesh = new THREE.Mesh(geometry, material);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -65,6 +88,7 @@ export class ObjectManagerService {
     scene.add(mesh);
   }
 
+  // El resto del archivo no necesita cambios
   private loadGltfModel(scene: THREE.Scene, objData: SceneObjectResponse, loader: GLTFLoader): void {
     if (!objData.asset?.path) {
       console.error(`El objeto '${objData.name}' (ID: ${objData.id}) es de tipo 'model' pero no tiene un asset válido.`);
