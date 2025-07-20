@@ -1,7 +1,7 @@
 // src/app/features/admin/components/world-editor/service/three-engine/engine.service.ts
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
-import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
+import { BehaviorSubject, Observable, Subscription } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 
 import { ControlsManagerService } from './utils/controls-manager.service';
@@ -43,23 +43,22 @@ export class EngineService implements OnDestroy {
 
   public init(canvasRef: ElementRef<HTMLCanvasElement>, objects: SceneObjectResponse[], onProgress: (p: number) => void, onLoaded: () => void): void {
     const canvas = canvasRef.nativeElement;
-    
     this.sceneManager.setupBasicScene(canvas);
     this.entityManager.init(this.sceneManager.scene);
     this.statsManager.init();
     this.selectionManager.init(this.sceneManager.scene, this.sceneManager.editorCamera, this.sceneManager.renderer, canvas);
     this.controlsManager.init(this.sceneManager.editorCamera, canvas, this.sceneManager.scene, this.sceneManager.focusPivot);
-    
     this.interactionHelperManager.init(this.sceneManager.scene, this.sceneManager.editorCamera);
     this.dragInteractionManager.init(this.sceneManager.editorCamera, canvas, this.controlsManager);
-
     const lm = this.entityManager.getLoadingManager();
     lm.onProgress = (_, i, t) => onProgress((i / t) * 100);
-    lm.onLoad = () => { onLoaded(); this.entityManager.publishSceneEntities(); this.requestRender(); };
-    
+    lm.onLoad = () => { 
+      onLoaded(); 
+      this.entityManager.publishSceneEntities(); 
+      this.requestRender(); 
+    };
     objects.forEach(o => this.entityManager.createObjectFromData(o));
     if (!objects.some(o => o.type === 'model' && o.asset?.path)) setTimeout(() => lm.onLoad!(), 0); 
-    
     this.controlsManager.enableNavigation();
     this.addEventListeners();
     this.animate();
@@ -80,11 +79,9 @@ export class EngineService implements OnDestroy {
     this.interactionHelperManager.cleanupHelpers(this.selectedObject);
     this.dragInteractionManager.stopListening();
     this.controlsManager.detach();
-
     this.axisLock = null;
     this.dragInteractionManager.setAxisConstraint(null);
     this.axisLockStateSubject.next(null);
-
     if (this.selectedObject) {
       switch (mode) {
         case 'move':
@@ -92,8 +89,7 @@ export class EngineService implements OnDestroy {
           this.interactionHelperManager.makeObjectOpaque(this.selectedObject);
           this.dragInteractionManager.startListening(this.selectedObject, this.interactionHelperManager);
           break;
-        case 'rotate':
-        case 'scale':
+        case 'rotate': case 'scale':
           this.controlsManager.attach(this.selectedObject);
           break;
       }
@@ -105,25 +101,19 @@ export class EngineService implements OnDestroy {
     this.interactionHelperManager.cleanupHelpers(this.selectedObject);
     this.dragInteractionManager.stopListening();
     this.controlsManager.detach();
-
     this.axisLock = null;
     this.dragInteractionManager.setAxisConstraint(null);
     this.axisLockStateSubject.next(null);
-
     if (!uuid) {
       this.selectedObject = undefined;
-      this.selectionManager.selectObjects([]);
       this.entityManager.selectObjectByUuid(null, this.sceneManager.focusPivot);
       this.requestRender();
       return;
     }
-
     this.selectedObject = this.entityManager.getObjectByUuid(uuid);
     this.entityManager.selectObjectByUuid(uuid, this.sceneManager.focusPivot);
-    
-    const currentTool = this.controlsManager.getCurrentToolMode();
     if (this.selectedObject) {
-      this.setToolMode(currentTool);
+      this.setToolMode(this.controlsManager.getCurrentToolMode());
     }
     this.requestRender();
   }
@@ -131,33 +121,32 @@ export class EngineService implements OnDestroy {
   private animate = () => {
     this.animationFrameId = requestAnimationFrame(this.animate);
     this.statsManager.begin();
-    
     const delta = this.clock.getDelta();
     if (this.controlsManager.update(delta, this.keyMap)) {
       this.requestRender();
       this.interactionHelperManager.updateScale();
     }
-    
     this.sceneManager.editorCamera.getWorldQuaternion(this.tempQuaternion);
     if (!this.tempQuaternion.equals(this.cameraOrientation.getValue())) {
       this.cameraOrientation.next(this.tempQuaternion.clone());
     }
-
     if (this.needsRender) {
       this.selectionManager.composer.render();
       this.needsRender = false;
     }
-    
     this.statsManager.end();
   };
 
   private addEventListeners = () => {
-    this.controlsManager.getControls().addEventListener('change', this.onControlsChange);
+    const controls = this.controlsManager.getControls();
+    controls.addEventListener('start', this.onInteractionStart);
+    controls.addEventListener('end', this.onInteractionEnd);
+    controls.addEventListener('change', this.onControlsChange);
+    
     window.addEventListener('resize', this.onWindowResize);
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     this.controlsSubscription = this.controlsManager.onTransformEnd$.subscribe(() => {});
-    
     this.dragInteractionManager.onDragEnd$.subscribe(() => {
         if (this.selectedObject) {
             this.interactionHelperManager.updateHelperPositions(this.selectedObject);
@@ -167,14 +156,31 @@ export class EngineService implements OnDestroy {
   };
 
   private removeEventListeners = () => {
-    this.controlsManager.getControls()?.removeEventListener('change', this.onControlsChange);
+    const controls = this.controlsManager.getControls();
+    controls?.removeEventListener('start', this.onInteractionStart);
+    controls?.removeEventListener('end', this.onInteractionEnd);
+    controls?.removeEventListener('change', this.onControlsChange);
+
     window.removeEventListener('resize', this.onWindowResize);
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     this.controlsSubscription?.unsubscribe();
   };
   
-  private onControlsChange = () => { this.interactionHelperManager.updateScale(); this.requestRender(); };
+  private onInteractionStart = () => {
+    this.sceneManager.setLowQualityRender();
+  }
+
+  private onInteractionEnd = () => {
+    this.sceneManager.setNormalQualityRender();
+    this.requestRender();
+  }
+  
+  private onControlsChange = () => { 
+    this.interactionHelperManager.updateScale(); 
+    this.requestRender(); 
+  };
+  
   private onWindowResize = () => {
     this.sceneManager.onWindowResize();
     this.selectionManager.onResize(this.sceneManager.renderer.domElement.width, this.sceneManager.renderer.domElement.height);
@@ -185,23 +191,21 @@ export class EngineService implements OnDestroy {
   private onKeyDown = (e: KeyboardEvent) => {
     const key = e.key.toLowerCase();
     this.keyMap.set(key, true);
-
-    if (this.controlsManager.getCurrentToolMode() === 'move') {
-      if (key === 'x' || key === 'y' || key === 'z') {
-        this.axisLock = this.axisLock === key ? null : key;
+    if (this.controlsManager.getCurrentToolMode() === 'move' && ['x', 'y', 'z'].includes(key)) {
+        this.axisLock = this.axisLock === key ? null : (key as 'x' | 'y' | 'z');
         this.dragInteractionManager.setAxisConstraint(this.axisLock);
         this.axisLockStateSubject.next(this.axisLock);
-      }
     }
   };
 
   private onKeyUp = (e: KeyboardEvent) => this.keyMap.set(e.key.toLowerCase(), false);
+  
   public requestRender = () => { this.needsRender = true; };
 
   public getSceneEntities = (): Observable<SceneEntity[]> => this.entityManager.getSceneEntities();
   public getCameraOrientation = (): Observable<THREE.Quaternion> => this.cameraOrientation.asObservable();
   public getGizmoAttachedObject = (): THREE.Object3D | undefined => this.selectedObject;
-
+  
   public addObjectToScene = (objData: SceneObjectResponse) => {
     this.entityManager.createObjectFromData(objData);
     this.entityManager.publishSceneEntities();
@@ -217,9 +221,7 @@ export class EngineService implements OnDestroy {
     const obj = this.entityManager.getObjectByUuid(uuid);
     if (obj) {
       obj[path].set(value.x, value.y, value.z);
-      if (path === 'position') {
-        this.interactionHelperManager.updateHelperPositions(obj);
-      }
+      if (path === 'position') this.interactionHelperManager.updateHelperPositions(obj);
       this.requestRender();
     }
   };

@@ -59,103 +59,72 @@ export class EntityManagerService {
     }
   }
 
+  // El resto del archivo no necesita cambios hasta createLightFromData
+  // ... (selectObjectByUuid, updateObjectColor, etc. se mantienen igual)
+  
   public selectObjectByUuid(uuid: string | null, focusPivot: THREE.Object3D): void {
     if (this.selectedHelper) {
       this.selectedHelper.visible = false;
       this.selectedHelper = null;
     }
-
     if (!uuid) {
       this.selectionManager.selectObjects([]);
       return;
     }
-
     const mainObject = this.scene.getObjectByProperty('uuid', uuid);
     if (!mainObject) {
       this.selectionManager.selectObjects([]);
       return;
     }
-
     focusPivot.position.copy(mainObject.position);
-     
-    let objectsToOutline: THREE.Object3D[] = [];
-    
-    // === CORRECCIÓN (Sintaxis) ===
-    // Accedemos a la propiedad con corchetes para cumplir la regla de TypeScript.
     const helperToShow = mainObject.userData['helper'] as THREE.Object3D | undefined;
-
+    let objectsToOutline: THREE.Object3D[] = helperToShow ? [helperToShow] : [mainObject];
     if (helperToShow) {
       helperToShow.visible = true;
       this.selectedHelper = helperToShow;
-      objectsToOutline = [helperToShow];
-    } else {
-      objectsToOutline = [mainObject];
     }
-    
     this.selectionManager.selectObjects(objectsToOutline);
   }
   
   public updateObjectColor(uuid: string, newColor: string): void {
-    const object = this.scene.getObjectByProperty('uuid', uuid);
+    const object = this.getObjectByUuid(uuid);
     if (!object) return;
-
-    // Lógica para mallas (la dejamos como está, parece correcta)
-    if ((object as THREE.Mesh).isMesh) {
-      // ...
-    }
-
+    if ((object as THREE.Mesh).isMesh) { /* ... */ }
     if (object instanceof THREE.Light && 'color' in object) {
-      (object as THREE.PointLight | THREE.DirectionalLight | THREE.AmbientLight).color.set(newColor);
-      
-      // === CORRECCIÓN (Sintaxis) ===
-      const helper = object.userData['helper'] as THREE.PointLightHelper | THREE.DirectionalLightHelper | undefined;
-
+      (object as THREE.Light).color.set(newColor);
+      const helper = object.userData['helper'] as THREE.PointLightHelper | THREE.DirectionalLightHelper;
       if (helper) {
-        // === CORRECCIÓN (Tipo de Color) ===
-        // Verificamos si la propiedad 'color' del helper existe y si es una instancia de THREE.Color
-        // antes de intentar usar el método .set(). Esto soluciona el error TS2339.
         if (helper.color && helper.color instanceof THREE.Color) {
             helper.color.set(newColor);
         }
-        
-        if ('update' in helper) {
-            helper.update();
-        }
+        if ('update' in helper) helper.update();
       }
     }
   }
 
-  // Este método no lo tenías pero es necesario para que la UI se actualice si cambias el nombre
   public updateObjectName(uuid: string, newName: string): void {
     const object = this.getObjectByUuid(uuid);
     if (object) {
       object.name = newName;
-      // Actualizamos el nombre del helper si existe, para mantener la coherencia
-      if(object.userData['helper']) {
+      if (object.userData['helper']) {
         object.userData['helper'].name = `${newName}_helper`;
       }
       this.publishSceneEntities();
     }
   }
 
-  // El resto de los métodos no necesitan cambios, pero los incluyo por completitud
   public publishSceneEntities(): void {
     const unselectableNames = ['Cámara del Editor', 'Luz Ambiental', 'FocusPivot', 'EditorGrid'];
     const entities: SceneEntity[] = [];
-
     this.scene.children.forEach(object => {
         if (!object.name.endsWith('_helper') && !unselectableNames.includes(object.name)) {
             if ((object as THREE.Mesh).isMesh) {
                 const mesh = object as THREE.Mesh;
-                const isAxisCylinder = mesh.geometry instanceof THREE.CylinderGeometry && (mesh.material as THREE.MeshBasicMaterial).isMeshBasicMaterial;
-                if (!isAxisCylinder) {
+                if (!(mesh.geometry instanceof THREE.CylinderGeometry && (mesh.material as THREE.MeshBasicMaterial).isMeshBasicMaterial)) {
                     entities.push({ uuid: mesh.uuid, name: mesh.name, type: 'Model' });
                 }
             } else if (object.name) {
-                let type: SceneEntity['type'] = 'Model';
-                if (object instanceof THREE.Camera) type = 'Camera';
-                else if (object instanceof THREE.Light) type = 'Light';
-                
+                let type: SceneEntity['type'] = object instanceof THREE.Camera ? 'Camera' : (object instanceof THREE.Light ? 'Light' : 'Model');
                 entities.push({ uuid: object.uuid, name: object.name, type: type });
             }
         }
@@ -167,14 +136,10 @@ export class EntityManagerService {
     const props = data.properties || {};
     const camera = new THREE.PerspectiveCamera(props['fov'] || 75, 1, props['near'] || 0.1, props['far'] || 1000);
     this.applyTransformations(camera, data);
-
     const helper = new THREE.CameraHelper(camera);
     helper.name = `${data.name}_helper`;
     helper.visible = false;
-
-    // === CORRECCIÓN (Sintaxis) ===
     camera.userData['helper'] = helper;
-
     this.scene.add(camera, helper);
   }
 
@@ -187,24 +152,16 @@ export class EntityManagerService {
     switch (data.type) {
       case 'directionalLight':
         const dirLight = new THREE.DirectionalLight(color, intensity);
-        dirLight.castShadow = true;
-        dirLight.shadow.mapSize.width = 2048;
-        dirLight.shadow.mapSize.height = 2048;
-        const shadowCamSize = 15;
-        dirLight.shadow.camera.left = -shadowCamSize;
-        dirLight.shadow.camera.right = shadowCamSize;
-        dirLight.shadow.camera.top = shadowCamSize;
-        dirLight.shadow.camera.bottom = -shadowCamSize;
-        dirLight.shadow.bias = -0.0005;
+        
+        // === CAMBIO CLAVE: ELIMINAMOS TODA LA CONFIGURACIÓN DE SOMBRAS ===
+        // La propiedad 'castShadow' por defecto es 'false', así que no necesitamos hacer nada.
+        // dirLight.castShadow = false; // Esto ya es el valor por defecto.
 
         light = dirLight;
         this.scene.add(dirLight.target);
-        
         helper = new THREE.DirectionalLightHelper(dirLight, 2, color);
         helper.name = `${data.name}_helper`;
         helper.visible = false;
-        
-        // === CORRECCIÓN (Sintaxis) ===
         light.userData['helper'] = helper;
         break;
   
@@ -216,9 +173,7 @@ export class EntityManagerService {
     
     this.applyTransformations(light, data);
     this.scene.add(light);
-    if (helper) {
-      this.scene.add(helper);
-    }
+    if (helper) this.scene.add(helper);
   }
 
   private applyTransformations(object: THREE.Object3D, data: SceneObjectResponse): void {
