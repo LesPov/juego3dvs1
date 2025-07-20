@@ -115,7 +115,16 @@
 .properties-content>* { width: 100%; height: 100%; }
 .placeholder-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #999; padding: 20px; text-align: center; }
 .placeholder-panel h2 { margin-bottom: 10px; color: #ccc; }
-app-brujula { position: absolute; top: 15px; right: 15px; width: 120px; height: 120px; z-index: 10; pointer-events: none; }
+app-brujula {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  /* Aumentamos el tamaño del espacio de 120px a 150px */
+  width: 150px;
+  height: 150px;
+  z-index: 10;
+  pointer-events: auto; /* Esto ya estaba bien */
+}
 
 /* ---- ESTILOS DEL INDICADOR DE EJE (sin cambios) ---- */
 @keyframes slide-in-from-bottom { from { opacity: 0; transform: translate(-50%, 30px); } to { opacity: 1; transform: translate(-50%, 0); } }
