@@ -1,5 +1,4 @@
-// src/app/features/admin/components/world-editor/service/three-engine/utils/entity-manager.service.ts
-
+// entity-manager.service.ts
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -8,10 +7,17 @@ import { ObjectManagerService } from './object-manager.service';
 import { SelectionManagerService } from './selection-manager.service';
 import { SceneObjectResponse } from '../../../../../services/admin.service';
 
+function sanitizeHexColor(color: string | undefined, fallback: string = '#ffffff'): string {
+  if (typeof color === 'string' && /^#([0-9A-Fa-f]{3}){1,2}$/.test(color)) {
+    return color;
+  }
+  return fallback;
+}
+
 export interface SceneEntity {
   uuid: string;
   name: string;
-  type: 'Camera' | 'Light' | 'Model';
+  type: 'Camera' | 'Light' | 'Model' | 'star' | 'galaxy' | 'meteor';
 }
 
 @Injectable({
@@ -22,6 +28,7 @@ export class EntityManagerService {
   private gltfLoader!: GLTFLoader;
   private selectedHelper: THREE.Object3D | null = null;
   private sceneEntities = new BehaviorSubject<SceneEntity[]>([]);
+  private unselectableNames = ['Cámara del Editor', 'Luz Ambiental', 'FocusPivot', 'EditorGrid'];
 
   constructor(
     private objectManager: ObjectManagerService,
@@ -32,6 +39,43 @@ export class EntityManagerService {
     this.scene = scene;
     const loadingManager = new THREE.LoadingManager();
     this.gltfLoader = new GLTFLoader(loadingManager);
+  }
+
+  public clearScene(): void {
+    if (!this.scene) return;
+    for (let i = this.scene.children.length - 1; i >= 0; i--) {
+        const object = this.scene.children[i];
+        if (this.unselectableNames.includes(object.name)) {
+            continue;
+        }
+        if (object.type !== 'Scene' && object.type !== 'GridHelper') {
+            this.scene.remove(object);
+            if ((object as THREE.Mesh).isMesh) {
+                const mesh = object as THREE.Mesh;
+                mesh.geometry?.dispose();
+                if (Array.isArray(mesh.material)) {
+                    mesh.material.forEach(material => material.dispose());
+                } else {
+                    (mesh.material as THREE.Material)?.dispose();
+                }
+            }
+        }
+    }
+    this.publishSceneEntities();
+  }
+
+  // --- LÓGICA DE OPTIMIZACIÓN: Nueva función para el EngineService ---
+  /**
+   * Devuelve una lista de todos los objetos en la escena que son elegibles para el culling.
+   * Filtra luces, cámaras, helpers y otros objetos no visuales.
+   */
+   public getAllCullableObjects(): THREE.Object3D[] {
+    if (!this.scene) return [];
+    return this.scene.children.filter(obj => 
+      (obj instanceof THREE.Mesh || obj instanceof THREE.Group) &&
+      !this.unselectableNames.includes(obj.name) &&
+      !obj.name.endsWith('_helper')
+    );
   }
 
   public getLoadingManager(): THREE.LoadingManager {
@@ -46,21 +90,37 @@ export class EntityManagerService {
     return this.scene.getObjectByProperty('uuid', uuid);
   }
 
-  public createObjectFromData(objData: SceneObjectResponse): void {
+  /**
+   * Modificado para devolver el objeto recién creado.
+   * @returns El THREE.Object3D creado, o null si no se creó una malla.
+   */
+  public createObjectFromData(objData: SceneObjectResponse): THREE.Object3D | null {
+    let createdObject: THREE.Object3D | null = null;
     switch (objData.type) {
-      case 'cube': case 'sphere': case 'floor': case 'model': case 'cone': case 'torus':
-        this.objectManager.createObjectFromData(this.scene, objData, this.gltfLoader);
+      case 'cube':
+      case 'sphere':
+      case 'floor':
+      case 'model':
+      case 'cone':
+      case 'torus':
+      case 'star':
+      case 'galaxy':
+      case 'meteor':
+        createdObject = this.objectManager.createObjectFromData(this.scene, objData, this.gltfLoader);
         break;
-      case 'camera': this.createCameraFromData(objData); break;
-      case 'directionalLight': case 'ambientLight':
+      case 'camera': 
+        this.createCameraFromData(objData); 
+        break;
+      case 'directionalLight': 
+      case 'ambientLight':
         this.createLightFromData(objData);
         break;
-      default: console.warn(`[EntityManager] Tipo de objeto desconocido: '${objData.type}'.`); break;
+      default: 
+        console.warn(`[EntityManager] Tipo de objeto desconocido: '${objData.type}'.`); 
+        break;
     }
+    return createdObject;
   }
-
-  // El resto del archivo no necesita cambios hasta createLightFromData
-  // ... (selectObjectByUuid, updateObjectColor, etc. se mantienen igual)
   
   public selectObjectByUuid(uuid: string | null, focusPivot: THREE.Object3D): void {
     if (this.selectedHelper) {
@@ -89,15 +149,25 @@ export class EntityManagerService {
   public updateObjectColor(uuid: string, newColor: string): void {
     const object = this.getObjectByUuid(uuid);
     if (!object) return;
-    if ((object as THREE.Mesh).isMesh) { /* ... */ }
+
+    const sanitizedColor = sanitizeHexColor(newColor, '#ffffff');
+
+    if ((object as THREE.Mesh).isMesh) {
+      const mesh = object as THREE.Mesh;
+      if (Array.isArray(mesh.material)) {
+        mesh.material.forEach(m => (m as THREE.MeshStandardMaterial).color.set(sanitizedColor));
+      } else {
+        ((mesh.material as THREE.MeshStandardMaterial).color as THREE.Color).set(sanitizedColor);
+      }
+    }
     if (object instanceof THREE.Light && 'color' in object) {
-      (object as THREE.Light).color.set(newColor);
+      (object as THREE.Light).color.set(sanitizedColor);
       const helper = object.userData['helper'] as THREE.PointLightHelper | THREE.DirectionalLightHelper;
       if (helper) {
         if (helper.color && helper.color instanceof THREE.Color) {
-            helper.color.set(newColor);
+            helper.color.set(sanitizedColor);
         }
-        if ('update' in helper) helper.update();
+        if ('update' in helper) (helper as any).update();
       }
     }
   }
@@ -114,19 +184,18 @@ export class EntityManagerService {
   }
 
   public publishSceneEntities(): void {
-    const unselectableNames = ['Cámara del Editor', 'Luz Ambiental', 'FocusPivot', 'EditorGrid'];
     const entities: SceneEntity[] = [];
     this.scene.children.forEach(object => {
-        if (!object.name.endsWith('_helper') && !unselectableNames.includes(object.name)) {
-            if ((object as THREE.Mesh).isMesh) {
-                const mesh = object as THREE.Mesh;
-                if (!(mesh.geometry instanceof THREE.CylinderGeometry && (mesh.material as THREE.MeshBasicMaterial).isMeshBasicMaterial)) {
-                    entities.push({ uuid: mesh.uuid, name: mesh.name, type: 'Model' });
-                }
-            } else if (object.name) {
-                let type: SceneEntity['type'] = object instanceof THREE.Camera ? 'Camera' : (object instanceof THREE.Light ? 'Light' : 'Model');
-                entities.push({ uuid: object.uuid, name: object.name, type: type });
+        if (!object.name.endsWith('_helper') && !this.unselectableNames.includes(object.name)) {
+            const apiType = object.userData['apiType'] as SceneEntity['type'] | undefined;
+            let entityType: SceneEntity['type'];
+            
+            if (apiType) {
+              entityType = apiType;
+            } else {
+              entityType = object instanceof THREE.Camera ? 'Camera' : (object instanceof THREE.Light ? 'Light' : 'Model');
             }
+            entities.push({ uuid: object.uuid, name: object.name, type: entityType });
         }
     });
     setTimeout(() => this.sceneEntities.next(entities));
@@ -147,16 +216,12 @@ export class EntityManagerService {
     let light: THREE.Light;
     let helper: THREE.Object3D | undefined;
     const props = data.properties || {};
-    const color = new THREE.Color(props['color'] || 0xffffff);
+    const color = new THREE.Color(sanitizeHexColor(props['color']));
     const intensity = props['intensity'] || 1;
+
     switch (data.type) {
       case 'directionalLight':
         const dirLight = new THREE.DirectionalLight(color, intensity);
-        
-        // === CAMBIO CLAVE: ELIMINAMOS TODA LA CONFIGURACIÓN DE SOMBRAS ===
-        // La propiedad 'castShadow' por defecto es 'false', así que no necesitamos hacer nada.
-        // dirLight.castShadow = false; // Esto ya es el valor por defecto.
-
         light = dirLight;
         this.scene.add(dirLight.target);
         helper = new THREE.DirectionalLightHelper(dirLight, 2, color);
@@ -164,7 +229,6 @@ export class EntityManagerService {
         helper.visible = false;
         light.userData['helper'] = helper;
         break;
-  
       case 'ambientLight':
         light = new THREE.AmbientLight(color, intensity);
         break;
@@ -182,5 +246,6 @@ export class EntityManagerService {
     object.position.set(data.position.x, data.position.y, data.position.z);
     object.rotation.set(data.rotation.x, data.rotation.y, data.rotation.z);
     object.scale.set(data.scale.x, data.scale.y, data.scale.z);
+    object.userData['apiType'] = data.type;
   }
 }

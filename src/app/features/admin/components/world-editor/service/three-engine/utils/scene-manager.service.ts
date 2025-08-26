@@ -18,7 +18,7 @@ export class SceneManagerService {
 
   public setupBasicScene(canvas: HTMLCanvasElement): void {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x282c34);
+    this.scene.background = new THREE.Color(0xfffff);
 
     this.editorCamera = new THREE.PerspectiveCamera(50, canvas.clientWidth / canvas.clientHeight, 0.1, 2000);
     this.editorCamera.name = 'Cámara del Editor';

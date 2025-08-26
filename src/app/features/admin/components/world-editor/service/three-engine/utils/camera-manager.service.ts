@@ -1,5 +1,5 @@
 // src/app/features/admin/services/three-engine/camera-manager.service.ts
-
+// SIN CAMBIOS
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 
@@ -12,7 +12,6 @@ export interface CameraWithHelper {
   providedIn: 'root'
 })
 export class CameraManagerService {
-
   constructor() { }
 
   public createCamera(
