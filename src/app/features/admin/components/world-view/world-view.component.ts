@@ -22,7 +22,7 @@ import { EngineService } from '../world-editor/service/three-engine/engine.servi
 @Component({
   selector: 'app-world-view',
   standalone: true,
-  imports: [ CommonModule, FormsModule, SceneComponent, AddObjectModalComponent, PropertiesPanelComponent, SceneSettingsPanelComponent, BrujulaComponent, ToolbarComponent, DragDropModule ],
+  imports: [CommonModule, FormsModule, SceneComponent, AddObjectModalComponent, PropertiesPanelComponent, SceneSettingsPanelComponent, BrujulaComponent, ToolbarComponent, DragDropModule],
   templateUrl: './world-view.component.html',
   styleUrls: ['./world-view.component.css'],
   providers: [EngineService]
@@ -111,7 +111,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
       switchMap(update => this.handlePropertyUpdate(update))
     ).subscribe({ error: err => console.error("[WorldView] Error al actualizar propiedad:", err) });
     const entitiesSub = this.engineService.getSceneEntities().subscribe(entities => this.realEntities$.next(entities));
-    
+
     this.subscriptions.add(transformSub);
     this.subscriptions.add(propertyUpdateSub);
     this.subscriptions.add(entitiesSub);
@@ -126,7 +126,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     const newScale = { x: transformedObject.scale.x, y: transformedObject.scale.y, z: transformedObject.scale.z };
 
     this.updateLocalSelectedObject({ position: newPosition, rotation: newRotation, scale: newScale });
-    
+
     const dataToSave: Partial<SceneObjectResponse> = { position: newPosition, rotation: newRotation, scale: newScale };
     this.sceneObjectService.updateSceneObject(this.episodeId, this.selectedObject.id, dataToSave)
       .subscribe({
@@ -137,7 +137,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
 
   private handlePropertyUpdate(update: PropertyUpdate): Observable<SceneObjectResponse | null> {
     if (!this.episodeId || !this.selectedObject) return of(null);
-    
+
     let dataToUpdate: Partial<SceneObjectResponse>;
     if (update.path === 'rotation') {
       const rotationInRad = {
@@ -199,25 +199,25 @@ export class WorldViewComponent implements OnInit, OnDestroy {
       error: err => console.error(err)
     });
   }
-  
+
   updateLocalSelectedObject(updatedData: Partial<SceneObjectResponse>): void {
     if (!this.selectedObject) return;
-    
+
     const updatedObjectInRad = { ...this.selectedObject, ...updatedData };
-    
+
     this.selectedObject = {
-        ...updatedObjectInRad,
-        rotation: {
-            x: THREE.MathUtils.radToDeg(updatedObjectInRad.rotation.x),
-            y: THREE.MathUtils.radToDeg(updatedObjectInRad.rotation.y),
-            z: THREE.MathUtils.radToDeg(updatedObjectInRad.rotation.z),
-        }
+      ...updatedObjectInRad,
+      rotation: {
+        x: THREE.MathUtils.radToDeg(updatedObjectInRad.rotation.x),
+        y: THREE.MathUtils.radToDeg(updatedObjectInRad.rotation.y),
+        z: THREE.MathUtils.radToDeg(updatedObjectInRad.rotation.z),
+      }
     };
 
     const index = this.sceneObjects.findIndex(o => o.id === this.selectedObject!.id);
     if (index !== -1) {
-        this.sceneObjects[index] = { ...this.sceneObjects[index], ...updatedData };
-        this.sceneObjects = [...this.sceneObjects];
+      this.sceneObjects[index] = { ...this.sceneObjects[index], ...updatedData };
+      this.sceneObjects = [...this.sceneObjects];
     }
     this.cdr.detectChanges();
   }
@@ -233,12 +233,12 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   private simulateLoadingProgress(): void {
     let progress = 0;
     const interval = setInterval(() => {
-        progress += 20;
-        this.handleLoadingProgress(progress);
-        if (progress >= 100) {
-            clearInterval(interval);
-            this.handleLoadingComplete();
-        }
+      progress += 20;
+      this.handleLoadingProgress(progress);
+      if (progress >= 100) {
+        clearInterval(interval);
+        this.handleLoadingComplete();
+      }
     }, 50);
   }
 }

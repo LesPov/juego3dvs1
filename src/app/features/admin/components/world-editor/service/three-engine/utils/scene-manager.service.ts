@@ -18,94 +18,61 @@ export class SceneManagerService {
 
   public setupBasicScene(canvas: HTMLCanvasElement): void {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0xfffff);
+    this.scene.background = new THREE.Color(0x000000);
 
-    this.editorCamera = new THREE.PerspectiveCamera(50, canvas.clientWidth / canvas.clientHeight, 0.1, 2000);
+    // --- CAMBIO CLAVE: Aumentamos la distancia de visión de la cámara ---
+    // El último parámetro, 'far', controla hasta qué distancia puede ver la cámara.
+    // Estaba en 2000, lo que podía ser corto para escenas grandes.
+    // Lo aumentamos a un valor muy alto (10000) para que prácticamente nunca
+    // los objetos desaparezcan por estar demasiado lejos.
+    this.editorCamera = new THREE.PerspectiveCamera(50, canvas.clientWidth / canvas.clientHeight, 0.1, 10000);
     this.editorCamera.name = 'Cámara del Editor';
     this.editorCamera.position.set(10, 10, 15);
     this.scene.add(this.editorCamera);
 
-    // Configuración del renderizador optimizado
     this.renderer = new THREE.WebGLRenderer({
       canvas: canvas,
-      antialias: false, 
+      antialias: true,
       powerPreference: 'high-performance'
     });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.LinearToneMapping; 
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping; 
     this.renderer.toneMappingExposure = 1.0;
-    this.renderer.shadowMap.enabled = false;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     
-    this.normalPixelRatio = Math.min(window.devicePixelRatio, 1.5);
+    this.normalPixelRatio = Math.min(window.devicePixelRatio, 2);
     this.renderer.setPixelRatio(this.normalPixelRatio);
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
 
-    // Pivote de enfoque
     this.focusPivot = new THREE.Object3D();
     this.focusPivot.name = "FocusPivot";
     this.scene.add(this.focusPivot);
 
-    // Centralizamos la creación de todas las guías visuales en un método.
     this.setupEditorGuides();
   }
 
-  /**
-   * Lógica: Este método crea y añade a la escena los elementos visuales de ayuda
-   * del editor, como la rejilla y las líneas de los ejes.
-   * Esto mantiene el método setupBasicScene más limpio y organizado.
-   */
   private setupEditorGuides(): void {
     const gridSize = 100;
     const gridDivisions = 100;
 
-    // 1. Rejilla del Suelo
-    const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0xffffff, 0x444444);
+    const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x888888, 0x444444);
     gridHelper.name = "EditorGrid";
     this.scene.add(gridHelper);
 
-    // 2. Líneas de Ejes Manuales
-    
-    // Línea del Eje X (rojo) que cruza toda la rejilla
-    const pointsX = [
-      new THREE.Vector3(-gridSize / 2, 0, 0),
-      new THREE.Vector3(gridSize / 2, 0, 0)
-    ];
-    const geometryX = new THREE.BufferGeometry().setFromPoints(pointsX);
-    const materialX = new THREE.LineBasicMaterial({
-      color: 0xff4d4d,
-      depthTest: false
-    });
-    const lineX = new THREE.Line(geometryX, materialX);
+    const pointsX = [ new THREE.Vector3(-gridSize / 2, 0, 0), new THREE.Vector3(gridSize / 2, 0, 0) ];
+    const lineX = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pointsX), new THREE.LineBasicMaterial({ color: 0xff4d4d, depthTest: false }));
     lineX.renderOrder = 1;
     this.scene.add(lineX);
 
-    // Línea del Eje Z (azul) que cruza toda la rejilla
-    const pointsZ = [
-      new THREE.Vector3(0, 0, -gridSize / 2),
-      new THREE.Vector3(0, 0, gridSize / 2)
-    ];
-    const geometryZ = new THREE.BufferGeometry().setFromPoints(pointsZ);
-    const materialZ = new THREE.LineBasicMaterial({
-      color: 0x4d4dff,
-      depthTest: false
-    });
-    const lineZ = new THREE.Line(geometryZ, materialZ);
+    const pointsZ = [ new THREE.Vector3(0, 0, -gridSize / 2), new THREE.Vector3(0, 0, gridSize / 2) ];
+    const lineZ = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pointsZ), new THREE.LineBasicMaterial({ color: 0x4d4dff, depthTest: false }));
     lineZ.renderOrder = 1;
     this.scene.add(lineZ);
 
-    // 3. === CAMBIO CLAVE: AÑADIMOS LA LÍNEA DEL EJE Y POSITIVO ===
-    // Línea del Eje Y (verde) que va hacia arriba desde el origen.
-    const pointsY = [
-      new THREE.Vector3(0, 0, 0),                  // Punto inicial en el origen
-      new THREE.Vector3(0, gridSize / 2, 0)       // Punto final en Y positivo
-    ];
-    const geometryY = new THREE.BufferGeometry().setFromPoints(pointsY);
-    const materialY = new THREE.LineBasicMaterial({
-      color: 0x4dff4d, // Un verde brillante
-      depthTest: false // Asegura que la línea sea siempre visible
-    });
-    const lineY = new THREE.Line(geometryY, materialY);
-    lineY.renderOrder = 1; // Renderizar encima de la rejilla
+    const pointsY = [ new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, gridSize / 2, 0) ];
+    const lineY = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pointsY), new THREE.LineBasicMaterial({ color: 0x4dff4d, depthTest: false }));
+    lineY.renderOrder = 1;
     this.scene.add(lineY);
   }
 

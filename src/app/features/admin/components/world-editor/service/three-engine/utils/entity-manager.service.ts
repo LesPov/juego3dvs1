@@ -123,6 +123,8 @@ export class EntityManagerService {
   }
   
   public selectObjectByUuid(uuid: string | null, focusPivot: THREE.Object3D): void {
+    // La lógica de selección se mantiene, pero no podrá seleccionar estrellas/galaxias individuales,
+    // lo cual es correcto para la optimización de rendimiento.
     if (this.selectedHelper) {
       this.selectedHelper.visible = false;
       this.selectedHelper = null;
@@ -131,14 +133,14 @@ export class EntityManagerService {
       this.selectionManager.selectObjects([]);
       return;
     }
-    const mainObject = this.scene.getObjectByProperty('uuid', uuid);
+    const mainObject = this.getObjectByUuid(uuid);
     if (!mainObject) {
       this.selectionManager.selectObjects([]);
       return;
     }
     focusPivot.position.copy(mainObject.position);
     const helperToShow = mainObject.userData['helper'] as THREE.Object3D | undefined;
-    let objectsToOutline: THREE.Object3D[] = helperToShow ? [helperToShow] : [mainObject];
+    const objectsToOutline: THREE.Object3D[] = helperToShow ? [helperToShow] : [mainObject];
     if (helperToShow) {
       helperToShow.visible = true;
       this.selectedHelper = helperToShow;

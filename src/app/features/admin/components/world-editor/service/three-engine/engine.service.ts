@@ -19,7 +19,8 @@ export class EngineService implements OnDestroy {
   private selectedObject?: THREE.Object3D;
   private clock = new THREE.Clock();
   private animationFrameId?: number;
-  private needsRender = true;
+  // La propiedad 'needsRender' ya no es necesaria con el bucle de renderizado continuo.
+  // private needsRender = true; 
   private keyMap = new Map<string, boolean>();
   private axisLock: 'x' | 'y' | 'z' | null = null;
   private axisLockStateSubject = new BehaviorSubject<'x' | 'y' | 'z' | null>(null);
@@ -27,14 +28,7 @@ export class EngineService implements OnDestroy {
   private cameraOrientation = new BehaviorSubject<THREE.Quaternion>(new THREE.Quaternion());
   private tempQuaternion = new THREE.Quaternion();
   private controlsSubscription?: Subscription;
-
-  // --- LÓGICA DE OPTIMIZACIÓN 1: Variables para el Culling ---
   private cullableObjects: THREE.Object3D[] = [];
-  private lastCullTime = 0;
-  // Intervalo en milisegundos para ejecutar el culling (500ms = 2 veces por segundo)
-  private readonly CULL_INTERVAL = 500; 
-  // Distancia máxima a la que los objetos serán visibles. ¡Ajusta este valor según tu escena!
-  private readonly MAX_VISIBILITY_DISTANCE = 500; 
 
   constructor(
     private sceneManager: SceneManagerService,
@@ -68,25 +62,18 @@ export class EngineService implements OnDestroy {
         console.error("EngineService.populateScene llamado antes de que la escena esté inicializada.");
         return;
     }
-
     this.entityManager.clearScene();
-
     const loadingManager = this.entityManager.getLoadingManager();
     loadingManager.onProgress = (_, loaded, total) => onProgress((loaded / total) * 100);
     loadingManager.onLoad = () => { 
-      // --- LÓGICA DE OPTIMIZACIÓN 2: Obtener la lista de objetos a optimizar ---
-      // Una vez que todos los objetos están cargados, obtenemos una lista de ellos para el culling.
       this.cullableObjects = this.entityManager.getAllCullableObjects();
-      console.log(`[EngineService] Optimización activada para ${this.cullableObjects.length} objetos.`);
-      this.performDistanceCulling(); // Hacemos una pasada inicial
-
+      console.log(`[EngineService] ${this.cullableObjects.length} objetos cargados en la escena.`);
+      this.performDistanceCulling(); // Asegura que todo esté visible inicialmente.
       onLoaded(); 
       this.entityManager.publishSceneEntities(); 
       this.requestRender(); 
     };
-
     objects.forEach(o => this.entityManager.createObjectFromData(o));
-
     if (!objects.some(o => o.type === 'model' && o.asset?.path)) {
       setTimeout(() => {
         if (loadingManager.onLoad) loadingManager.onLoad();
@@ -103,6 +90,96 @@ export class EngineService implements OnDestroy {
     this.controlsManager.ngOnDestroy();
     if (this.sceneManager.renderer) this.sceneManager.renderer.dispose();
   };
+  
+  /**
+   * Bucle principal de animación y renderizado del motor.
+   */
+  private animate = () => {
+    this.animationFrameId = requestAnimationFrame(this.animate);
+    this.statsManager.begin();
+    
+    const delta = this.clock.getDelta();
+    const cameraMoved = this.controlsManager.update(delta, this.keyMap);
+
+    if (cameraMoved) {
+        this.interactionHelperManager.updateScale();
+    }
+    
+    // --- LÓGICA DE LUZ DINÁMICA ---
+    // En cada fotograma, actualizamos el brillo de los objetos celestes.
+    this.updateCelestialObjectLuminosity();
+    
+    // El composer se encarga del renderizado y de los efectos de post-procesamiento como el Bloom.
+    // Esto se ejecuta en cada frame para que la animación de la luz sea fluida.
+    this.selectionManager.composer.render();
+    
+    this.statsManager.end();
+  };
+
+  /**
+   * Actualiza el color/brillo de cada objeto celeste basándose en su 'absolute_magnitude'
+   * y su distancia a la cámara para simular la atenuación de la luz.
+   */
+  private updateCelestialObjectLuminosity(): void {
+    const camera = this.sceneManager.editorCamera;
+    if (!camera) return;
+
+    // Parámetros artísticos para controlar el efecto de la luz.
+    const MAX_BRIGHTNESS_DISTANCE = 350;
+    const FADE_END_DISTANCE = 4500;
+    const MIN_BRIGHTNESS_FACTOR = 0.4;
+    const LUMINOSITY_RANGE = FADE_END_DISTANCE - MAX_BRIGHTNESS_DISTANCE;
+
+    this.sceneManager.scene.traverse((object) => {
+      if (object instanceof THREE.Mesh && object.userData['isCelestialObject']) {
+        const material = object.material as THREE.MeshBasicMaterial;
+        const originalColor = object.userData['originalColor'] as THREE.Color;
+        const magnitude = object.userData['absoluteMagnitude'] as number;
+
+        const distance = object.position.distanceTo(camera.position);
+        let distanceIntensity: number;
+
+        if (distance <= MAX_BRIGHTNESS_DISTANCE) {
+          distanceIntensity = 1.0;
+        } else if (distance >= FADE_END_DISTANCE) {
+          distanceIntensity = 0.0;
+        } else {
+          const fadeProgress = (distance - MAX_BRIGHTNESS_DISTANCE) / LUMINOSITY_RANGE;
+          distanceIntensity = 1.0 - fadeProgress;
+        }
+        
+        const intrinsicBrightness = (magnitude * MIN_BRIGHTNESS_FACTOR);
+        const variableBrightness = (distanceIntensity * (1 - intrinsicBrightness));
+        const finalIntensity = intrinsicBrightness + variableBrightness;
+        
+        const brightnessBoost = 1.0 + magnitude * 4.0;
+        
+        material.color.copy(originalColor).multiplyScalar(finalIntensity * brightnessBoost);
+      }
+    });
+  }
+
+  /**
+   * Esta función ahora solo se asegura de que todos los objetos sean visibles,
+   * eliminando la lógica de "culling" por distancia que los ocultaba.
+   */
+  private performDistanceCulling(): void {
+    let visibilityChanged = false;
+    this.cullableObjects.forEach(obj => {
+      if (!obj.visible) {
+        obj.visible = true;
+        visibilityChanged = true;
+      }
+    });
+
+    if (visibilityChanged) {
+      this.requestRender();
+    }
+  }
+  
+  // ==========================================================
+  // --- MÉTODOS PÚBLICOS DE CONTROL DEL EDITOR (INTACTOS) ---
+  // ==========================================================
 
   public setToolMode(mode: ToolMode): void {
     this.controlsManager.setTransformMode(mode);
@@ -145,71 +222,12 @@ export class EngineService implements OnDestroy {
         this.setToolMode(this.controlsManager.getCurrentToolMode());
       }
     }
-
-    // --- LÓGICA DE OPTIMIZACIÓN 3: Asegurarse de que el objeto seleccionado sea visible ---
-    // Al seleccionar/deseleccionar, re-evaluamos la visibilidad para que el objeto aparezca si estaba oculto.
     this.performDistanceCulling();
     this.requestRender();
   }
-
-  // --- LÓGICA DE OPTIMIZACIÓN 4: El bucle de animación ahora controla el culling ---
-  private animate = () => {
-    this.animationFrameId = requestAnimationFrame(this.animate);
-    this.statsManager.begin();
-    const delta = this.clock.getDelta();
-
-    // Comprobamos si los controles de la cámara se han movido
-    const cameraMoved = this.controlsManager.update(delta, this.keyMap);
-    if (cameraMoved) {
-      this.requestRender();
-      this.interactionHelperManager.updateScale();
-    }
-    
-    // Ejecutamos el culling a intervalos regulares si la cámara se mueve
-    const now = this.clock.elapsedTime * 1000;
-    if (cameraMoved && now - this.lastCullTime > this.CULL_INTERVAL) {
-      this.performDistanceCulling();
-      this.lastCullTime = now;
-    }
-
-    this.sceneManager.editorCamera.getWorldQuaternion(this.tempQuaternion);
-    if (!this.tempQuaternion.equals(this.cameraOrientation.getValue())) {
-      this.cameraOrientation.next(this.tempQuaternion.clone());
-    }
-
-    if (this.needsRender) {
-      this.selectionManager.composer.render();
-      this.needsRender = false;
-    }
-    this.statsManager.end();
-  };
-
-  // --- LÓGICA DE OPTIMIZACIÓN 5: La función principal de Culling por Distancia ---
-  private performDistanceCulling(): void {
-    const cameraPosition = this.sceneManager.editorCamera.position;
-    let visibilityChanged = false;
-
-    this.cullableObjects.forEach(obj => {
-      const distance = obj.position.distanceTo(cameraPosition);
-      
-      // Un objeto es visible si está dentro de la distancia O si es el objeto seleccionado.
-      const shouldBeVisible = (distance < this.MAX_VISIBILITY_DISTANCE) || (obj === this.selectedObject);
-
-      if (obj.visible !== shouldBeVisible) {
-        obj.visible = shouldBeVisible;
-        visibilityChanged = true;
-      }
-    });
-
-    if (visibilityChanged) {
-      //console.log("[EngineService] Visibilidad de objetos actualizada.");
-      this.requestRender();
-    }
-  }
-
+  
   public addObjectToScene = (objData: SceneObjectResponse) => {
     const newObject = this.entityManager.createObjectFromData(objData);
-    // --- LÓGICA DE OPTIMIZACIÓN 6: Añadir nuevos objetos a la lista de culling ---
     if (newObject) {
       this.cullableObjects.push(newObject);
     }
@@ -226,7 +244,7 @@ export class EngineService implements OnDestroy {
     window.addEventListener('resize', this.onWindowResize);
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
-    this.controlsSubscription = this.controlsManager.onTransformEnd$.subscribe(() => {});
+    this.controlsSubscription = this.controlsManager.onTransformEnd$.subscribe();
     this.dragInteractionManager.onDragEnd$.subscribe(() => {
         if (this.selectedObject) {
             this.interactionHelperManager.updateHelperPositions(this.selectedObject);
@@ -247,14 +265,17 @@ export class EngineService implements OnDestroy {
     this.controlsSubscription?.unsubscribe();
   };
   
-  private onInteractionStart = () => { this.sceneManager.setLowQualityRender(); }
-  private onInteractionEnd = () => {
-    this.sceneManager.setNormalQualityRender();
-    // Al final de una interacción de cámara, forzamos una comprobación de culling.
-    this.performDistanceCulling();
+  private onInteractionStart = () => { /* No hacemos nada para mantener la calidad */ };
+  private onInteractionEnd = () => this.performDistanceCulling();
+  
+  private onControlsChange = () => {
+    this.interactionHelperManager.updateScale();
+    this.sceneManager.editorCamera.getWorldQuaternion(this.tempQuaternion);
+    if (!this.tempQuaternion.equals(this.cameraOrientation.getValue())) {
+      this.cameraOrientation.next(this.tempQuaternion.clone());
+    }
     this.requestRender();
-  }
-  private onControlsChange = () => { this.interactionHelperManager.updateScale(); this.requestRender(); };
+  };
   
   private onWindowResize = () => {
     this.sceneManager.onWindowResize();
@@ -275,9 +296,15 @@ export class EngineService implements OnDestroy {
 
   private onKeyUp = (e: KeyboardEvent) => this.keyMap.set(e.key.toLowerCase(), false);
   
-  public requestRender = () => { this.needsRender = true; };
+  public requestRender = () => { 
+      // Esta función sigue siendo útil para pedir un render fuera del bucle principal,
+      // aunque el bucle ahora renderiza continuamente.
+  };
+  
   public getSceneEntities = (): Observable<SceneEntity[]> => this.entityManager.getSceneEntities();
   public getCameraOrientation = (): Observable<THREE.Quaternion> => this.cameraOrientation.asObservable();
+  
+  // --- FUNCIÓN RESTAURADA ---
   public getGizmoAttachedObject = (): THREE.Object3D | undefined => this.selectedObject;
   
   public updateObjectName = (uuid: string, newName: string) => {
@@ -313,7 +340,7 @@ export class EngineService implements OnDestroy {
     this.sceneManager.editorCamera.lookAt(target);
     controls.target.copy(target);
     controls.update();
-    this.performDistanceCulling(); // Re-evaluar culling después de cambiar de vista
+    this.performDistanceCulling();
     this.requestRender();
   };
 }
