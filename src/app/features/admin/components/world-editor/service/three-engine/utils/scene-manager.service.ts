@@ -27,7 +27,7 @@ export class SceneManagerService {
 
     this.editorCamera = new THREE.PerspectiveCamera(50, canvas.clientWidth / canvas.clientHeight, 0.1, 50000);
     this.editorCamera.name = 'Cámara del Editor';
-    this.editorCamera.position.set(0, 0, 300);
+    this.editorCamera.position.set(0, 0, 500);
     this.scene.add(this.editorCamera);
 
     this.renderer = new THREE.WebGLRenderer({
@@ -37,8 +37,7 @@ export class SceneManagerService {
     });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    // <<< AJUSTE CLAVE: Reducimos la exposición general para dar más rango al bloom >>>
-    this.renderer.toneMappingExposure = 0.8; 
+    this.renderer.toneMappingExposure = 0.9;
     
     this.normalPixelRatio = Math.min(window.devicePixelRatio, 2);
     this.renderer.setPixelRatio(this.normalPixelRatio);
@@ -54,12 +53,12 @@ export class SceneManagerService {
   private setupPostProcessing(canvas: HTMLCanvasElement): void {
     const renderPass = new RenderPass(this.scene, this.editorCamera);
     
-    // <<< AJUSTE CLAVE PARA ELIMINAR EL "WHITEOUT" >>>
+    // <<< PARÁMETROS DE BLOOM FINALES >>>
     const bloomPass = new UnrealBloomPass(
       new THREE.Vector2(canvas.clientWidth, canvas.clientHeight),
-      0.6, // strength: Reducimos la fuerza general del brillo.
-      0.4, // radius: Hacemos el halo un poco más definido.
-      0.85 // threshold: CRÍTICO. Solo los píxeles con un brillo > 85% activarán el bloom. Esto elimina la mancha blanca.
+      0.8, // strength: Una fuerza de brillo pronunciada pero controlada.
+      0.6, // radius: Un halo suave y amplio.
+      0.2  // threshold: Umbral bajo que permite que los colores intensos (no solo blancos) brillen.
     );
 
     const outputPass = new OutputPass();
