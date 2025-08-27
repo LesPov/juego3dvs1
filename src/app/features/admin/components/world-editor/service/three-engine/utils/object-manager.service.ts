@@ -1,4 +1,4 @@
-// src/app/..../object-manager.service.ts
+/// src/app/..../object-manager.service.ts
 
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
@@ -6,17 +6,15 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { SceneObjectResponse } from '../../../../../services/admin.service';
 import { environment } from '../../../../../../../../environments/environment';
 
-/**
- * Interface para almacenar los datos mínimos y esenciales de cada objeto celeste.
- * Esto es mucho más eficiente en memoria que guardar todo el objeto `SceneObjectResponse`.
- */
 export interface CelestialInstanceData {
   originalColor: THREE.Color;
-  absoluteMagnitude: number;
+  emissiveIntensity: number; // La intensidad de luz que viene del análisis Python
   position: THREE.Vector3;
   originalMatrix: THREE.Matrix4;
   originalUuid: string;
-  originalName: string; // Añadimos el nombre para futuras referencias
+  originalName: string;
+    scale: THREE.Vector3; // NUEVO: Guardamos la escala del objeto para modular el brillo
+
 }
 
 function sanitizeHexColor(color: any, defaultColor: string = '#ffffff'): string {
@@ -32,18 +30,18 @@ export class ObjectManagerService {
     ? environment.endpoint.slice(0, -1)
     : environment.endpoint;
 
-  /**
-   * Crea objetos 3D a partir de datos, EXCLUYENDO los objetos celestes
-   * que se manejarán por lotes.
-   */
   public createObjectFromData(scene: THREE.Scene, objData: SceneObjectResponse, loader: GLTFLoader): THREE.Object3D | null {
     let createdObject: THREE.Object3D | null = null;
     switch (objData.type) {
       case 'model':
-        this.loadGltfModel(scene, objData, loader);
-        return null;
+        if (objData.properties?.['is_black_hole']) {
+            createdObject = this.createBlackHolePrimitive(scene, objData);
+        } else {
+            this.loadGltfModel(scene, objData, loader);
+        }
+        break;
       case 'star': case 'galaxy': case 'meteor':
-        console.warn(`[ObjectManager] Creación individual de '${objData.type}' obsoleta. Se maneja por InstancedMesh.`);
+        console.warn(`[ObjectManager] La creación individual de '${objData.type}' se maneja por InstancedMesh.`);
         break;
       case 'cube': case 'sphere': case 'cone': case 'torus': case 'floor':
         createdObject = this.createStandardPrimitive(scene, objData);
@@ -55,11 +53,7 @@ export class ObjectManagerService {
     return createdObject;
   }
 
-  /**
-   * Crea un único `InstancedMesh` para renderizar miles de objetos celestes
-   * en una sola llamada de dibujado, mejorando drásticamente el rendimiento.
-   */
-  public createCelestialObjectsInstanced(scene: THREE.Scene, objectsData: SceneObjectResponse[]): void {
+ public createCelestialObjectsInstanced(scene: THREE.Scene, objectsData: SceneObjectResponse[]): void {
     if (!objectsData.length) return;
 
     const count = objectsData.length;
@@ -92,10 +86,12 @@ export class ObjectManagerService {
       instancedMesh.setMatrixAt(i, matrix);
       instancedMesh.setColorAt(i, originalColor);
 
+      // <<< ¡CAMBIO CLAVE! Guardamos la escala junto a los otros datos >>>
       celestialData.push({
         originalColor: originalColor.clone(),
-        absoluteMagnitude: properties['absolute_magnitude'] as number || 0,
+        emissiveIntensity: properties['emissive_intensity'] as number || 1.0,
         position: position.clone(),
+        scale: scale.clone(), // GUARDAMOS LA ESCALA
         originalMatrix: matrix.clone(),
         originalUuid: objData.id.toString(),
         originalName: objData.name,
@@ -106,25 +102,29 @@ export class ObjectManagerService {
     if (instancedMesh.instanceColor) {
       instancedMesh.instanceColor.needsUpdate = true;
     }
-
     scene.add(instancedMesh);
   }
 
-  /**
-   * Crea un objeto "proxy" visualmente simple para la selección de instancias.
-   * Este objeto temporal será usado para adjuntar el gizmo de transformación y mostrar el outline.
-   */
   public createSelectionProxy(): THREE.Mesh {
-    const proxyGeometry = new THREE.SphereGeometry(0.55, 16, 8); // Ligeramente más grande que la instancia original.
+    const proxyGeometry = new THREE.SphereGeometry(0.55, 16, 8);
     const proxyMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffff00,       // Color de referencia (no se ve).
+      color: 0xffff00,
       transparent: true,
-      opacity: 0,            // Totalmente invisible, solo sirve como objetivo.
+      opacity: 0,
       depthTest: true,
     });
     const proxyMesh = new THREE.Mesh(proxyGeometry, proxyMaterial);
     proxyMesh.name = 'SelectionProxy';
     return proxyMesh;
+  }
+  
+  private createBlackHolePrimitive(scene: THREE.Scene, objData: SceneObjectResponse): THREE.Mesh {
+    const geometry = new THREE.SphereGeometry(0.5, 32, 16);
+    const material = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    const mesh = new THREE.Mesh(geometry, material);
+    this.applyTransformations(mesh, objData);
+    scene.add(mesh);
+    return mesh;
   }
   
   private createStandardPrimitive(scene: THREE.Scene, objData: SceneObjectResponse): THREE.Mesh {

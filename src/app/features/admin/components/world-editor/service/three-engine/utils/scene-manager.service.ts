@@ -1,4 +1,4 @@
-// src/app/features/admin/components/world-editor/service/three-engine/utils/scene-manager.service.ts
+/// src/app/features/admin/components/world-editor/service/three-engine/utils/scene-manager.service.ts
 
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
@@ -23,11 +23,11 @@ export class SceneManagerService {
 
   public setupBasicScene(canvas: HTMLCanvasElement): void {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x000000);
+    this.scene.background = new THREE.Color(0x000003); 
 
-    this.editorCamera = new THREE.PerspectiveCamera(50, canvas.clientWidth / canvas.clientHeight, 0.1, 50000);
+    this.editorCamera = new THREE.PerspectiveCamera(50, canvas.clientWidth / canvas.clientHeight, 0.1, 80000);
     this.editorCamera.name = 'Cámara del Editor';
-    this.editorCamera.position.set(0, 0, 500);
+    this.editorCamera.position.set(0, 0, 1500); 
     this.scene.add(this.editorCamera);
 
     this.renderer = new THREE.WebGLRenderer({
@@ -37,7 +37,7 @@ export class SceneManagerService {
     });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.9;
+    this.renderer.toneMappingExposure = 1.2; // Aumentamos un poco más la exposición
     
     this.normalPixelRatio = Math.min(window.devicePixelRatio, 2);
     this.renderer.setPixelRatio(this.normalPixelRatio);
@@ -50,15 +50,15 @@ export class SceneManagerService {
     this.scene.add(this.focusPivot);
   }
 
+  // <<< CAMBIO CLAVE: PARÁMETROS DE BLOOM FINALES Y AGRESIVOS >>>
   private setupPostProcessing(canvas: HTMLCanvasElement): void {
     const renderPass = new RenderPass(this.scene, this.editorCamera);
     
-    // <<< PARÁMETROS DE BLOOM FINALES >>>
     const bloomPass = new UnrealBloomPass(
       new THREE.Vector2(canvas.clientWidth, canvas.clientHeight),
-      0.8, // strength: Una fuerza de brillo pronunciada pero controlada.
-      0.6, // radius: Un halo suave y amplio.
-      0.2  // threshold: Umbral bajo que permite que los colores intensos (no solo blancos) brillen.
+      1.5, // strength: Un brillo fuerte y etéreo.
+      1.0, // radius: Un halo muy amplio y difuso.
+      0.0  // threshold: ¡CERO! CUALQUIER PÍXEL CON LUZ CREARÁ BLOOM. ESTA ES LA CLAVE.
     );
 
     const outputPass = new OutputPass();

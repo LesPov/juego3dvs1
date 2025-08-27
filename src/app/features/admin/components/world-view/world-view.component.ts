@@ -1,4 +1,4 @@
-// src/app/features/admin/components/world-view/world-view.component.ts
+/// src/app/features/admin/components/world-view/world-view.component.ts
 
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';

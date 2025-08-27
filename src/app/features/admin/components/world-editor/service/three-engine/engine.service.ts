@@ -1,4 +1,4 @@
-// src/app/features/admin/components/world-editor/service/three-engine/engine.service.ts
+/// src/app/features/admin/components/world-editor/service/three-engine/engine.service.ts
 
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
@@ -116,6 +116,8 @@ export class EngineService implements OnDestroy {
     this.statsManager.end();
   };
 
+
+    // <<< ¡LÓGICA DE LUMINOSIDAD FINAL! AHORA INCLUYE LA ESCALA DEL OBJETO >>>
   private updateCelestialInstancesLuminosity(): void {
     const camera = this.sceneManager.editorCamera;
     const instancedMesh = this.sceneManager.scene.getObjectByName('CelestialObjectsInstanced') as THREE.InstancedMesh;
@@ -125,32 +127,46 @@ export class EngineService implements OnDestroy {
     const allData: CelestialInstanceData[] = instancedMesh.userData['celestialData'];
     if (!allData) return;
 
-    const MAX_BRIGHTNESS_DISTANCE = 350;
-    const FADE_END_DISTANCE = 4500;
-    const MIN_BRIGHTNESS_FACTOR = 0.4;
-    const LUMINOSITY_RANGE = FADE_END_DISTANCE - MAX_BRIGHTNESS_DISTANCE;
+    // --- PARÁMETROS DE BRILLO Y PERSPECTIVA ---
+    const BASE_LUMINOSITY_FACTOR = 0.35; // Un 35% de brillo mínimo asegurado.
+    const PROXIMITY_LUMINOSITY_FACTOR = 1.0 - BASE_LUMINOSITY_FACTOR;
 
-    let needsUpdate = false;
+    const FADE_START_DISTANCE = 800.0;
+    const FADE_END_DISTANCE = 12000.0; // Rango muy amplio para atenuación suave.
+    const LUMINOSITY_RANGE = FADE_END_DISTANCE - FADE_START_DISTANCE;
+
+     let needsUpdate = false;
     for (let i = 0; i < allData.length; i++) {
       const data = allData[i];
+      // --- CORRECCIÓN CLAVE ---
+      // 'emissiveIntensity' es el valor de 'absolute_magnitude' que calculó Python.
+      // Si es 0 o no existe, el objeto no brillará. Correcto.
+      if (!data.emissiveIntensity || data.emissiveIntensity === 0) continue; 
+
       const distance = data.position.distanceTo(camera.position);
-      let distanceIntensity: number;
 
-      if (distance <= MAX_BRIGHTNESS_DISTANCE) {
-        distanceIntensity = 1.0;
+      // --- 1. Calcular el bono de proximidad ---
+      // ... (sin cambios aquí)
+      let proximityIntensity: number;
+      if (distance <= FADE_START_DISTANCE) {
+        proximityIntensity = 1.0;
       } else if (distance >= FADE_END_DISTANCE) {
-        distanceIntensity = 0.0;
+        proximityIntensity = 0.0;
       } else {
-        const fadeProgress = (distance - MAX_BRIGHTNESS_DISTANCE) / LUMINOSITY_RANGE;
-        distanceIntensity = 1.0 - fadeProgress;
+        const fadeProgress = (distance - FADE_START_DISTANCE) / LUMINOSITY_RANGE;
+        proximityIntensity = 1.0 - Math.pow(fadeProgress, 0.75);
       }
+      
+      const distanceFactor = BASE_LUMINOSITY_FACTOR + (PROXIMITY_LUMINOSITY_FACTOR * proximityIntensity);
 
-      const intrinsicBrightness = data.absoluteMagnitude * MIN_BRIGHTNESS_FACTOR;
-      const variableBrightness = distanceIntensity * (1 - intrinsicBrightness);
-      const finalIntensity = intrinsicBrightness + variableBrightness;
-      const brightnessBoost = 1.0 + data.absoluteMagnitude * 4.0;
+      // --- 2. ¡NUEVO! Calcular el multiplicador basado en la escala ---
+      // ... (sin cambios aquí)
+      const scaleMultiplier = 1.0 + Math.log1p(data.scale.x); 
 
-      this.tempColor.copy(data.originalColor).multiplyScalar(finalIntensity * brightnessBoost);
+      // --- 3. Calcular la intensidad final combinando todo ---
+      const finalIntensity = data.emissiveIntensity * distanceFactor * scaleMultiplier;
+
+      this.tempColor.copy(data.originalColor).multiplyScalar(finalIntensity);
       instancedMesh.setColorAt(i, this.tempColor);
       needsUpdate = true;
     }
@@ -159,7 +175,7 @@ export class EngineService implements OnDestroy {
       instancedMesh.instanceColor.needsUpdate = true;
     }
   }
-
+  
   public selectObjectByUuid(uuid: string | null): void {
     this.interactionHelperManager.cleanupHelpers(this.selectedObject);
     this.dragInteractionManager.stopListening();
