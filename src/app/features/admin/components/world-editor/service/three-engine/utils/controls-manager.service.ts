@@ -1,4 +1,3 @@
-// controls-manager.service.ts
 import { Injectable, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -12,54 +11,59 @@ export class ControlsManagerService implements OnDestroy {
   private transformControls!: TransformControls;
   private camera!: THREE.PerspectiveCamera;
   private domElement!: HTMLElement;
+  private scene!: THREE.Scene;
   private focusPivot!: THREE.Object3D;
+  private focusHelper!: THREE.Sprite;
 
   private isOrbitEnabled = false;
   private isFlyEnabled = false;
   private isTouchDevice = false;
+
+  private isOrbiting = false;
+  private isPanning = false;
+  private lookSpeed = 0.002;
 
   private currentToolMode: ToolMode = 'select';
   private transformEndSubject = new Subject<void>();
   public onTransformEnd$ = this.transformEndSubject.asObservable();
 
   private velocity = new THREE.Vector3();
-  private readonly MOVEMENT_SPEED = 8.0;
-  private readonly BOOST_MULTIPLIER = 2.5;
-  private readonly DAMPING_FACTOR = 0.88;
-  
-  // --- CAMBIO CLAVE 2: Zoom más rápido y sensible ---
-  private readonly DOLLY_SPEED = 0.8; // Aumentado para un zoom más ágil
+  private readonly MOVEMENT_SPEED = 50.0;
+  private readonly BOOST_MULTIPLIER = 5.0;
+  private readonly DAMPING_FACTOR = 0.90;
 
-  constructor() {}
+  constructor() { }
 
-  public init(
-    camera: THREE.PerspectiveCamera,
-    domElement: HTMLElement,
-    scene: THREE.Scene,
-    focusPivot: THREE.Object3D
-  ): void {
+  public init(camera: THREE.PerspectiveCamera, domElement: HTMLElement, scene: THREE.Scene, focusPivot: THREE.Object3D): void {
     this.camera = camera;
     this.domElement = domElement;
+    this.scene = scene;
     this.focusPivot = focusPivot;
     this.isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
     this.createOrbitControls(camera, domElement);
     this.createTransformControls(camera, domElement);
+    this.createFocusHelper();
     this.addEventListeners();
-
-    this.orbitControls.target.copy(this.focusPivot.position);
-    this.orbitControls.update();
   }
 
   public ngOnDestroy = () => {
     if (this.domElement && !this.isTouchDevice) {
+      this.domElement.removeEventListener('mousedown', this.onMouseDown);
+      window.removeEventListener('mousemove', this.onMouseMove);
+      window.removeEventListener('mouseup', this.onMouseUp);
       this.domElement.removeEventListener('wheel', this.onDocumentMouseWheel);
+      this.domElement.removeEventListener('click', this.lockCursor);
+      document.removeEventListener('pointerlockchange', this.onPointerLockChange);
     }
-    if (this.orbitControls) {
-      this.orbitControls.removeEventListener('change', this.syncPivotToControlsTarget);
-      this.orbitControls.dispose();
-    }
+    if (this.orbitControls) this.orbitControls.dispose();
     if (this.transformControls) this.transformControls.dispose();
+    if (this.focusHelper) {
+      this.scene.remove(this.focusHelper);
+      this.focusHelper.material.map?.dispose();
+      this.focusHelper.material.dispose();
+    }
+    this.unlockCursor();
   };
 
   private createOrbitControls(camera: THREE.Camera, domElement: HTMLElement): void {
@@ -67,23 +71,48 @@ export class ControlsManagerService implements OnDestroy {
     this.orbitControls.enableDamping = true;
     this.orbitControls.dampingFactor = 0.1;
     this.orbitControls.screenSpacePanning = true;
+    this.orbitControls.minDistance = 0;
+    this.orbitControls.maxDistance = Infinity;
+    this.orbitControls.enableZoom = false;
+    this.orbitControls.enabled = false;
+  }
 
-    if (this.isTouchDevice) {
-      this.orbitControls.enableZoom = true;
-      this.orbitControls.zoomSpeed = 0.7;
-      this.orbitControls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
-    } else {
-      this.orbitControls.enableZoom = false; // El zoom se controla manualmente con la rueda del ratón
-      this.orbitControls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
-    }
+  private createFocusHelper(): void {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 64;
+    const context = canvas.getContext('2d')!;
+    context.strokeStyle = 'rgba(255, 255, 0, 0.8)';
+    context.lineWidth = 6;
+    context.beginPath(); context.moveTo(32, 10); context.lineTo(32, 26); context.stroke();
+    context.beginPath(); context.moveTo(32, 38); context.lineTo(32, 54); context.stroke();
+    context.beginPath(); context.moveTo(10, 32); context.lineTo(26, 32); context.stroke();
+    context.beginPath(); context.moveTo(38, 32); context.lineTo(54, 32); context.stroke();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      depthTest: false,
+      transparent: true,
+      sizeAttenuation: false,
+    });
+
+    this.focusHelper = new THREE.Sprite(material);
+    this.focusHelper.name = "FocusHelper";
+    this.focusHelper.scale.set(0.03, 0.03, 1);
+    this.focusHelper.renderOrder = 999;
+    this.scene.add(this.focusHelper);
   }
 
   private createTransformControls(camera: THREE.PerspectiveCamera, domElement: HTMLElement): void {
     this.transformControls = new TransformControls(camera, domElement);
     this.transformControls.addEventListener('dragging-changed', (event) => {
-      this.orbitControls.enabled = !event.value;
-      if (!this.isTouchDevice) {
-        this.isFlyEnabled = !event.value;
+      this.isFlyEnabled = !event.value;
+      if (event.value) {
+        this.orbitControls.enabled = false;
+        this.isOrbiting = false;
+        this.unlockCursor();
+      } else {
+        this.lockCursor();
       }
     });
     this.transformControls.addEventListener('objectChange', () => this.transformEndSubject.next());
@@ -93,14 +122,14 @@ export class ControlsManagerService implements OnDestroy {
   public enableNavigation(): void {
     this.isOrbitEnabled = true;
     if (!this.isTouchDevice) this.isFlyEnabled = true;
-    this.orbitControls.enabled = true;
+    this.focusHelper.visible = document.pointerLockElement !== this.domElement;
   }
 
   public disableNavigation(): void {
     this.isOrbitEnabled = false;
     this.isFlyEnabled = false;
-    this.orbitControls.enabled = false;
-    this.velocity.set(0, 0, 0);
+    this.focusHelper.visible = false;
+    this.unlockCursor();
   }
 
   public setTransformMode = (mode: ToolMode): void => {
@@ -118,24 +147,29 @@ export class ControlsManagerService implements OnDestroy {
     if (this.isFlyEnabled) {
       moved = this.handleKeyboardFly(delta, keyMap);
     }
-    if (this.isOrbitEnabled) {
-      // El método update() de OrbitControls devuelve true si la cámara cambió
-      const orbitMoved = this.orbitControls.update();
-      if (orbitMoved) {
+    if (this.isOrbiting || this.isPanning) {
+      if (this.orbitControls.update()) {
         moved = true;
       }
     }
+    this.updateFocusHelperPosition();
     return moved;
   };
 
+  private updateFocusHelperPosition(): void {
+    const direction = new THREE.Vector3();
+    this.camera.getWorldDirection(direction);
+    const distance = Math.max(20, this.camera.position.length() / 100);
+    this.focusHelper.position.copy(this.camera.position).add(direction.multiplyScalar(distance));
+  }
+
   private handleKeyboardFly(delta: number, keyMap: Map<string, boolean>): boolean {
+    if (document.pointerLockElement !== this.domElement) return false;
     const moveDirection = new THREE.Vector3();
     const forward = new THREE.Vector3();
     const right = new THREE.Vector3();
 
     this.camera.getWorldDirection(forward);
-    forward.y = 0;
-    forward.normalize();
     right.copy(forward).cross(this.camera.up).normalize();
 
     if (keyMap.get('w')) moveDirection.add(forward);
@@ -146,55 +180,75 @@ export class ControlsManagerService implements OnDestroy {
     if (keyMap.get('q')) moveDirection.y -= 1;
 
     const didMove = moveDirection.lengthSq() > 0;
-
+    if (!didMove && this.velocity.lengthSq() < 0.0001) {
+      this.velocity.set(0, 0, 0);
+      return false;
+    }
     if (didMove) {
       moveDirection.normalize();
       const currentSpeed = this.MOVEMENT_SPEED * (keyMap.get('shift') ? this.BOOST_MULTIPLIER : 1);
-      this.velocity.lerp(moveDirection.multiplyScalar(currentSpeed), delta * 10);
+      this.velocity.lerp(moveDirection.multiplyScalar(currentSpeed), delta * 15);
     }
-
     this.velocity.multiplyScalar(this.DAMPING_FACTOR);
-
-    if (this.velocity.lengthSq() < 0.0001) {
-      this.velocity.set(0, 0, 0);
-      if (!didMove) return false;
-    }
-
-    const displacement = this.velocity.clone().multiplyScalar(delta);
-
-    this.camera.position.add(displacement);
-    this.orbitControls.target.add(displacement);
-    this.focusPivot.position.copy(this.orbitControls.target);
-
+    this.camera.position.add(this.velocity.clone().multiplyScalar(delta));
     return true;
   }
 
   private addEventListeners = () => {
     if (!this.isTouchDevice) {
-      this.domElement.addEventListener('wheel', this.onDocumentMouseWheel, { passive: false });
+      this.domElement.addEventListener('mousedown', this.onMouseDown);
+      window.addEventListener('mousemove', this.onMouseMove);
+      window.addEventListener('mouseup', this.onMouseUp);
+      this.domElement.addEventListener('wheel', this.onDocumentMouseWheel);
+      this.domElement.addEventListener('click', this.lockCursor);
+      document.addEventListener('pointerlockchange', this.onPointerLockChange);
     }
-    this.orbitControls.addEventListener('change', this.syncPivotToControlsTarget);
   };
 
-  private syncPivotToControlsTarget = (): void => {
-    if (this.focusPivot) {
-      this.focusPivot.position.copy(this.orbitControls.target);
+  private lockCursor = () => { if (this.isFlyEnabled && !this.isOrbiting && !this.isPanning && !this.transformControls.dragging) this.domElement.requestPointerLock(); };
+  private unlockCursor = () => { if (document.pointerLockElement === this.domElement) document.exitPointerLock(); };
+  private onPointerLockChange = () => { this.focusHelper.visible = document.pointerLockElement !== this.domElement; };
+
+  private onMouseDown = (event: MouseEvent) => {
+    if (!this.isOrbitEnabled || this.transformControls.dragging || document.pointerLockElement === this.domElement) return;
+    if (event.button === 0) {
+      this.isOrbiting = true;
+      // <<< SOLUCIÓN CLAVE: Reorientar la cámara ANTES de habilitar OrbitControls >>>
+      this.camera.lookAt(this.focusHelper.position);
+      this.orbitControls.target.copy(this.focusHelper.position);
+      this.focusPivot.position.copy(this.focusHelper.position);
+      this.orbitControls.enabled = true;
+    } else if (event.button === 2) {
+      this.isPanning = true;
+      this.orbitControls.enabled = true;
+    }
+  };
+
+  private onMouseMove = (event: MouseEvent) => {
+    if (this.isFlyEnabled && !this.isOrbiting && !this.isPanning && !this.transformControls.dragging && document.pointerLockElement === this.domElement) {
+      const deltaX = event.movementX || 0;
+      const deltaY = event.movementY || 0;
+      const yaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -deltaX * this.lookSpeed);
+      const pitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -deltaY * this.lookSpeed);
+      this.camera.quaternion.multiplyQuaternions(yaw, this.camera.quaternion.multiply(pitch));
+    }
+  };
+
+  private onMouseUp = (event: MouseEvent) => {
+    if (this.isOrbiting || this.isPanning) {
+      this.orbitControls.enabled = false;
+      this.isOrbiting = false;
+      this.isPanning = false;
     }
   };
 
   private onDocumentMouseWheel = (event: WheelEvent) => {
-    if (this.isOrbitEnabled) {
-      event.preventDefault();
-      this.dolly((event.deltaY < 0 ? 1 : -1) * this.DOLLY_SPEED);
-    }
-  };
-
-  private dolly = (dollyDelta: number) => {
-    const offset = new THREE.Vector3().copy(this.camera.position).sub(this.orbitControls.target);
-    const dist = Math.max(0.1, offset.length() * (1 - dollyDelta));
-    offset.setLength(dist);
-    this.camera.position.copy(this.orbitControls.target).add(offset);
-    this.orbitControls.update(); // Forzamos una actualización para que el damping no interfiera
+    if (!this.isFlyEnabled) return;
+    const direction = new THREE.Vector3();
+    this.camera.getWorldDirection(direction);
+    const moveAmount = event.deltaY > 0 ? -1 : 1;
+    const speedFactor = Math.max(2, this.camera.position.length() * 0.01);
+    this.camera.position.add(direction.multiplyScalar(moveAmount * speedFactor));
   };
 
   public getCurrentToolMode = (): ToolMode => this.currentToolMode;

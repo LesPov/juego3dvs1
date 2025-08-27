@@ -1,11 +1,11 @@
-// world-view.component.ts
-// SIN CAMBIOS
+// src/app/features/admin/components/world-view/world-view.component.ts
+
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Observable, Subject, Subscription, of, BehaviorSubject } from 'rxjs';
-import { switchMap, tap, debounceTime } from 'rxjs/operators';
+import { Observable, Subject, Subscription, of, BehaviorSubject, combineLatest } from 'rxjs';
+import { switchMap, tap, debounceTime, map, startWith } from 'rxjs/operators';
 import * as THREE from 'three';
 import { DragDropModule, CdkDropList, CdkDrag, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { SceneComponent } from '../world-editor/scene/scene.component';
@@ -34,16 +34,17 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   public loadingProgress = 0;
   public errorMessage: string | null = null;
   public sceneObjects: SceneObjectResponse[] = [];
+  public allEntities: SceneEntity[] = [];
   public episodeTitle = '';
   public selectedEntityUuid: string | null = null;
   public selectedObject: SceneObjectResponse | null = null;
   public isAddObjectModalVisible = false;
-  public activePropertiesTab: string = 'object';
+  public activePropertiesTab: string = 'scene';
   public isMobileSidebarVisible = false;
   public axisLock$: Observable<'x' | 'y' | 'z' | null>;
 
-  public realEntities$ = new BehaviorSubject<SceneEntity[]>([]);
-  public placeholderEntities: SceneEntity[] = [];
+  public displayEntities$: Observable<SceneEntity[]>;
+  public placeholderEntities: SceneEntity[] = [{ uuid: 'placeholder-1', name: 'Añadir objeto nuevo...', type: 'Model' }];
 
   private readonly typeColorMap: { [key: string]: string } = {
     'Camera': 'color-camera', 'Light': 'color-light', 'Model': 'color-model',
@@ -53,6 +54,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
 
   private propertyUpdate$ = new Subject<PropertyUpdate>();
   private subscriptions = new Subscription();
+  private allEntities$ = new BehaviorSubject<SceneEntity[]>([]);
 
   constructor(
     private route: ActivatedRoute,
@@ -62,8 +64,9 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     private cdr: ChangeDetectorRef,
     private sceneObjectService: SceneObjectService,
   ) {
-    this.placeholderEntities = [{ uuid: 'placeholder-1', name: 'Añadir objeto nuevo...', type: 'Model' }];
     this.axisLock$ = this.engineService.axisLockState$;
+    // La lista de entidades a mostrar es ahora un observable
+    this.displayEntities$ = this.allEntities$.asObservable();
   }
 
   ngOnInit(): void {
@@ -87,12 +90,10 @@ export class WorldViewComponent implements OnInit, OnDestroy {
       next: (data) => {
         this.episodeTitle = data.title;
         this.sceneObjects = data.sceneObjects || [];
-        console.log(`[WorldView] Datos cargados. ${this.sceneObjects.length} objetos listos para pasar a la escena.`);
         this.isLoadingData = false;
         this.isRenderingScene = true;
 
-        const hasModels = this.sceneObjects.some(o => o.type === 'model' && o.asset?.path);
-        if (!hasModels) {
+        if (!this.sceneObjects.some(o => o.type === 'model' && o.asset?.path)) {
           this.simulateLoadingProgress();
         }
       },
@@ -110,7 +111,12 @@ export class WorldViewComponent implements OnInit, OnDestroy {
       debounceTime(400),
       switchMap(update => this.handlePropertyUpdate(update))
     ).subscribe({ error: err => console.error("[WorldView] Error al actualizar propiedad:", err) });
-    const entitiesSub = this.engineService.getSceneEntities().subscribe(entities => this.realEntities$.next(entities));
+    
+    // Escucha la lista completa de entidades (incluyendo las instanciadas) del motor
+    const entitiesSub = this.engineService.getSceneEntities().subscribe(entities => {
+        this.allEntities = entities;
+        this.allEntities$.next(entities);
+    });
 
     this.subscriptions.add(transformSub);
     this.subscriptions.add(propertyUpdateSub);
@@ -137,19 +143,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
 
   private handlePropertyUpdate(update: PropertyUpdate): Observable<SceneObjectResponse | null> {
     if (!this.episodeId || !this.selectedObject) return of(null);
-
-    let dataToUpdate: Partial<SceneObjectResponse>;
-    if (update.path === 'rotation') {
-      const rotationInRad = {
-        x: THREE.MathUtils.degToRad((update.value as any).x),
-        y: THREE.MathUtils.degToRad((update.value as any).y),
-        z: THREE.MathUtils.degToRad((update.value as any).z)
-      };
-      dataToUpdate = { [update.path]: rotationInRad };
-    } else {
-      dataToUpdate = { [update.path]: update.value };
-    }
-
+    let dataToUpdate: Partial<SceneObjectResponse> = { [update.path]: update.value };
     return this.sceneObjectService.updateSceneObject(this.episodeId, this.selectedObject.id, dataToUpdate).pipe(
       tap(updatedObj => this.updateLocalSelectedObject(updatedObj))
     );
@@ -165,18 +159,14 @@ export class WorldViewComponent implements OnInit, OnDestroy {
       this.deselectObject();
     } else {
       this.selectedEntityUuid = entity.uuid;
+      // Busca en la lista original de objetos cargados, no en la lista de entidades del motor
       const foundObject = this.sceneObjects.find(o => o.id.toString() === entity.uuid);
       if (foundObject) {
-        this.selectedObject = {
-          ...foundObject,
-          rotation: {
-            x: THREE.MathUtils.radToDeg(foundObject.rotation.x),
-            y: THREE.MathUtils.radToDeg(foundObject.rotation.y),
-            z: THREE.MathUtils.radToDeg(foundObject.rotation.z)
-          }
-        };
+        this.selectedObject = { ...foundObject };
         this.engineService.selectObjectByUuid(entity.uuid);
         this.selectPropertiesTab('object');
+      } else {
+        this.deselectObject();
       }
     }
   }
@@ -185,7 +175,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     this.selectedEntityUuid = null;
     this.selectedObject = null;
     this.engineService.selectObjectByUuid(null);
-    this.selectPropertiesTab('render');
+    this.selectPropertiesTab('scene');
   }
 
   createSceneObject(data: NewSceneObjectData): void {
@@ -195,6 +185,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
         this.closeAddObjectModal();
         this.engineService.addObjectToScene(newObj);
         this.sceneObjects = [...this.sceneObjects, newObj];
+        // Se actualizará la lista de entidades automáticamente a través de la suscripción
       },
       error: err => console.error(err)
     });
@@ -203,26 +194,25 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   updateLocalSelectedObject(updatedData: Partial<SceneObjectResponse>): void {
     if (!this.selectedObject) return;
 
-    const updatedObjectInRad = { ...this.selectedObject, ...updatedData };
-
-    this.selectedObject = {
-      ...updatedObjectInRad,
-      rotation: {
-        x: THREE.MathUtils.radToDeg(updatedObjectInRad.rotation.x),
-        y: THREE.MathUtils.radToDeg(updatedObjectInRad.rotation.y),
-        z: THREE.MathUtils.radToDeg(updatedObjectInRad.rotation.z),
-      }
-    };
-
+    this.selectedObject = { ...this.selectedObject, ...updatedData };
+    
     const index = this.sceneObjects.findIndex(o => o.id === this.selectedObject!.id);
     if (index !== -1) {
       this.sceneObjects[index] = { ...this.sceneObjects[index], ...updatedData };
-      this.sceneObjects = [...this.sceneObjects];
     }
     this.cdr.detectChanges();
   }
+  
+  onDrop(event: CdkDragDrop<SceneEntity[]>): void { 
+      const currentEntities = this.allEntities$.getValue();
+      moveItemInArray(currentEntities, event.previousIndex, event.currentIndex); 
+      this.allEntities$.next([...currentEntities]); 
+  }
 
-  onDrop(event: CdkDragDrop<SceneEntity[]>): void { moveItemInArray(event.container.data, event.previousIndex, event.currentIndex); this.realEntities$.next([...event.container.data]); }
+  trackByEntity(index: number, entity: SceneEntity): string {
+    return entity.uuid;
+  }
+  
   getColorClassForEntity(entity: SceneEntity): string { return this.typeColorMap[entity.type] || this.typeColorMap['default']; }
   toggleMobileSidebar(): void { this.isMobileSidebarVisible = !this.isMobileSidebarVisible; }
   selectPropertiesTab(tab: string): void { this.activePropertiesTab = tab; }

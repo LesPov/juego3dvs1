@@ -1,5 +1,3 @@
-// src/app/features/admin/components/world-editor/brujula/brujula.component.ts
-
 import { Component, AfterViewInit, ElementRef, ViewChild, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import * as THREE from 'three';
@@ -25,7 +23,9 @@ export class BrujulaComponent implements AfterViewInit, OnDestroy {
   private raycaster = new THREE.Raycaster();
   private clickeables: THREE.Object3D[] = [];
   private brujulaGroup!: THREE.Group;
-  private cameraSubscription?: Subscription;
+  
+  private cameraSubscription!: Subscription;
+  
   private animationFrameId?: number;
   private hoveredAxisName: string | null = null;
   private originalMaterials: Map<string, THREE.Material> = new Map();
@@ -51,6 +51,17 @@ export class BrujulaComponent implements AfterViewInit, OnDestroy {
 
     this.renderer?.dispose();
     this.originalMaterials.clear();
+  }
+  
+  // <<< MODIFICACIÓN CLAVE: Cambiar la suscripción al nuevo Observable >>>
+  private subscribeToCameraChanges(): void {
+    // Nos suscribimos al nuevo observable `cameraOrientation$` que se actualiza en cada frame.
+    this.cameraSubscription = this.engineService.cameraOrientation$.subscribe(orientation => {
+      if (this.brujulaGroup) {
+        // La lógica de inversión es clave para que la brújula muestre la dirección correcta
+        this.brujulaGroup.quaternion.copy(orientation).invert();
+      }
+    });
   }
 
   private initBrujula(): void {
@@ -93,13 +104,12 @@ export class BrujulaComponent implements AfterViewInit, OnDestroy {
     this.renderer.domElement.addEventListener('click', this.onCanvasClick, false);
     this.renderer.domElement.addEventListener('mousemove', this.onCanvasMouseMove, false);
   }
-
+  
   private createAxes(): void {
      const axisLength = 1.6;
-    // Hacemos los ejes y las puntas más gruesos
-    const axisRadius = 0.1;   // Antes 0.04
+    const axisRadius = 0.1;
     const headLength = 1;
-    const headRadius = 0.25;   // Antes 0.12
+    const headRadius = 0.25;
 
     const centerSphere = new THREE.Mesh(
       new THREE.SphereGeometry(0.15),
@@ -124,37 +134,30 @@ export class BrujulaComponent implements AfterViewInit, OnDestroy {
         toneMapped: false
       });
 
-      // EJE VISUAL (CONO Y LÍNEA)
       const cone = new THREE.Mesh(new THREE.ConeGeometry(headRadius, headLength, 16), material);
       cone.position.copy(data.dir).multiplyScalar(axisLength);
       cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), data.dir);
-      // Le asignamos el nombre del eje para identificarlo en el raycaster
       cone.name = data.name; 
 
       const line = new THREE.Mesh(new THREE.CylinderGeometry(axisRadius, axisRadius, axisLength, 16), material);
       line.position.copy(data.dir).multiplyScalar(axisLength / 2);
       line.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), data.dir);
       
-      // ETIQUETA DE TEXTO (X, Y, Z)
       const labelDiv = document.createElement('div');
       labelDiv.className = 'axis-label';
       labelDiv.textContent = data.label;
       labelDiv.style.color = `#${new THREE.Color(data.color).getHexString()}`;
       const label = new CSS2DObject(labelDiv);
-      // Calculamos la posición final de la etiqueta
       const labelPosition = data.dir.clone().multiplyScalar(axisLength + headLength + 0.6);
       label.position.copy(labelPosition);
       
-      // --- LÓGICA CLAVE CORREGIDA ---
-      // 1. Esfera invisible para la letra: La colocamos EXACTAMENTE en la misma posición que la etiqueta
       const labelHitSphere = new THREE.Mesh(
-          new THREE.SphereGeometry(0.6), // Radio generoso para que sea fácil de clickear
-          new THREE.MeshBasicMaterial({ visible: false }) // invisible
+          new THREE.SphereGeometry(0.6),
+          new THREE.MeshBasicMaterial({ visible: false })
       );
-      labelHitSphere.position.copy(labelPosition); // Misma posición que la letra
-      labelHitSphere.name = data.name; // Le damos el nombre del eje
+      labelHitSphere.position.copy(labelPosition);
+      labelHitSphere.name = data.name;
 
-      // 2. Asociamos los datos para el efecto hover
       cone.userData['axisName'] = data.name;
       line.userData['axisName'] = data.name;
       label.userData['axisName'] = data.name;
@@ -162,24 +165,12 @@ export class BrujulaComponent implements AfterViewInit, OnDestroy {
       this.originalMaterials.set(cone.uuid, material);
       this.originalMaterials.set(line.uuid, material);
 
-      // 3. Añadimos TODO a la escena
       this.brujulaGroup.add(cone, line, label, labelHitSphere);
       
-      // 4. Añadimos AMBAS zonas (la punta de la flecha y la esfera de la letra) a los objetos clickeables
       this.clickeables.push(cone, labelHitSphere);
-      // --- FIN DE LA LÓGICA CORREGIDA ---
     });
   }
-
-  // El resto del archivo no cambia. La lógica de hover y click ya es genérica
-  // y funcionará con los nuevos objetos que hemos añadido a `clickeables`.
-
-  private subscribeToCameraChanges(): void {
-    this.cameraSubscription = this.engineService.getCameraOrientation().subscribe(orientation => {
-      this.brujulaGroup.quaternion.copy(orientation).invert();
-    });
-  }
-
+  
   private onCanvasMouseMove = (event: MouseEvent) => {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const mouse = new THREE.Vector2();
@@ -187,11 +178,9 @@ export class BrujulaComponent implements AfterViewInit, OnDestroy {
     mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
     this.raycaster.setFromCamera(mouse, this.camera);
-    // intersectObjects ahora buscará en los conos Y en las esferas de las letras
     const intersects = this.raycaster.intersectObjects(this.clickeables);
 
     if (intersects.length > 0) {
-      // Usamos el nombre del objeto intersectado, que ya configuramos bien
       const intersectedObjectName = intersects[0].object.name;
       if (this.hoveredAxisName !== intersectedObjectName) {
         this.clearHoverEffect();
@@ -199,7 +188,6 @@ export class BrujulaComponent implements AfterViewInit, OnDestroy {
         this.hoveredAxisName = intersectedObjectName;
       }
       this.renderer.domElement.style.cursor = 'pointer';
-
     } else {
       if (this.hoveredAxisName) {
         this.clearHoverEffect();
@@ -208,10 +196,9 @@ export class BrujulaComponent implements AfterViewInit, OnDestroy {
       this.renderer.domElement.style.cursor = 'default';
     }
   }
-
+  
   private applyHoverEffect(axisName: string) {
     this.brujulaGroup.children.forEach(child => {
-      // Usamos userData para aplicar el efecto a todas las partes asociadas
       if (child.userData['axisName'] === axisName) {
         if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
           const hoverMaterial = child.material.clone();
@@ -244,7 +231,7 @@ export class BrujulaComponent implements AfterViewInit, OnDestroy {
       }
     });
   }
-
+  
   private onCanvasClick = (event: MouseEvent) => {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const mouse = new THREE.Vector2();
@@ -259,7 +246,7 @@ export class BrujulaComponent implements AfterViewInit, OnDestroy {
       this.engineService.setCameraView(clickedAxisName);
     }
   }
-
+  
   private animate = () => {
     this.animationFrameId = requestAnimationFrame(this.animate);
     this.renderer.render(this.scene, this.camera);
