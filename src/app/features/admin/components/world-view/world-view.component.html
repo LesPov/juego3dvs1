@@ -44,7 +44,13 @@
       Y: {{ pos.y | number:'1.2-2' }}<br>
       Z: {{ pos.z | number:'1.2-2' }}
     </div>
-
+ <!-- ======================================================================== -->
+    <!-- === NUEVO: Cruz/Retícula para el modo de vuelo (Fly Mode)              === -->
+    <!-- ======================================================================== -->
+    <div *ngIf="isFlyModeActive$ | async" class="fly-mode-crosshair">
+      <div class="crosshair-line horizontal"></div>
+      <div class="crosshair-line vertical"></div>
+    </div>
     <app-scene [initialObjects]="sceneObjects" (loadingProgress)="handleLoadingProgress($event)"
       (loadingComplete)="handleLoadingComplete()">
     </app-scene>

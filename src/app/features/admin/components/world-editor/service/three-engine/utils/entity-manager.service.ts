@@ -130,11 +130,9 @@ export class EntityManagerService {
     this.selectionManager.selectObjects([]);
   }
 
-  // <<< CORRECCIÓN CLAVE: Método restaurado >>>
   public updateObjectName(uuid: string, newName: string): void {
     let objectToUpdate: THREE.Object3D | undefined = this.getObjectByUuid(uuid);
 
-    // Si no se encuentra un objeto real (podría ser una instancia)
     if (!objectToUpdate) {
         const celestialInstancedMesh = this.scene.getObjectByName('CelestialObjectsInstanced') as THREE.InstancedMesh;
         if (celestialInstancedMesh) {
@@ -144,7 +142,7 @@ export class EntityManagerService {
                 instanceData.originalName = newName;
             }
         }
-    } else { // Si es un objeto normal
+    } else {
         objectToUpdate.name = newName;
         if (objectToUpdate.userData['helper']) {
             objectToUpdate.userData['helper'].name = `${newName}_helper`;

@@ -2,7 +2,8 @@ import { Injectable, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
-import { Subject } from 'rxjs';
+// <<< NUEVO >>> Importamos BehaviorSubject y Subject de RxJS
+import { BehaviorSubject, Subject } from 'rxjs';
 import { ToolMode } from '../../../toolbar/toolbar.component';
 
 @Injectable({ providedIn: 'root' })
@@ -26,6 +27,11 @@ export class ControlsManagerService implements OnDestroy {
   private currentToolMode: ToolMode = 'select';
   private transformEndSubject = new Subject<void>();
   public onTransformEnd$ = this.transformEndSubject.asObservable();
+  
+  // <<< NUEVO: Estado para el modo de vuelo (controla la cruz) >>>
+  private isFlyModeActiveSubject = new BehaviorSubject<boolean>(false);
+  public isFlyModeActive$ = this.isFlyModeActiveSubject.asObservable();
+
 
   private velocity = new THREE.Vector3();
   private readonly MOVEMENT_SPEED = 50.0;
@@ -65,6 +71,12 @@ export class ControlsManagerService implements OnDestroy {
     }
     this.unlockCursor();
   };
+  
+  // <<< NUEVO: Método para salir explícitamente del modo vuelo (llamado con 'Escape') >>>
+  public exitFlyMode(): void {
+    this.unlockCursor();
+  }
+
 
   private createOrbitControls(camera: THREE.Camera, domElement: HTMLElement): void {
     this.orbitControls = new OrbitControls(camera, domElement);
@@ -207,13 +219,20 @@ export class ControlsManagerService implements OnDestroy {
 
   private lockCursor = () => { if (this.isFlyEnabled && !this.isOrbiting && !this.isPanning && !this.transformControls.dragging) this.domElement.requestPointerLock(); };
   private unlockCursor = () => { if (document.pointerLockElement === this.domElement) document.exitPointerLock(); };
-  private onPointerLockChange = () => { this.focusHelper.visible = document.pointerLockElement !== this.domElement; };
+
+  // <<< MODIFICADO: Este método ahora controla el estado de la cruz y el 'focusHelper' >>>
+  private onPointerLockChange = () => { 
+    const isLocked = document.pointerLockElement === this.domElement;
+    this.focusHelper.visible = !isLocked;
+    // Emitimos el nuevo estado, `true` si estamos en modo vuelo, `false` si no.
+    this.isFlyModeActiveSubject.next(isLocked);
+  };
+
 
   private onMouseDown = (event: MouseEvent) => {
     if (!this.isOrbitEnabled || this.transformControls.dragging || document.pointerLockElement === this.domElement) return;
     if (event.button === 0) {
       this.isOrbiting = true;
-      // <<< SOLUCIÓN CLAVE: Reorientar la cámara ANTES de habilitar OrbitControls >>>
       this.camera.lookAt(this.focusHelper.position);
       this.orbitControls.target.copy(this.focusHelper.position);
       this.focusPivot.position.copy(this.focusHelper.position);

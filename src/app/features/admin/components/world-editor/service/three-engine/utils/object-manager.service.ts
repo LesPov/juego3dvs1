@@ -1,4 +1,4 @@
-/// src/app/..../object-manager.service.ts
+// src/app/features/admin/components/world-editor/service/three-engine/utils/object-manager.service.ts
 
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
@@ -8,13 +8,13 @@ import { environment } from '../../../../../../../../environments/environment';
 
 export interface CelestialInstanceData {
   originalColor: THREE.Color;
-  emissiveIntensity: number; // La intensidad de luz que viene del análisis Python
+  emissiveIntensity: number;
   position: THREE.Vector3;
   originalMatrix: THREE.Matrix4;
   originalUuid: string;
   originalName: string;
-    scale: THREE.Vector3; // NUEVO: Guardamos la escala del objeto para modular el brillo
-
+  scale: THREE.Vector3;
+  isVisible: boolean;
 }
 
 function sanitizeHexColor(color: any, defaultColor: string = '#ffffff'): string {
@@ -57,11 +57,13 @@ export class ObjectManagerService {
     if (!objectsData.length) return;
 
     const count = objectsData.length;
-    const geometry = new THREE.IcosahedronGeometry(0.5, 1);
+    
+    const geometry = new THREE.IcosahedronGeometry(1, 0); 
     const material = new THREE.MeshBasicMaterial();
 
     const instancedMesh = new THREE.InstancedMesh(geometry, material, count);
     instancedMesh.name = 'CelestialObjectsInstanced';
+    instancedMesh.frustumCulled = false;
 
     const celestialData: CelestialInstanceData[] = [];
     instancedMesh.userData['celestialData'] = celestialData;
@@ -76,6 +78,7 @@ export class ObjectManagerService {
       const objData = objectsData[i];
       const properties = objData.properties || {};
       const originalColor = new THREE.Color(sanitizeHexColor(properties['color']));
+      const emissiveIntensity = properties['emissive_intensity'] as number || 0.0;
 
       position.set(objData.position.x, objData.position.y, objData.position.z);
       rotation.set(objData.rotation.x, objData.rotation.y, objData.rotation.z);
@@ -84,17 +87,19 @@ export class ObjectManagerService {
       matrix.compose(position, quaternion, scale);
 
       instancedMesh.setMatrixAt(i, matrix);
-      instancedMesh.setColorAt(i, originalColor);
+      
+      const initialColor = originalColor.clone().multiplyScalar(0);
+      instancedMesh.setColorAt(i, initialColor);
 
-      // <<< ¡CAMBIO CLAVE! Guardamos la escala junto a los otros datos >>>
       celestialData.push({
         originalColor: originalColor.clone(),
-        emissiveIntensity: properties['emissive_intensity'] as number || 1.0,
+        emissiveIntensity: emissiveIntensity,
         position: position.clone(),
-        scale: scale.clone(), // GUARDAMOS LA ESCALA
+        scale: scale.clone(),
         originalMatrix: matrix.clone(),
         originalUuid: objData.id.toString(),
         originalName: objData.name,
+        isVisible: false,
       });
     }
 
@@ -106,7 +111,7 @@ export class ObjectManagerService {
   }
 
   public createSelectionProxy(): THREE.Mesh {
-    const proxyGeometry = new THREE.SphereGeometry(0.55, 16, 8);
+    const proxyGeometry = new THREE.SphereGeometry(1.1, 16, 8); 
     const proxyMaterial = new THREE.MeshBasicMaterial({
       color: 0xffff00,
       transparent: true,

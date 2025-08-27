@@ -1,5 +1,3 @@
-/// src/app/features/admin/components/world-editor/service/three-engine/engine.service.ts
-
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
@@ -14,6 +12,8 @@ import { SceneObjectResponse } from '../../../../services/admin.service';
 import { InteractionHelperManagerService } from './utils/interaction-helper.manager.service';
 import { DragInteractionManagerService } from './utils/drag-interaction.manager.service';
 import { CelestialInstanceData } from './utils/object-manager.service';
+
+const INSTANCES_TO_CHECK_PER_FRAME = 500;
 
 @Injectable()
 export class EngineService implements OnDestroy {
@@ -34,10 +34,20 @@ export class EngineService implements OnDestroy {
 
   private cameraPositionSubject = new BehaviorSubject<THREE.Vector3>(new THREE.Vector3());
   public cameraPosition$ = this.cameraPositionSubject.asObservable();
+  
+  // <<< NUEVO: Exponemos el estado del modo vuelo para la UI >>>
+  public isFlyModeActive$: Observable<boolean>;
+
 
   private controlsSubscription?: Subscription;
   private tempColor = new THREE.Color();
   private tempQuaternion = new THREE.Quaternion();
+
+  private frustum = new THREE.Frustum();
+  private projScreenMatrix = new THREE.Matrix4();
+  private boundingSphere = new THREE.Sphere();
+  private updateIndexCounter = 0; 
+  private lastCameraVersion = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
 
   constructor(
     private sceneManager: SceneManagerService,
@@ -49,6 +59,8 @@ export class EngineService implements OnDestroy {
     private dragInteractionManager: DragInteractionManagerService
   ) {
     this.onTransformEnd$ = this.transformEndSubject.asObservable().pipe(debounceTime(500));
+    // <<< NUEVO: Hacemos accesible el estado del modo vuelo desde el manager de controles >>>
+    this.isFlyModeActive$ = this.controlsManager.isFlyModeActive$;
   }
 
   public init(canvasRef: ElementRef<HTMLCanvasElement>): void {
@@ -66,6 +78,7 @@ export class EngineService implements OnDestroy {
     this.animate();
   }
 
+  // ... (el método populateScene no cambia)
   public populateScene(objects: SceneObjectResponse[], onProgress: (p: number) => void, onLoaded: () => void): void {
     if (!this.sceneManager.scene) return;
     this.entityManager.clearScene();
@@ -111,71 +124,92 @@ export class EngineService implements OnDestroy {
       this.cameraPositionSubject.next(this.sceneManager.editorCamera.position);
     }
 
-    this.updateCelestialInstancesLuminosity();
+    this.updateVisibleCelestialInstances();
     this.sceneManager.composer.render();
     this.statsManager.end();
   };
 
-
-    // <<< ¡LÓGICA DE LUMINOSIDAD FINAL! AHORA INCLUYE LA ESCALA DEL OBJETO >>>
-  private updateCelestialInstancesLuminosity(): void {
+  // ... (los métodos updateCameraFrustum y updateVisibleCelestialInstances no cambian)
+  private updateCameraFrustum(): void {
     const camera = this.sceneManager.editorCamera;
-    const instancedMesh = this.sceneManager.scene.getObjectByName('CelestialObjectsInstanced') as THREE.InstancedMesh;
+    const currentPos = camera.position;
+    const currentQuat = camera.quaternion;
 
-    if (!camera || !instancedMesh) return;
-
-    const allData: CelestialInstanceData[] = instancedMesh.userData['celestialData'];
-    if (!allData) return;
-
-    // --- PARÁMETROS DE BRILLO Y PERSPECTIVA ---
-    const BASE_LUMINOSITY_FACTOR = 0.35; // Un 35% de brillo mínimo asegurado.
-    const PROXIMITY_LUMINOSITY_FACTOR = 1.0 - BASE_LUMINOSITY_FACTOR;
-
-    const FADE_START_DISTANCE = 800.0;
-    const FADE_END_DISTANCE = 12000.0; // Rango muy amplio para atenuación suave.
-    const LUMINOSITY_RANGE = FADE_END_DISTANCE - FADE_START_DISTANCE;
-
-     let needsUpdate = false;
-    for (let i = 0; i < allData.length; i++) {
-      const data = allData[i];
-      // --- CORRECCIÓN CLAVE ---
-      // 'emissiveIntensity' es el valor de 'absolute_magnitude' que calculó Python.
-      // Si es 0 o no existe, el objeto no brillará. Correcto.
-      if (!data.emissiveIntensity || data.emissiveIntensity === 0) continue; 
-
-      const distance = data.position.distanceTo(camera.position);
-
-      // --- 1. Calcular el bono de proximidad ---
-      // ... (sin cambios aquí)
-      let proximityIntensity: number;
-      if (distance <= FADE_START_DISTANCE) {
-        proximityIntensity = 1.0;
-      } else if (distance >= FADE_END_DISTANCE) {
-        proximityIntensity = 0.0;
-      } else {
-        const fadeProgress = (distance - FADE_START_DISTANCE) / LUMINOSITY_RANGE;
-        proximityIntensity = 1.0 - Math.pow(fadeProgress, 0.75);
-      }
-      
-      const distanceFactor = BASE_LUMINOSITY_FACTOR + (PROXIMITY_LUMINOSITY_FACTOR * proximityIntensity);
-
-      // --- 2. ¡NUEVO! Calcular el multiplicador basado en la escala ---
-      // ... (sin cambios aquí)
-      const scaleMultiplier = 1.0 + Math.log1p(data.scale.x); 
-
-      // --- 3. Calcular la intensidad final combinando todo ---
-      const finalIntensity = data.emissiveIntensity * distanceFactor * scaleMultiplier;
-
-      this.tempColor.copy(data.originalColor).multiplyScalar(finalIntensity);
-      instancedMesh.setColorAt(i, this.tempColor);
-      needsUpdate = true;
+    if (this.lastCameraVersion.position.equals(currentPos) && this.lastCameraVersion.quaternion.equals(currentQuat)) {
+        return;
     }
 
-    if (needsUpdate && instancedMesh.instanceColor) {
+    camera.updateMatrixWorld();
+    this.projScreenMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    this.frustum.setFromProjectionMatrix(this.projScreenMatrix);
+
+    this.lastCameraVersion.position.copy(currentPos);
+    this.lastCameraVersion.quaternion.copy(currentQuat);
+  }
+
+  private updateVisibleCelestialInstances(): void {
+    const camera = this.sceneManager.editorCamera;
+    const instancedMesh = this.sceneManager.scene.getObjectByName('CelestialObjectsInstanced') as THREE.InstancedMesh;
+    if (!camera || !instancedMesh) return;
+    const allData: CelestialInstanceData[] = instancedMesh.userData['celestialData'];
+    if (!allData || allData.length === 0) return;
+    this.updateCameraFrustum();
+    const BASE_LUMINOSITY_FACTOR = 0.35;
+    const PROXIMITY_LUMINOSITY_FACTOR = 1.0 - BASE_LUMINOSITY_FACTOR;
+    const FADE_START_DISTANCE = 800.0;
+    const FADE_END_DISTANCE = 12000.0;
+    const LUMINOSITY_RANGE = FADE_END_DISTANCE - FADE_START_DISTANCE;
+    let needsColorUpdate = false;
+    const startIndex = this.updateIndexCounter;
+    const endIndex = Math.min(startIndex + INSTANCES_TO_CHECK_PER_FRAME, allData.length);
+    for (let i = startIndex; i < endIndex; i++) {
+        const data = allData[i];
+        if (!data.emissiveIntensity || data.emissiveIntensity === 0) continue;
+        this.boundingSphere.center.copy(data.position);
+        this.boundingSphere.radius = Math.max(data.scale.x, data.scale.y, data.scale.z);
+        const isCurrentlyVisible = this.frustum.intersectsSphere(this.boundingSphere);
+        if (isCurrentlyVisible !== data.isVisible) {
+            data.isVisible = isCurrentlyVisible;
+            if (isCurrentlyVisible) {
+                const distance = data.position.distanceTo(camera.position);
+                let proximityIntensity = 1.0;
+                if (distance > FADE_START_DISTANCE) {
+                    const fadeProgress = (distance - FADE_START_DISTANCE) / LUMINOSITY_RANGE;
+                    proximityIntensity = 1.0 - Math.pow(Math.min(1.0, fadeProgress), 0.75);
+                }
+                const distanceFactor = BASE_LUMINOSITY_FACTOR + (PROXIMITY_LUMINOSITY_FACTOR * proximityIntensity);
+                const scaleMultiplier = 1.0 + Math.log1p(data.scale.x);
+                const finalIntensity = data.emissiveIntensity * distanceFactor * scaleMultiplier;
+                this.tempColor.copy(data.originalColor).multiplyScalar(finalIntensity);
+                instancedMesh.setColorAt(i, this.tempColor);
+            } else {
+                this.tempColor.setRGB(0, 0, 0);
+                instancedMesh.setColorAt(i, this.tempColor);
+            }
+            needsColorUpdate = true;
+        } 
+        else if (data.isVisible) {
+            const distance = data.position.distanceTo(camera.position);
+             let proximityIntensity = 1.0;
+             if (distance > FADE_START_DISTANCE) {
+                 const fadeProgress = (distance - FADE_START_DISTANCE) / LUMINOSITY_RANGE;
+                 proximityIntensity = 1.0 - Math.pow(Math.min(1.0, fadeProgress), 0.75);
+             }
+             const distanceFactor = BASE_LUMINOSITY_FACTOR + (PROXIMITY_LUMINOSITY_FACTOR * proximityIntensity);
+             const scaleMultiplier = 1.0 + Math.log1p(data.scale.x);
+             const finalIntensity = data.emissiveIntensity * distanceFactor * scaleMultiplier;
+             this.tempColor.copy(data.originalColor).multiplyScalar(finalIntensity);
+             instancedMesh.setColorAt(i, this.tempColor);
+             needsColorUpdate = true;
+        }
+    }
+    this.updateIndexCounter = endIndex >= allData.length ? 0 : endIndex;
+    if (needsColorUpdate && instancedMesh.instanceColor) {
       instancedMesh.instanceColor.needsUpdate = true;
     }
   }
   
+  // ... (métodos selectObjectByUuid, setToolMode y handleTransformEnd no cambian)
   public selectObjectByUuid(uuid: string | null): void {
     this.interactionHelperManager.cleanupHelpers(this.selectedObject);
     this.dragInteractionManager.stopListening();
@@ -184,19 +218,15 @@ export class EngineService implements OnDestroy {
     this.dragInteractionManager.setAxisConstraint(null);
     this.axisLockStateSubject.next(null);
     this.selectedObject = undefined;
-
     this.entityManager.selectObjectByUuid(uuid, this.sceneManager.focusPivot);
-
     if (uuid) {
       this.selectedObject = this.entityManager.getObjectByUuid(uuid);
       if (this.selectedObject) {
-        // <<< CORRECCIÓN CLAVE: La llamada a `setToolMode` ahora funciona >>>
         this.setToolMode(this.controlsManager.getCurrentToolMode());
       }
     }
   }
 
-  // <<< CORRECCIÓN CLAVE: Método `setToolMode` restaurado >>>
   public setToolMode(mode: ToolMode): void {
     this.controlsManager.setTransformMode(mode);
     this.interactionHelperManager.cleanupHelpers(this.selectedObject);
@@ -217,22 +247,18 @@ export class EngineService implements OnDestroy {
       }
     }
   }
-
+  
   private handleTransformEnd = () => {
     if (!this.selectedObject) return;
-
     if (this.selectedObject.name === 'SelectionProxy') {
       const instancedMesh = this.sceneManager.scene.getObjectByName('CelestialObjectsInstanced') as THREE.InstancedMesh;
       if (!instancedMesh) return;
-
       const allData: CelestialInstanceData[] = instancedMesh.userData["celestialData"];
       const instanceIndex = allData.findIndex(d => d.originalUuid === this.selectedObject!.uuid);
-
       if (instanceIndex > -1) {
         const data = allData[instanceIndex];
         data.originalMatrix.compose(this.selectedObject.position, this.selectedObject.quaternion, this.selectedObject.scale);
         data.position.copy(this.selectedObject.position);
-
         instancedMesh.setMatrixAt(instanceIndex, data.originalMatrix);
         instancedMesh.instanceMatrix.needsUpdate = true;
       }
@@ -240,15 +266,14 @@ export class EngineService implements OnDestroy {
     this.transformEndSubject.next();
   }
 
+
   private addEventListeners = () => {
     const controls = this.controlsManager.getControls();
     controls.addEventListener('end', this.handleTransformEnd);
     controls.addEventListener('change', this.onControlsChange);
-
     window.addEventListener('resize', this.onWindowResize);
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
-
     this.controlsSubscription = this.dragInteractionManager.onDragEnd$.subscribe(() => {
       this.handleTransformEnd();
       if (this.selectedObject) {
@@ -257,12 +282,10 @@ export class EngineService implements OnDestroy {
     });
   };
 
-  // <<< CORRECCIÓN CLAVE: Método `removeEventListeners` restaurado >>>
   private removeEventListeners = (): void => {
     const controls = this.controlsManager.getControls();
     controls?.removeEventListener('end', this.handleTransformEnd);
     controls?.removeEventListener('change', this.onControlsChange);
-
     window.removeEventListener('resize', this.onWindowResize);
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
@@ -281,10 +304,7 @@ export class EngineService implements OnDestroy {
   public getSceneEntities = (): Observable<SceneEntity[]> => this.entityManager.getSceneEntities();
   private onWindowResize = () => { this.sceneManager.onWindowResize(); this.selectionManager.onResize(this.sceneManager.renderer.domElement.width, this.sceneManager.renderer.domElement.height); this.interactionHelperManager.updateScale(); };
 
-  public addObjectToScene = (objData: SceneObjectResponse) => {
-    this.entityManager.createObjectFromData(objData);
-  };
-
+  public addObjectToScene = (objData: SceneObjectResponse) => { this.entityManager.createObjectFromData(objData); };
   public updateObjectName = (uuid: string, newName: string) => { this.entityManager.updateObjectName(uuid, newName); };
 
   public updateObjectTransform = (uuid: string, path: 'position' | 'rotation' | 'scale', value: { x: number; y: number; z: number; }) => {
@@ -294,9 +314,17 @@ export class EngineService implements OnDestroy {
       if (path === 'position') this.interactionHelperManager.updateHelperPositions(obj);
     }
   };
-
+  
+  // <<< MODIFICADO: Añadimos la lógica para la tecla 'Escape' >>>
   private onKeyDown = (e: KeyboardEvent) => {
     const key = e.key.toLowerCase();
+    
+    // Si se presiona Escape, salimos del modo vuelo.
+    if (key === 'escape') {
+      this.controlsManager.exitFlyMode();
+      return; // Importante para no procesar otras lógicas
+    }
+    
     this.keyMap.set(key, true);
     if (this.controlsManager.getCurrentToolMode() === 'move' && ['x', 'y', 'z'].includes(key)) {
       this.axisLock = this.axisLock === key ? null : (key as 'x' | 'y' | 'z');
@@ -306,7 +334,7 @@ export class EngineService implements OnDestroy {
   };
 
   private onKeyUp = (e: KeyboardEvent) => this.keyMap.set(e.key.toLowerCase(), false);
-
+  
   public setCameraView = (axisName: string) => {
     const controls = this.controlsManager.getControls(); if (!controls) return;
     const target = this.sceneManager.focusPivot.position; const distance = Math.max(this.sceneManager.editorCamera.position.distanceTo(target), 5);

@@ -42,6 +42,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   public activePropertiesTab: string = 'scene';
   public isMobileSidebarVisible = false;
   public axisLock$: Observable<'x' | 'y' | 'z' | null>;
+  public isFlyModeActive$: Observable<boolean>;
 
   public displayEntities$: Observable<SceneEntity[]>;
   public placeholderEntities: SceneEntity[] = [{ uuid: 'placeholder-1', name: 'Añadir objeto nuevo...', type: 'Model' }];
@@ -67,6 +68,8 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     this.axisLock$ = this.engineService.axisLockState$;
     // La lista de entidades a mostrar es ahora un observable
     this.displayEntities$ = this.allEntities$.asObservable();
+    this.isFlyModeActive$ = this.engineService.isFlyModeActive$;
+
   }
 
   ngOnInit(): void {
@@ -111,11 +114,11 @@ export class WorldViewComponent implements OnInit, OnDestroy {
       debounceTime(400),
       switchMap(update => this.handlePropertyUpdate(update))
     ).subscribe({ error: err => console.error("[WorldView] Error al actualizar propiedad:", err) });
-    
+
     // Escucha la lista completa de entidades (incluyendo las instanciadas) del motor
     const entitiesSub = this.engineService.getSceneEntities().subscribe(entities => {
-        this.allEntities = entities;
-        this.allEntities$.next(entities);
+      this.allEntities = entities;
+      this.allEntities$.next(entities);
     });
 
     this.subscriptions.add(transformSub);
@@ -195,24 +198,24 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     if (!this.selectedObject) return;
 
     this.selectedObject = { ...this.selectedObject, ...updatedData };
-    
+
     const index = this.sceneObjects.findIndex(o => o.id === this.selectedObject!.id);
     if (index !== -1) {
       this.sceneObjects[index] = { ...this.sceneObjects[index], ...updatedData };
     }
     this.cdr.detectChanges();
   }
-  
-  onDrop(event: CdkDragDrop<SceneEntity[]>): void { 
-      const currentEntities = this.allEntities$.getValue();
-      moveItemInArray(currentEntities, event.previousIndex, event.currentIndex); 
-      this.allEntities$.next([...currentEntities]); 
+
+  onDrop(event: CdkDragDrop<SceneEntity[]>): void {
+    const currentEntities = this.allEntities$.getValue();
+    moveItemInArray(currentEntities, event.previousIndex, event.currentIndex);
+    this.allEntities$.next([...currentEntities]);
   }
 
   trackByEntity(index: number, entity: SceneEntity): string {
     return entity.uuid;
   }
-  
+
   getColorClassForEntity(entity: SceneEntity): string { return this.typeColorMap[entity.type] || this.typeColorMap['default']; }
   toggleMobileSidebar(): void { this.isMobileSidebarVisible = !this.isMobileSidebarVisible; }
   selectPropertiesTab(tab: string): void { this.activePropertiesTab = tab; }

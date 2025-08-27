@@ -135,7 +135,7 @@ app-brujula {
 .axis-lock-indicator.lock-z b { color: #55aaff; text-shadow: 0 0 10px #55aaff, 0 0 20px #55aaff; }
 .camera-position-display {
   position: absolute;
-  top: 10px;
+  top: 90px;
   left: 10px;
   background-color: rgba(0, 0, 0, 0.6);
   color: white;
@@ -147,3 +147,49 @@ app-brujula {
   pointer-events: none; /* Para que no interfiera con el clic en la escena */
   line-height: 1.4;
 }
+/* ... (todos tus estilos existentes) ... */
+
+/* ============================================== */
+/* === NUEVO: ESTILOS PARA LA CRUZ (CROSSHAIR) === */
+/* ============================================== */
+.fly-mode-crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  /* Usamos transform para centrarlo perfectamente */
+  transform: translate(-50%, -50%);
+  /* Muy importante: para que no intercepte los clics del ratón */
+  pointer-events: none; 
+  z-index: 100;
+  width: 20px;
+  height: 20px;
+}
+
+.crosshair-line {
+  position: absolute;
+  background-color: rgba(255, 255, 0, 0.7); /* Amarillo semi-transparente */
+  box-shadow: 0 0 5px rgba(255, 217, 0, 0.5); /* Un ligero brillo sutil */
+}
+
+.crosshair-line.horizontal {
+  width: 100%; /* Ocupa todo el ancho del contenedor */
+  height: 2px;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%); /* Centrado vertical */
+}
+
+.crosshair-line.vertical {
+  width: 2px;
+  height: 100%; /* Ocupa toda la altura del contenedor */
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%); /* Centrado horizontal */
+}
+
+/* ============================================== */
+/* === AJUSTES RESTANTES (sin cambios) === */
+/* ============================================== */
+
+/* ---- ESTILOS DEL PANEL DE PROPIEDADES (sin cambios) ---- */
+/* ... etc ... */
