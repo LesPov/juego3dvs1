@@ -53,12 +53,9 @@ export class BrujulaComponent implements AfterViewInit, OnDestroy {
     this.originalMaterials.clear();
   }
   
-  // <<< MODIFICACIÓN CLAVE: Cambiar la suscripción al nuevo Observable >>>
   private subscribeToCameraChanges(): void {
-    // Nos suscribimos al nuevo observable `cameraOrientation$` que se actualiza en cada frame.
     this.cameraSubscription = this.engineService.cameraOrientation$.subscribe(orientation => {
       if (this.brujulaGroup) {
-        // La lógica de inversión es clave para que la brújula muestre la dirección correcta
         this.brujulaGroup.quaternion.copy(orientation).invert();
       }
     });

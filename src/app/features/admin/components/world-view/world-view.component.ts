@@ -1,5 +1,3 @@
-/// src/app/features/admin/components/world-view/world-view.component.ts
-
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
@@ -18,7 +16,7 @@ import { ToolbarComponent } from '../world-editor/toolbar/toolbar.component';
 import { SceneObjectResponse, AdminService } from '../../services/admin.service';
 import { BrujulaComponent } from '../world-editor/brujula/brujula.component';
 import { EngineService } from '../world-editor/service/three-engine/engine.service';
-
+ 
 @Component({
   selector: 'app-world-view',
   standalone: true,
@@ -46,6 +44,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
 
   public displayEntities$: Observable<SceneEntity[]>;
   public placeholderEntities: SceneEntity[] = [{ uuid: 'placeholder-1', name: 'Añadir objeto nuevo...', type: 'Model' }];
+  private analysisSummary: any = null;
 
   private readonly typeColorMap: { [key: string]: string } = {
     'Camera': 'color-camera', 'Light': 'color-light', 'Model': 'color-model',
@@ -66,10 +65,8 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     private sceneObjectService: SceneObjectService,
   ) {
     this.axisLock$ = this.engineService.axisLockState$;
-    // La lista de entidades a mostrar es ahora un observable
     this.displayEntities$ = this.allEntities$.asObservable();
     this.isFlyModeActive$ = this.engineService.isFlyModeActive$;
-
   }
 
   ngOnInit(): void {
@@ -93,8 +90,20 @@ export class WorldViewComponent implements OnInit, OnDestroy {
       next: (data) => {
         this.episodeTitle = data.title;
         this.sceneObjects = data.sceneObjects || [];
+        this.analysisSummary = data.analysisSummary || null;
+
         this.isLoadingData = false;
         this.isRenderingScene = true;
+
+        // --- MEJORA CLAVE: ENCUADRE AUTOMÁTICO ---
+        // Después de cargar los datos, si tenemos las dimensiones de la escena,
+        // le decimos al motor 3D que encuadre la cámara.
+        if (this.analysisSummary?.scene_dimensions) {
+          this.engineService.frameScene(
+            this.analysisSummary.scene_dimensions.width,
+            this.analysisSummary.scene_dimensions.height
+          );
+        }
 
         if (!this.sceneObjects.some(o => o.type === 'model' && o.asset?.path)) {
           this.simulateLoadingProgress();
@@ -115,7 +124,6 @@ export class WorldViewComponent implements OnInit, OnDestroy {
       switchMap(update => this.handlePropertyUpdate(update))
     ).subscribe({ error: err => console.error("[WorldView] Error al actualizar propiedad:", err) });
 
-    // Escucha la lista completa de entidades (incluyendo las instanciadas) del motor
     const entitiesSub = this.engineService.getSceneEntities().subscribe(entities => {
       this.allEntities = entities;
       this.allEntities$.next(entities);
@@ -162,7 +170,6 @@ export class WorldViewComponent implements OnInit, OnDestroy {
       this.deselectObject();
     } else {
       this.selectedEntityUuid = entity.uuid;
-      // Busca en la lista original de objetos cargados, no en la lista de entidades del motor
       const foundObject = this.sceneObjects.find(o => o.id.toString() === entity.uuid);
       if (foundObject) {
         this.selectedObject = { ...foundObject };
@@ -188,7 +195,6 @@ export class WorldViewComponent implements OnInit, OnDestroy {
         this.closeAddObjectModal();
         this.engineService.addObjectToScene(newObj);
         this.sceneObjects = [...this.sceneObjects, newObj];
-        // Se actualizará la lista de entidades automáticamente a través de la suscripción
       },
       error: err => console.error(err)
     });
@@ -212,10 +218,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     this.allEntities$.next([...currentEntities]);
   }
 
-  trackByEntity(index: number, entity: SceneEntity): string {
-    return entity.uuid;
-  }
-
+  trackByEntity(index: number, entity: SceneEntity): string { return entity.uuid; }
   getColorClassForEntity(entity: SceneEntity): string { return this.typeColorMap[entity.type] || this.typeColorMap['default']; }
   toggleMobileSidebar(): void { this.isMobileSidebarVisible = !this.isMobileSidebarVisible; }
   selectPropertiesTab(tab: string): void { this.activePropertiesTab = tab; }

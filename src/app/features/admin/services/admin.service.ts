@@ -33,6 +33,7 @@ export interface SceneObjectResponse {
 }
 
 export interface EpisodeResponse {
+    analysisSummary: null;
     id: number;
     title: string;
     description: string;

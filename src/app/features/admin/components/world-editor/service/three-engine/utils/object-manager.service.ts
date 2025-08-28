@@ -15,6 +15,7 @@ export interface CelestialInstanceData {
   originalName: string;
   scale: THREE.Vector3;
   isVisible: boolean;
+  isDominant: boolean; 
 }
 
 function sanitizeHexColor(color: any, defaultColor: string = '#ffffff'): string {
@@ -29,6 +30,8 @@ export class ObjectManagerService {
   private readonly backendUrl = environment.endpoint.endsWith('/')
     ? environment.endpoint.slice(0, -1)
     : environment.endpoint;
+
+  private glowTexture: THREE.CanvasTexture | null = null;
 
   public createObjectFromData(scene: THREE.Scene, objData: SceneObjectResponse, loader: GLTFLoader): THREE.Object3D | null {
     let createdObject: THREE.Object3D | null = null;
@@ -55,16 +58,22 @@ export class ObjectManagerService {
 
  public createCelestialObjectsInstanced(scene: THREE.Scene, objectsData: SceneObjectResponse[]): void {
     if (!objectsData.length) return;
-
     const count = objectsData.length;
     
-    const geometry = new THREE.IcosahedronGeometry(1, 0); 
-    const material = new THREE.MeshBasicMaterial();
+    // MEJORA 1: Usamos un plano en lugar de una esfera. La textura se encargará de la forma.
+    const geometry = new THREE.PlaneGeometry(1, 1);
+    
+    // Este material está optimizado para renderizar nuestra partícula de luz.
+    const material = new THREE.MeshBasicMaterial({
+        map: this._createGlowTexture(),
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+    });
 
     const instancedMesh = new THREE.InstancedMesh(geometry, material, count);
     instancedMesh.name = 'CelestialObjectsInstanced';
     instancedMesh.frustumCulled = false;
-
     const celestialData: CelestialInstanceData[] = [];
     instancedMesh.userData['celestialData'] = celestialData;
 
@@ -72,27 +81,25 @@ export class ObjectManagerService {
     const position = new THREE.Vector3();
     const quaternion = new THREE.Quaternion();
     const scale = new THREE.Vector3();
-    const rotation = new THREE.Euler();
 
     for (let i = 0; i < count; i++) {
       const objData = objectsData[i];
       const properties = objData.properties || {};
-      const originalColor = new THREE.Color(sanitizeHexColor(properties['color']));
+      const visualColorHex = properties['emissive_color'] || properties['color'];
+      const visualColor = new THREE.Color(sanitizeHexColor(visualColorHex));
       const emissiveIntensity = properties['emissive_intensity'] as number || 0.0;
+      const isDominant = properties['is_dominant_object'] as boolean || false;
 
       position.set(objData.position.x, objData.position.y, objData.position.z);
-      rotation.set(objData.rotation.x, objData.rotation.y, objData.rotation.z);
-      quaternion.setFromEuler(rotation);
+      // Orientación neutra; se actualizará cada frame para mirar a la cámara.
+      quaternion.identity();
       scale.set(objData.scale.x, objData.scale.y, objData.scale.z);
       matrix.compose(position, quaternion, scale);
-
       instancedMesh.setMatrixAt(i, matrix);
-      
-      const initialColor = originalColor.clone().multiplyScalar(0);
-      instancedMesh.setColorAt(i, initialColor);
+      instancedMesh.setColorAt(i, new THREE.Color(0x000000));
 
       celestialData.push({
-        originalColor: originalColor.clone(),
+        originalColor: visualColor.clone(),
         emissiveIntensity: emissiveIntensity,
         position: position.clone(),
         scale: scale.clone(),
@@ -100,24 +107,42 @@ export class ObjectManagerService {
         originalUuid: objData.id.toString(),
         originalName: objData.name,
         isVisible: false,
+        isDominant: isDominant
       });
     }
-
     instancedMesh.instanceMatrix.needsUpdate = true;
-    if (instancedMesh.instanceColor) {
-      instancedMesh.instanceColor.needsUpdate = true;
-    }
+    if (instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
     scene.add(instancedMesh);
   }
 
+  // MEJORA 2: La textura definitiva para un resplandor perfecto.
+  private _createGlowTexture(): THREE.CanvasTexture {
+    if (this.glowTexture) return this.glowTexture;
+    
+    const canvas = document.createElement('canvas');
+    const size = 128;
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext('2d')!;
+
+    const gradient = context.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    // Este gradiente crea el núcleo blanco y el contorno que se desvanece
+    gradient.addColorStop(0,    'rgba(255,255,255,1)');    // El "cuerpo" de la esfera, 100% blanco
+    gradient.addColorStop(0.2, 'rgba(255,255,255,0.8)');  // Borde del núcleo
+    gradient.addColorStop(0.6,  'rgba(255,255,255,0.1)');  // Contorno de luz suave y grande
+    gradient.addColorStop(1,    'rgba(255,255,255,0)');    // Borde final 100% transparente
+
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, size, size);
+    
+    this.glowTexture = new THREE.CanvasTexture(canvas);
+    this.glowTexture.needsUpdate = true;
+    return this.glowTexture;
+  }
+  
   public createSelectionProxy(): THREE.Mesh {
     const proxyGeometry = new THREE.SphereGeometry(1.1, 16, 8); 
-    const proxyMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffff00,
-      transparent: true,
-      opacity: 0,
-      depthTest: true,
-    });
+    const proxyMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0, depthTest: true });
     const proxyMesh = new THREE.Mesh(proxyGeometry, proxyMaterial);
     proxyMesh.name = 'SelectionProxy';
     return proxyMesh;
@@ -136,19 +161,16 @@ export class ObjectManagerService {
     const properties = objData.properties || {};
     const color = new THREE.Color(sanitizeHexColor(properties['color']));
     let geometry: THREE.BufferGeometry;
-
     switch(objData.type) {
         case 'cube': geometry = new THREE.BoxGeometry(1, 1, 1); break;
         case 'cone': geometry = new THREE.ConeGeometry(0.5, 1, 32); break;
         case 'floor': geometry = new THREE.PlaneGeometry(1, 1); break;
         default: geometry = new THREE.SphereGeometry(0.5, 32, 16);
     }
-
     const material = new THREE.MeshStandardMaterial({ color });
     if (objData.type === 'floor') {
       (material as THREE.MeshStandardMaterial).side = THREE.DoubleSide;
     }
-    
     const mesh = new THREE.Mesh(geometry, material);
     this.applyTransformations(mesh, objData);
     scene.add(mesh);

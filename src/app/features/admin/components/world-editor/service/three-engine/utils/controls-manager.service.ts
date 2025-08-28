@@ -2,7 +2,6 @@ import { Injectable, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
-// <<< NUEVO >>> Importamos BehaviorSubject y Subject de RxJS
 import { BehaviorSubject, Subject } from 'rxjs';
 import { ToolMode } from '../../../toolbar/toolbar.component';
 
@@ -28,15 +27,15 @@ export class ControlsManagerService implements OnDestroy {
   private transformEndSubject = new Subject<void>();
   public onTransformEnd$ = this.transformEndSubject.asObservable();
   
-  // <<< NUEVO: Estado para el modo de vuelo (controla la cruz) >>>
   private isFlyModeActiveSubject = new BehaviorSubject<boolean>(false);
   public isFlyModeActive$ = this.isFlyModeActiveSubject.asObservable();
 
-
   private velocity = new THREE.Vector3();
-  private readonly MOVEMENT_SPEED = 50.0;
-  private readonly BOOST_MULTIPLIER = 5.0;
+  private readonly MOVEMENT_SPEED = 500.0;
+  private readonly BOOST_MULTIPLIER = 50.0;
   private readonly DAMPING_FACTOR = 0.90;
+  
+  private tempVector = new THREE.Vector3();
 
   constructor() { }
 
@@ -72,11 +71,9 @@ export class ControlsManagerService implements OnDestroy {
     this.unlockCursor();
   };
   
-  // <<< NUEVO: Método para salir explícitamente del modo vuelo (llamado con 'Escape') >>>
   public exitFlyMode(): void {
     this.unlockCursor();
   }
-
 
   private createOrbitControls(camera: THREE.Camera, domElement: HTMLElement): void {
     this.orbitControls = new OrbitControls(camera, domElement);
@@ -99,7 +96,6 @@ export class ControlsManagerService implements OnDestroy {
     context.beginPath(); context.moveTo(32, 38); context.lineTo(32, 54); context.stroke();
     context.beginPath(); context.moveTo(10, 32); context.lineTo(26, 32); context.stroke();
     context.beginPath(); context.moveTo(38, 32); context.lineTo(54, 32); context.stroke();
-
     const texture = new THREE.CanvasTexture(canvas);
     const material = new THREE.SpriteMaterial({
       map: texture,
@@ -107,7 +103,6 @@ export class ControlsManagerService implements OnDestroy {
       transparent: true,
       sizeAttenuation: false,
     });
-
     this.focusHelper = new THREE.Sprite(material);
     this.focusHelper.name = "FocusHelper";
     this.focusHelper.scale.set(0.03, 0.03, 1);
@@ -169,7 +164,7 @@ export class ControlsManagerService implements OnDestroy {
   };
 
   private updateFocusHelperPosition(): void {
-    const direction = new THREE.Vector3();
+    const direction = this.tempVector;
     this.camera.getWorldDirection(direction);
     const distance = Math.max(20, this.camera.position.length() / 100);
     this.focusHelper.position.copy(this.camera.position).add(direction.multiplyScalar(distance));
@@ -180,17 +175,14 @@ export class ControlsManagerService implements OnDestroy {
     const moveDirection = new THREE.Vector3();
     const forward = new THREE.Vector3();
     const right = new THREE.Vector3();
-
     this.camera.getWorldDirection(forward);
     right.copy(forward).cross(this.camera.up).normalize();
-
     if (keyMap.get('w')) moveDirection.add(forward);
     if (keyMap.get('s')) moveDirection.sub(forward);
     if (keyMap.get('a')) moveDirection.sub(right);
     if (keyMap.get('d')) moveDirection.add(right);
     if (keyMap.get('e')) moveDirection.y += 1;
     if (keyMap.get('q')) moveDirection.y -= 1;
-
     const didMove = moveDirection.lengthSq() > 0;
     if (!didMove && this.velocity.lengthSq() < 0.0001) {
       this.velocity.set(0, 0, 0);
@@ -220,22 +212,22 @@ export class ControlsManagerService implements OnDestroy {
   private lockCursor = () => { if (this.isFlyEnabled && !this.isOrbiting && !this.isPanning && !this.transformControls.dragging) this.domElement.requestPointerLock(); };
   private unlockCursor = () => { if (document.pointerLockElement === this.domElement) document.exitPointerLock(); };
 
-  // <<< MODIFICADO: Este método ahora controla el estado de la cruz y el 'focusHelper' >>>
   private onPointerLockChange = () => { 
     const isLocked = document.pointerLockElement === this.domElement;
-    this.focusHelper.visible = !isLocked;
-    // Emitimos el nuevo estado, `true` si estamos en modo vuelo, `false` si no.
     this.isFlyModeActiveSubject.next(isLocked);
+    this.focusHelper.visible = !isLocked;
+    if (!isLocked) {
+      const newTarget = this.tempVector;
+      this.camera.getWorldDirection(newTarget);
+      newTarget.multiplyScalar(100).add(this.camera.position);
+      this.orbitControls.target.copy(newTarget);
+    }
   };
-
 
   private onMouseDown = (event: MouseEvent) => {
     if (!this.isOrbitEnabled || this.transformControls.dragging || document.pointerLockElement === this.domElement) return;
     if (event.button === 0) {
       this.isOrbiting = true;
-      this.camera.lookAt(this.focusHelper.position);
-      this.orbitControls.target.copy(this.focusHelper.position);
-      this.focusPivot.position.copy(this.focusHelper.position);
       this.orbitControls.enabled = true;
     } else if (event.button === 2) {
       this.isPanning = true;
