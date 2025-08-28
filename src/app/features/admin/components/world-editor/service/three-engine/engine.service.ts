@@ -1,3 +1,4 @@
+// src/app/modules/admin/pages/episode-creator/engine/engine.service.ts
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
@@ -13,15 +14,14 @@ import { InteractionHelperManagerService } from './utils/interaction-helper.mana
 import { DragInteractionManagerService } from './utils/drag-interaction.manager.service';
 import { CelestialInstanceData } from './utils/object-manager.service';
 
-const INSTANCES_TO_CHECK_PER_FRAME = 10000;
-const VISUAL_BOOST_FACTOR = 2.0;
+const INSTANCES_TO_CHECK_PER_FRAME = 20000; // Aumentado para escenas con muchos objetos
+const VISUAL_BOOST_FACTOR = 1.8;
 const DOMINANT_OBJECT_BOOST_FACTOR = 2.0;
 
-// <<< MEJORA CLAVE: CONSTANTES PARA EL DESVANECIMIENTO CON DISTANCIA >>>
-// El brillo de los objetos comenzará a desvanecerse a esta distancia.
-const FADE_START_DISTANCE = 20000;
-// A esta distancia, los objetos serán completamente invisibles (su brillo será 0).
-const FADE_END_DISTANCE = 60000;
+// --- MEJORA CLAVE: Ajustar el desvanecimiento a la nueva escala del universo ---
+// El SCENE_DEPTH_SPREAD es 200000. Estos valores deben estar dentro de ese rango.
+const FADE_START_DISTANCE = 100000;
+const FADE_END_DISTANCE = 180000;
 
 @Injectable()
 export class EngineService implements OnDestroy {
@@ -46,7 +46,7 @@ export class EngineService implements OnDestroy {
   private frustum = new THREE.Frustum();
   private projScreenMatrix = new THREE.Matrix4();
   private boundingSphere = new THREE.Sphere();
-  private updateIndexCounter = 0; 
+  private updateIndexCounter = 0;
 
   constructor(
     private sceneManager: SceneManagerService,
@@ -60,7 +60,7 @@ export class EngineService implements OnDestroy {
     this.onTransformEnd$ = this.transformEndSubject.asObservable().pipe(debounceTime(500));
     this.isFlyModeActive$ = this.controlsManager.isFlyModeActive$;
   }
-  
+
   public init(canvasRef: ElementRef<HTMLCanvasElement>): void {
     const canvas = canvasRef.nativeElement;
     this.sceneManager.setupBasicScene(canvas);
@@ -79,7 +79,8 @@ export class EngineService implements OnDestroy {
   public populateScene(objects: SceneObjectResponse[], onProgress: (p: number) => void, onLoaded: () => void): void {
     if (!this.sceneManager.scene) return;
     this.entityManager.clearScene();
-    const celestialTypes = ['star', 'galaxy', 'meteor'];
+    // CORRECCIÓN: Añadir 'diffraction_star' a la lista para que se procese.
+    const celestialTypes = ['star', 'galaxy', 'meteor', 'supernova', 'diffraction_star'];
     const celestialObjectsData = objects.filter(o => celestialTypes.includes(o.type));
     const standardObjectsData = objects.filter(o => !celestialTypes.includes(o.type));
     this.entityManager.objectManager.createCelestialObjectsInstanced(this.sceneManager.scene, celestialObjectsData);
@@ -126,65 +127,64 @@ export class EngineService implements OnDestroy {
   private updateVisibleCelestialInstances(): void {
     const instancedMesh = this.sceneManager.scene.getObjectByName('CelestialObjectsInstanced') as THREE.InstancedMesh;
     if (!instancedMesh) return;
-    
+
     const allData: CelestialInstanceData[] = instancedMesh.userData['celestialData'];
     if (!allData || allData.length === 0) return;
-    
+
     this.updateCameraFrustum();
     let needsColorUpdate = false;
     let needsMatrixUpdate = false;
     const camera = this.sceneManager.editorCamera;
-    
+
     const startIndex = this.updateIndexCounter;
     const endIndex = Math.min(startIndex + INSTANCES_TO_CHECK_PER_FRAME, allData.length);
 
     for (let i = startIndex; i < endIndex; i++) {
-        const data = allData[i];
-        this.boundingSphere.center.copy(data.position);
-        this.boundingSphere.radius = Math.max(data.scale.x, data.scale.y, data.scale.z);
-        const isInFrustum = this.frustum.intersectsSphere(this.boundingSphere);
+      const data = allData[i];
+      this.boundingSphere.center.copy(data.position);
+      this.boundingSphere.radius = Math.max(data.scale.x, data.scale.y, data.scale.z);
+      const isInFrustum = this.frustum.intersectsSphere(this.boundingSphere);
 
-        // <<< MEJORA CLAVE: CÁLCULO DE ATENUACIÓN POR DISTANCIA >>>
-        const distance = data.position.distanceTo(camera.position);
-        const attenuation = 1.0 - THREE.MathUtils.smoothstep(distance, FADE_START_DISTANCE, FADE_END_DISTANCE);
-        
-        // Un objeto es visible solo si está en el campo de visión Y no se ha desvanecido por completo.
-        const isVisible = isInFrustum && attenuation > 0;
+      const distance = data.position.distanceTo(camera.position);
+      const attenuation = 1.0 - THREE.MathUtils.smoothstep(distance, FADE_START_DISTANCE, FADE_END_DISTANCE);
 
+      const isVisible = isInFrustum && attenuation > 0;
+
+      if (isVisible !== data.isVisible) {
         if (isVisible) {
-            this.tempMatrix.compose(data.position, camera.quaternion, data.scale);
-            instancedMesh.setMatrixAt(i, this.tempMatrix);
-            needsMatrixUpdate = true;
-            
-            const boostFactor = data.isDominant 
-                ? VISUAL_BOOST_FACTOR * DOMINANT_OBJECT_BOOST_FACTOR
-                : VISUAL_BOOST_FACTOR;
-            
-            const scaleMultiplier = 1.0 + Math.log1p(data.scale.x * 0.7);
-            
-            // La intensidad final ahora también depende de la atenuación por distancia.
-            const finalIntensity = data.emissiveIntensity * scaleMultiplier * boostFactor * attenuation;
+          this.tempMatrix.compose(data.position, camera.quaternion, data.scale);
+          instancedMesh.setMatrixAt(i, this.tempMatrix);
 
-            this.tempColor.copy(data.originalColor).multiplyScalar(finalIntensity);
-            instancedMesh.setColorAt(i, this.tempColor);
-            needsColorUpdate = true;
-        }
+          const boostFactor = data.isDominant
+            ? VISUAL_BOOST_FACTOR * DOMINANT_OBJECT_BOOST_FACTOR
+            : VISUAL_BOOST_FACTOR;
 
-        // Si antes era visible pero ahora no, lo apagamos.
-        if (!isVisible && data.isVisible) {
-            this.tempColor.setRGB(0, 0, 0);
-            instancedMesh.setColorAt(i, this.tempColor);
-            needsColorUpdate = true;
+          const scaleMultiplier = 1.0 + Math.log1p(data.scale.x * 0.7);
+          const finalIntensity = data.emissiveIntensity * scaleMultiplier * boostFactor * attenuation;
+
+          this.tempColor.copy(data.originalColor).multiplyScalar(finalIntensity);
+          instancedMesh.setColorAt(i, this.tempColor);
+          needsColorUpdate = true;
+          needsMatrixUpdate = true; // Actualizar matriz al hacerse visible
+        } else {
+          this.tempColor.setRGB(0, 0, 0);
+          instancedMesh.setColorAt(i, this.tempColor);
+          needsColorUpdate = true;
         }
         data.isVisible = isVisible;
+      } else if (isVisible) {
+        // Si ya era visible, solo actualizamos la matriz para el billboarding
+        this.tempMatrix.compose(data.position, camera.quaternion, data.scale);
+        instancedMesh.setMatrixAt(i, this.tempMatrix);
+        needsMatrixUpdate = true;
+      }
     }
 
     this.updateIndexCounter = endIndex >= allData.length ? 0 : endIndex;
-    
+
     if (needsColorUpdate && instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
     if (needsMatrixUpdate) instancedMesh.instanceMatrix.needsUpdate = true;
   }
-  
   public selectObjectByUuid(uuid: string | null): void {
     this.interactionHelperManager.cleanupHelpers(this.selectedObject);
     this.dragInteractionManager.stopListening();
@@ -222,7 +222,7 @@ export class EngineService implements OnDestroy {
       }
     }
   }
-  
+
   private handleTransformEnd = () => {
     if (!this.selectedObject) return;
     if (this.selectedObject.name === 'SelectionProxy') {

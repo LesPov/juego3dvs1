@@ -1,3 +1,4 @@
+// src/app/modules/admin/pages/episode-creator/engine/utils/scene-manager.service.ts
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
@@ -24,12 +25,23 @@ export class SceneManagerService {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x000000); 
 
+    // --- MEJORA CLAVE: Aumentar el campo de visión de la cámara ---
     const fieldOfView = 20;
-    const cameraFarPlane = 95000;
-    this.editorCamera = new THREE.PerspectiveCamera(fieldOfView, canvas.clientWidth / canvas.clientHeight, 0.1, cameraFarPlane);
+    // El valor de SCENE_DEPTH_SPREAD en Python es 200000. Ponemos un valor superior
+    // para asegurarnos de que todo se renderice.
+    const cameraFarPlane = 250000; 
+    const cameraNearPlane = 1.0; // Un valor ligeramente mayor puede mejorar la precisión de la profundidad.
+    
+    this.editorCamera = new THREE.PerspectiveCamera(
+      fieldOfView, 
+      canvas.clientWidth / canvas.clientHeight, 
+      cameraNearPlane, 
+      cameraFarPlane
+    );
     
     this.editorCamera.name = 'Cámara del Editor';
-    this.editorCamera.position.set(0, 0, 36000);
+    // Ajustamos la posición inicial para tener una buena vista de la escena expandida.
+    this.editorCamera.position.set(0, 0, 50000);
     this.scene.add(this.editorCamera);
 
     this.renderer = new THREE.WebGLRenderer({
@@ -39,7 +51,8 @@ export class SceneManagerService {
     });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.4;
+    // Reducimos ligeramente la exposición para compensar el brillo de miles de objetos
+    this.renderer.toneMappingExposure = 0.5;
     
     const normalPixelRatio = Math.min(window.devicePixelRatio, 2);
     this.renderer.setPixelRatio(normalPixelRatio);
@@ -52,17 +65,14 @@ export class SceneManagerService {
     this.scene.add(this.focusPivot);
   }
 
-  // <<< MEJORA CLAVE: AJUSTE PRECISO DEL BLOOM PARA IGNORAR FORMAS CUADRADAS >>>
   private setupPostProcessing(canvas: HTMLCanvasElement): void {
     const renderPass = new RenderPass(this.scene, this.editorCamera);
     
     const bloomPass = new UnrealBloomPass(
       new THREE.Vector2(canvas.clientWidth, canvas.clientHeight),
-      0.4,  // strength: Reducimos la fuerza para un efecto más sutil y cinematográfico.
-      0.4,  // radius: Mantenemos un radio grande para que el resplandor sea suave y difuso.
-      0.1  // threshold: ¡ESTA ES LA CLAVE! Aumentamos el umbral drásticamente.
-            // Ahora, solo los núcleos verdaderamente brillantes de las estrellas activarán el bloom,
-            // ignorando por completo los bordes tenues que podrían delatar la forma del plano.
+      0.2,  // strength
+      0.2,  // radius
+      0.1   // threshold (bajo para capturar colores)
     );
 
     const outputPass = new OutputPass();
@@ -74,7 +84,6 @@ export class SceneManagerService {
   }
 
   public onWindowResize(): void {
-    // ... (sin cambios en esta función)
     const canvas = this.renderer.domElement;
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
@@ -91,7 +100,6 @@ export class SceneManagerService {
   }
 
   public frameScene(sceneWidth: number, sceneHeight: number): void {
-    // ... (sin cambios en esta función)
       if (!this.editorCamera || !this.controls) {
           console.warn('[SceneManager] Cámara o controles no están listos para encuadrar.');
           return;
@@ -99,7 +107,8 @@ export class SceneManagerService {
       const fovRad = THREE.MathUtils.degToRad(this.editorCamera.fov);
       const effectiveHeight = sceneWidth / this.editorCamera.aspect > sceneHeight ? sceneWidth / this.editorCamera.aspect : sceneHeight;
       const distance = (effectiveHeight / 2) / Math.tan(fovRad / 2);
-      const finalZ = distance * 1.2;
+      // Aumentamos el multiplicador para alejarnos un poco más y ver toda la escena inicial.
+      const finalZ = distance * 1.5;
       this.editorCamera.position.set(0, 0, finalZ);
       this.editorCamera.lookAt(0, 0, 0);
       this.controls.target.set(0, 0, 0);

@@ -58,9 +58,7 @@ export class ObjectManagerService {
     if (!objectsData.length) return;
     const count = objectsData.length;
 
-    // Tu cambio es inteligente. Un plano más grande da más píxeles a la textura para el gradiente,
-    // lo que ayuda al shader a crear un borde más suave. Lo mantenemos.
-    const geometry = new THREE.PlaneGeometry(5, 5);
+    const geometry = new THREE.PlaneGeometry(10, 10);
 
     const material = new THREE.MeshBasicMaterial({
       map: this._createGlowTexture(),
@@ -69,7 +67,7 @@ export class ObjectManagerService {
       depthWrite: false,
     });
 
-    // El shader para la máscara circular sigue siendo perfecto.
+    // <<< SOLUCIÓN FINAL: SHADER DE MEZCLA DE COLOR + MÁSCARA CIRCULAR >>>
     material.onBeforeCompile = (shader) => {
       shader.vertexShader = 'varying vec2 vUv;\n' + shader.vertexShader;
       shader.vertexShader = shader.vertexShader.replace(
@@ -77,17 +75,35 @@ export class ObjectManagerService {
         '#include <uv_vertex>\nvUv = uv;'
       );
 
+      // Reemplazamos toda la lógica de color y transparencia
       shader.fragmentShader = 'varying vec2 vUv;\n' + shader.fragmentShader;
       shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <alphamap_fragment>',
+        '#include <map_fragment>',
         `
-          #ifdef USE_ALPHAMAP
-            diffuseColor.a *= texture2D( alphaMap, vUv ).g;
-          #endif
+          // 1. OBTENER EL FACTOR DE MEZCLA DE LA TEXTURA
+          // La textura ahora es un simple gradiente de blanco a negro.
+          // El valor .r nos da un número entre 0.0 (borde) y 1.0 (centro).
+          float mixFactor = texture2D(map, vUv).r;
 
+          // 2. DEFINIR LOS COLORES A MEZCLAR
+          // 'vColor' es el color del resplandor (emissive_color) que viene de la instancia.
+          vec3 haloColor = vColor;
+          // El núcleo del objeto siempre será blanco puro, como en tu backend.
+          vec3 coreColor = vec3(1.0, 1.0, 1.0);
+
+          // 3. MEZCLAR LOS COLORES
+          // 'mix(A, B, factor)' mezcla entre A y B.
+          // Si factor=0, el resultado es A (haloColor).
+          // Si factor=1, el resultado es B (coreColor).
+          vec3 finalColor = mix(haloColor, coreColor, mixFactor);
+
+          // 4. APLICAR LA MÁSCARA CIRCULAR PARA LA FORMA
           float dist = distance(vUv, vec2(0.5));
-          float mask = 1.0 - smoothstep(0.48, 0.5, dist);
-          diffuseColor.a *= mask;
+          float alphaMask = 1.0 - smoothstep(0.48, 0.5, dist);
+
+          // El color final se asigna a diffuseColor. La transparencia es la del gradiente original
+          // multiplicada por nuestra máscara circular perfecta.
+          diffuseColor = vec4(finalColor, mixFactor * alphaMask);
         `
       );
     };
@@ -106,6 +122,8 @@ export class ObjectManagerService {
     for (let i = 0; i < count; i++) {
       const objData = objectsData[i];
       const properties = objData.properties || {};
+      // ¡IMPORTANTE! Ahora usamos 'emissive_color' como el color principal.
+      // El color del núcleo (blanco) se maneja en el shader.
       const visualColorHex = properties['emissive_color'] || properties['color'];
       const visualColor = new THREE.Color(sanitizeHexColor(visualColorHex));
       const emissiveIntensity = properties['emissive_intensity'] as number || 0.0;
@@ -135,25 +153,23 @@ export class ObjectManagerService {
     scene.add(instancedMesh);
   }
 
-  // <<< MEJORA CLAVE: LA TEXTURA DEFINITIVA PARA COLORES VIBRANTES >>>
+  // <<< MEJORA CLAVE: TEXTURA DE MAPA DE MEZCLA >>>
+  // Esta textura ya no es un "resplandor", sino un simple gradiente que el shader
+  // usará para mezclar entre el color del núcleo y el color del resplandor.
   private _createGlowTexture(): THREE.CanvasTexture {
     if (this.glowTexture) return this.glowTexture;
 
     const canvas = document.createElement('canvas');
-    const size = 256; // Aumentamos la resolución para un gradiente más suave
+    const size = 256;
     canvas.width = size;
     canvas.height = size;
     const context = canvas.getContext('2d')!;
 
     const gradient = context.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
 
-    // 1. El núcleo es ahora mucho más pequeño y concentrado.
-    gradient.addColorStop(0, 'rgba(255,255,255,1)');
-    gradient.addColorStop(0.1, 'rgba(255,255,255,0.6)'); // Cae rápidamente de intensidad
-
-    // 2. La mayor parte del gradiente es una caída suave, que es donde el color brillará.
-    gradient.addColorStop(0.4, 'rgba(255,255,255,0.1)');
-    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    // Un gradiente simple y suave: blanco en el centro (valor 1.0), negro en el borde (valor 0.0).
+    gradient.addColorStop(0, 'rgba(255, 255, 255, 1)'); // Núcleo
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 1)');     // Borde
 
     context.fillStyle = gradient;
     context.fillRect(0, 0, size, size);
