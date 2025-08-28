@@ -21,14 +21,13 @@ export class BrujulaComponent implements AfterViewInit, OnDestroy {
   private labelRenderer!: CSS2DRenderer;
 
   private raycaster = new THREE.Raycaster();
-  private clickeables: THREE.Object3D[] = [];
   private brujulaGroup!: THREE.Group;
-  
+  private interactiveObjects: THREE.Object3D[] = [];
   private cameraSubscription!: Subscription;
-  
   private animationFrameId?: number;
   private hoveredAxisName: string | null = null;
   private originalMaterials: Map<string, THREE.Material> = new Map();
+  private axisElements: Map<string, { meshes: THREE.Mesh[], label: CSS2DObject }> = new Map();
 
   constructor(private engineService: EngineService) { }
 
@@ -49,13 +48,21 @@ export class BrujulaComponent implements AfterViewInit, OnDestroy {
       this.renderer.domElement.removeEventListener('mousemove', this.onCanvasMouseMove);
     }
 
+    this.disposeThreeObjects();
     this.renderer?.dispose();
     this.originalMaterials.clear();
+    this.axisElements.clear();
   }
   
+  /**
+   * Se suscribe a los cambios de orientación de la cámara principal.
+   * La orientación de la brújula se establece como la inversa de la orientación de la cámara,
+   * para que refleje correctamente hacia dónde está "mirando" el usuario.
+   */
   private subscribeToCameraChanges(): void {
     this.cameraSubscription = this.engineService.cameraOrientation$.subscribe(orientation => {
       if (this.brujulaGroup) {
+        // La lógica clave: la brújula tiene la rotación INVERSA de la cámara
         this.brujulaGroup.quaternion.copy(orientation).invert();
       }
     });
@@ -63,15 +70,15 @@ export class BrujulaComponent implements AfterViewInit, OnDestroy {
 
   private initBrujula(): void {
     const container = this.containerRef.nativeElement;
+    if (!container) return;
     const size = container.clientWidth;
 
     this.scene = new THREE.Scene();
+    this.scene.background = null;
 
     const aspect = 1;
     const frustumSize = 3.5;
-    this.camera = new THREE.OrthographicCamera(
-      -frustumSize * aspect, frustumSize * aspect, frustumSize, -frustumSize, 0.1, 100
-    );
+    this.camera = new THREE.OrthographicCamera(-frustumSize * aspect, frustumSize * aspect, frustumSize, -frustumSize, 0.1, 100);
     this.camera.position.set(0, 0, 10);
     this.camera.lookAt(0, 0, 0);
 
@@ -103,7 +110,7 @@ export class BrujulaComponent implements AfterViewInit, OnDestroy {
   }
   
   private createAxes(): void {
-     const axisLength = 1.6;
+    const axisLength = 1.6;
     const axisRadius = 0.1;
     const headLength = 1;
     const headRadius = 0.25;
@@ -125,17 +132,13 @@ export class BrujulaComponent implements AfterViewInit, OnDestroy {
 
     axesData.forEach(data => {
       const material = new THREE.MeshStandardMaterial({
-        color: data.color,
-        roughness: 0.6,
-        metalness: 0.3,
-        toneMapped: false
+        color: data.color, roughness: 0.6, metalness: 0.3, toneMapped: false
       });
 
       const cone = new THREE.Mesh(new THREE.ConeGeometry(headRadius, headLength, 16), material);
       cone.position.copy(data.dir).multiplyScalar(axisLength);
       cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), data.dir);
-      cone.name = data.name; 
-
+      
       const line = new THREE.Mesh(new THREE.CylinderGeometry(axisRadius, axisRadius, axisLength, 16), material);
       line.position.copy(data.dir).multiplyScalar(axisLength / 2);
       line.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), data.dir);
@@ -150,32 +153,28 @@ export class BrujulaComponent implements AfterViewInit, OnDestroy {
       
       const labelHitSphere = new THREE.Mesh(
           new THREE.SphereGeometry(0.6),
-          new THREE.MeshBasicMaterial({ visible: false })
+          new THREE.MeshBasicMaterial({ visible: false, transparent: true, opacity: 0 })
       );
       labelHitSphere.position.copy(labelPosition);
+      cone.name = data.name;
       labelHitSphere.name = data.name;
-
-      cone.userData['axisName'] = data.name;
-      line.userData['axisName'] = data.name;
-      label.userData['axisName'] = data.name;
-
       this.originalMaterials.set(cone.uuid, material);
       this.originalMaterials.set(line.uuid, material);
-
+      this.axisElements.set(data.name, { meshes: [cone, line], label });
       this.brujulaGroup.add(cone, line, label, labelHitSphere);
-      
-      this.clickeables.push(cone, labelHitSphere);
+      this.interactiveObjects.push(cone, labelHitSphere);
     });
   }
   
   private onCanvasMouseMove = (event: MouseEvent) => {
     const rect = this.renderer.domElement.getBoundingClientRect();
-    const mouse = new THREE.Vector2();
-    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    const mouse = new THREE.Vector2(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1
+    );
 
     this.raycaster.setFromCamera(mouse, this.camera);
-    const intersects = this.raycaster.intersectObjects(this.clickeables);
+    const intersects = this.raycaster.intersectObjects(this.interactiveObjects);
 
     if (intersects.length > 0) {
       const intersectedObjectName = intersects[0].object.name;
@@ -193,50 +192,43 @@ export class BrujulaComponent implements AfterViewInit, OnDestroy {
       this.renderer.domElement.style.cursor = 'default';
     }
   }
-  
+
   private applyHoverEffect(axisName: string) {
-    this.brujulaGroup.children.forEach(child => {
-      if (child.userData['axisName'] === axisName) {
-        if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
-          const hoverMaterial = child.material.clone();
-          hoverMaterial.emissive.copy(hoverMaterial.color);
-          hoverMaterial.emissiveIntensity = 0.6;
-          child.material = hoverMaterial;
-        }
-        else if (child instanceof CSS2DObject) {
-          child.element.classList.add('hovered');
-        }
+    const elements = this.axisElements.get(axisName);
+    if (!elements) return;
+    elements.meshes.forEach(mesh => {
+      if (mesh.material instanceof THREE.MeshStandardMaterial) {
+        const hoverMaterial = mesh.material.clone();
+        hoverMaterial.emissive.copy(hoverMaterial.color);
+        hoverMaterial.emissiveIntensity = 0.6;
+        mesh.material = hoverMaterial;
       }
     });
+    elements.label.element.classList.add('hovered');
   }
   
   private clearHoverEffect() {
     if (!this.hoveredAxisName) return;
-
-    const axisToClear = this.hoveredAxisName;
-    this.brujulaGroup.children.forEach(child => {
-      if (child.userData['axisName'] === axisToClear) {
-        if (child instanceof THREE.Mesh) {
-          const originalMaterial = this.originalMaterials.get(child.uuid);
-          if (originalMaterial) {
-            child.material = originalMaterial;
-          }
-        }
-        else if (child instanceof CSS2DObject) {
-          child.element.classList.remove('hovered');
-        }
+    const elements = this.axisElements.get(this.hoveredAxisName);
+    if (!elements) return;
+    elements.meshes.forEach(mesh => {
+      const originalMaterial = this.originalMaterials.get(mesh.uuid);
+      if (originalMaterial) {
+        mesh.material = originalMaterial;
       }
     });
+    elements.label.element.classList.remove('hovered');
   }
   
   private onCanvasClick = (event: MouseEvent) => {
     const rect = this.renderer.domElement.getBoundingClientRect();
-    const mouse = new THREE.Vector2();
-    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    const mouse = new THREE.Vector2(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1
+    );
 
     this.raycaster.setFromCamera(mouse, this.camera);
-    const intersects = this.raycaster.intersectObjects(this.clickeables);
+    const intersects = this.raycaster.intersectObjects(this.interactiveObjects);
 
     if (intersects.length > 0) {
       const clickedAxisName = intersects[0].object.name;
@@ -248,5 +240,18 @@ export class BrujulaComponent implements AfterViewInit, OnDestroy {
     this.animationFrameId = requestAnimationFrame(this.animate);
     this.renderer.render(this.scene, this.camera);
     this.labelRenderer.render(this.scene, this.camera);
+  }
+
+  private disposeThreeObjects() {
+    this.scene.traverse(object => {
+      if (object instanceof THREE.Mesh) {
+        object.geometry?.dispose();
+        if (Array.isArray(object.material)) {
+          object.material.forEach(material => material.dispose());
+        } else {
+          object.material?.dispose();
+        }
+      }
+    });
   }
 }
