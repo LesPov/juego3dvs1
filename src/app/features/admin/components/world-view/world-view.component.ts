@@ -3,7 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Observable, Subject, Subscription, of, BehaviorSubject, combineLatest } from 'rxjs';
-import { switchMap, tap, debounceTime, map, startWith } from 'rxjs/operators';
+import { switchMap, tap, debounceTime, map } from 'rxjs/operators';
 import * as THREE from 'three';
 import { DragDropModule, CdkDropList, CdkDrag, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { SceneComponent } from '../world-editor/scene/scene.component';
@@ -16,7 +16,7 @@ import { ToolbarComponent } from '../world-editor/toolbar/toolbar.component';
 import { SceneObjectResponse, AdminService } from '../../services/admin.service';
 import { BrujulaComponent } from '../world-editor/brujula/brujula.component';
 import { EngineService } from '../world-editor/service/three-engine/engine.service';
- 
+
 @Component({
   selector: 'app-world-view',
   standalone: true,
@@ -46,6 +46,12 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   public placeholderEntities: SceneEntity[] = [{ uuid: 'placeholder-1', name: 'Añadir objeto nuevo...', type: 'Model' }];
   private analysisSummary: any = null;
 
+  // NUEVA MEJORA: Propiedades para paginación de la lista de objetos
+  public totalEntityCount = 0;
+  public displayedEntityCount = 0;
+  private readonly listIncrement = 50; // Cantidad de objetos a mostrar por cada "Ver más"
+  private displayCount$ = new BehaviorSubject<number>(this.listIncrement);
+
   private readonly typeColorMap: { [key: string]: string } = {
     'Camera': 'color-camera', 'Light': 'color-light', 'Model': 'color-model',
     'star': 'color-star', 'galaxy': 'color-galaxy', 'meteor': 'color-meteor',
@@ -65,8 +71,19 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     private sceneObjectService: SceneObjectService,
   ) {
     this.axisLock$ = this.engineService.axisLockState$;
-    this.displayEntities$ = this.allEntities$.asObservable();
     this.isFlyModeActive$ = this.engineService.isFlyModeActive$;
+
+    // NUEVA MEJORA: Lógica reactiva para mostrar solo una parte de la lista
+    // Combina la lista completa (allEntities$) con la cantidad a mostrar (displayCount$)
+    this.displayEntities$ = combineLatest([this.allEntities$, this.displayCount$]).pipe(
+      map(([entities, count]) => {
+        this.totalEntityCount = entities.length;
+        const slicedEntities = entities.slice(0, count);
+        this.displayedEntityCount = slicedEntities.length;
+        // Devuelve solo la porción de entidades que se debe renderizar en la UI
+        return slicedEntities;
+      })
+    );
   }
 
   ngOnInit(): void {
@@ -91,13 +108,9 @@ export class WorldViewComponent implements OnInit, OnDestroy {
         this.episodeTitle = data.title;
         this.sceneObjects = data.sceneObjects || [];
         this.analysisSummary = data.analysisSummary || null;
-
         this.isLoadingData = false;
         this.isRenderingScene = true;
 
-        // --- MEJORA CLAVE: ENCUADRE AUTOMÁTICO ---
-        // Después de cargar los datos, si tenemos las dimensiones de la escena,
-        // le decimos al motor 3D que encuadre la cámara.
         if (this.analysisSummary?.scene_dimensions) {
           this.engineService.frameScene(
             this.analysisSummary.scene_dimensions.width,
@@ -125,8 +138,10 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     ).subscribe({ error: err => console.error("[WorldView] Error al actualizar propiedad:", err) });
 
     const entitiesSub = this.engineService.getSceneEntities().subscribe(entities => {
-      this.allEntities = entities;
-      this.allEntities$.next(entities);
+      // Al recibir la lista COMPLETA de entidades...
+      this.allEntities = entities;         // La guardamos para el Drag & Drop.
+      this.allEntities$.next(entities);  // La emitimos al BehaviorSubject para que la lógica reactiva actúe.
+      this.displayCount$.next(this.listIncrement); // Reseteamos el contador de vista al inicial.
     });
 
     this.subscriptions.add(transformSub);
@@ -213,9 +228,18 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   }
 
   onDrop(event: CdkDragDrop<SceneEntity[]>): void {
-    const currentEntities = this.allEntities$.getValue();
-    moveItemInArray(currentEntities, event.previousIndex, event.currentIndex);
-    this.allEntities$.next([...currentEntities]);
+    // moveItemInArray necesita operar sobre la lista COMPLETA de datos
+    // que fue provista a cdkDropListData, que es this.allEntities
+    moveItemInArray(this.allEntities, event.previousIndex, event.currentIndex);
+    // Notificamos al stream que la lista completa ha sido reordenada.
+    // La lógica de combineLatest se encargará de volver a cortar y mostrar la porción correcta.
+    this.allEntities$.next([...this.allEntities]);
+  }
+  
+  // NUEVA MEJORA: Método para mostrar más objetos en la lista
+  public showMoreEntities(): void {
+    const newCount = this.displayCount$.getValue() + this.listIncrement;
+    this.displayCount$.next(newCount);
   }
 
   trackByEntity(index: number, entity: SceneEntity): string { return entity.uuid; }
