@@ -1,5 +1,3 @@
-// src/app/features/admin/components/world-editor/service/three-engine/utils/object-manager.service.ts
-
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -15,7 +13,7 @@ export interface CelestialInstanceData {
   originalName: string;
   scale: THREE.Vector3;
   isVisible: boolean;
-  isDominant: boolean; 
+  isDominant: boolean;
 }
 
 function sanitizeHexColor(color: any, defaultColor: string = '#ffffff'): string {
@@ -38,9 +36,9 @@ export class ObjectManagerService {
     switch (objData.type) {
       case 'model':
         if (objData.properties?.['is_black_hole']) {
-            createdObject = this.createBlackHolePrimitive(scene, objData);
+          createdObject = this.createBlackHolePrimitive(scene, objData);
         } else {
-            this.loadGltfModel(scene, objData, loader);
+          this.loadGltfModel(scene, objData, loader);
         }
         break;
       case 'star': case 'galaxy': case 'meteor':
@@ -56,20 +54,43 @@ export class ObjectManagerService {
     return createdObject;
   }
 
- public createCelestialObjectsInstanced(scene: THREE.Scene, objectsData: SceneObjectResponse[]): void {
+  public createCelestialObjectsInstanced(scene: THREE.Scene, objectsData: SceneObjectResponse[]): void {
     if (!objectsData.length) return;
     const count = objectsData.length;
-    
-    // MEJORA 1: Usamos un plano en lugar de una esfera. La textura se encargará de la forma.
-    const geometry = new THREE.PlaneGeometry(1, 1);
-    
-    // Este material está optimizado para renderizar nuestra partícula de luz.
+
+    // Tu cambio es inteligente. Un plano más grande da más píxeles a la textura para el gradiente,
+    // lo que ayuda al shader a crear un borde más suave. Lo mantenemos.
+    const geometry = new THREE.PlaneGeometry(5, 5);
+
     const material = new THREE.MeshBasicMaterial({
-        map: this._createGlowTexture(),
-        transparent: true,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
+      map: this._createGlowTexture(),
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
     });
+
+    // El shader para la máscara circular sigue siendo perfecto.
+    material.onBeforeCompile = (shader) => {
+      shader.vertexShader = 'varying vec2 vUv;\n' + shader.vertexShader;
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <uv_vertex>',
+        '#include <uv_vertex>\nvUv = uv;'
+      );
+
+      shader.fragmentShader = 'varying vec2 vUv;\n' + shader.fragmentShader;
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <alphamap_fragment>',
+        `
+          #ifdef USE_ALPHAMAP
+            diffuseColor.a *= texture2D( alphaMap, vUv ).g;
+          #endif
+
+          float dist = distance(vUv, vec2(0.5));
+          float mask = 1.0 - smoothstep(0.48, 0.5, dist);
+          diffuseColor.a *= mask;
+        `
+      );
+    };
 
     const instancedMesh = new THREE.InstancedMesh(geometry, material, count);
     instancedMesh.name = 'CelestialObjectsInstanced';
@@ -91,7 +112,6 @@ export class ObjectManagerService {
       const isDominant = properties['is_dominant_object'] as boolean || false;
 
       position.set(objData.position.x, objData.position.y, objData.position.z);
-      // Orientación neutra; se actualizará cada frame para mirar a la cámara.
       quaternion.identity();
       scale.set(objData.scale.x, objData.scale.y, objData.scale.z);
       matrix.compose(position, quaternion, scale);
@@ -115,39 +135,42 @@ export class ObjectManagerService {
     scene.add(instancedMesh);
   }
 
-  // MEJORA 2: La textura definitiva para un resplandor perfecto.
+  // <<< MEJORA CLAVE: LA TEXTURA DEFINITIVA PARA COLORES VIBRANTES >>>
   private _createGlowTexture(): THREE.CanvasTexture {
     if (this.glowTexture) return this.glowTexture;
-    
+
     const canvas = document.createElement('canvas');
-    const size = 128;
+    const size = 256; // Aumentamos la resolución para un gradiente más suave
     canvas.width = size;
     canvas.height = size;
     const context = canvas.getContext('2d')!;
 
     const gradient = context.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    // Este gradiente crea el núcleo blanco y el contorno que se desvanece
-    gradient.addColorStop(0,    'rgba(255,255,255,1)');    // El "cuerpo" de la esfera, 100% blanco
-    gradient.addColorStop(0.2, 'rgba(255,255,255,0.8)');  // Borde del núcleo
-    gradient.addColorStop(0.6,  'rgba(255,255,255,0.1)');  // Contorno de luz suave y grande
-    gradient.addColorStop(1,    'rgba(255,255,255,0)');    // Borde final 100% transparente
+
+    // 1. El núcleo es ahora mucho más pequeño y concentrado.
+    gradient.addColorStop(0, 'rgba(255,255,255,1)');
+    gradient.addColorStop(0.1, 'rgba(255,255,255,0.6)'); // Cae rápidamente de intensidad
+
+    // 2. La mayor parte del gradiente es una caída suave, que es donde el color brillará.
+    gradient.addColorStop(0.4, 'rgba(255,255,255,0.1)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
 
     context.fillStyle = gradient;
     context.fillRect(0, 0, size, size);
-    
+
     this.glowTexture = new THREE.CanvasTexture(canvas);
     this.glowTexture.needsUpdate = true;
     return this.glowTexture;
   }
-  
+
   public createSelectionProxy(): THREE.Mesh {
-    const proxyGeometry = new THREE.SphereGeometry(1.1, 16, 8); 
+    const proxyGeometry = new THREE.SphereGeometry(1.1, 16, 8);
     const proxyMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0, depthTest: true });
     const proxyMesh = new THREE.Mesh(proxyGeometry, proxyMaterial);
     proxyMesh.name = 'SelectionProxy';
     return proxyMesh;
   }
-  
+
   private createBlackHolePrimitive(scene: THREE.Scene, objData: SceneObjectResponse): THREE.Mesh {
     const geometry = new THREE.SphereGeometry(0.5, 32, 16);
     const material = new THREE.MeshBasicMaterial({ color: 0x000000 });
@@ -156,16 +179,16 @@ export class ObjectManagerService {
     scene.add(mesh);
     return mesh;
   }
-  
+
   private createStandardPrimitive(scene: THREE.Scene, objData: SceneObjectResponse): THREE.Mesh {
     const properties = objData.properties || {};
     const color = new THREE.Color(sanitizeHexColor(properties['color']));
     let geometry: THREE.BufferGeometry;
-    switch(objData.type) {
-        case 'cube': geometry = new THREE.BoxGeometry(1, 1, 1); break;
-        case 'cone': geometry = new THREE.ConeGeometry(0.5, 1, 32); break;
-        case 'floor': geometry = new THREE.PlaneGeometry(1, 1); break;
-        default: geometry = new THREE.SphereGeometry(0.5, 32, 16);
+    switch (objData.type) {
+      case 'cube': geometry = new THREE.BoxGeometry(1, 1, 1); break;
+      case 'cone': geometry = new THREE.ConeGeometry(0.5, 1, 32); break;
+      case 'floor': geometry = new THREE.PlaneGeometry(1, 1); break;
+      default: geometry = new THREE.SphereGeometry(0.5, 32, 16);
     }
     const material = new THREE.MeshStandardMaterial({ color });
     if (objData.type === 'floor') {
@@ -176,7 +199,7 @@ export class ObjectManagerService {
     scene.add(mesh);
     return mesh;
   }
-  
+
   private loadGltfModel(scene: THREE.Scene, objData: SceneObjectResponse, loader: GLTFLoader): void {
     if (!objData.asset?.path) return;
     const modelUrl = `${this.backendUrl}${objData.asset.path}`;

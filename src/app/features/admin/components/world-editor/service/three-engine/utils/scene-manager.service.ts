@@ -1,5 +1,3 @@
-// src/app/features/admin/components/world-editor/service/three-engine/utils/scene-manager.service.ts
-
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
@@ -41,7 +39,7 @@ export class SceneManagerService {
     });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.4; // Exposición ajustada para un universo vibrante
+    this.renderer.toneMappingExposure = 1.4;
     
     const normalPixelRatio = Math.min(window.devicePixelRatio, 2);
     this.renderer.setPixelRatio(normalPixelRatio);
@@ -54,17 +52,17 @@ export class SceneManagerService {
     this.scene.add(this.focusPivot);
   }
 
-  // <<< MEJORA CLAVE: EL AJUSTE FINAL DEL POST-PROCESADO >>>
+  // <<< MEJORA CLAVE: AJUSTE PRECISO DEL BLOOM PARA IGNORAR FORMAS CUADRADAS >>>
   private setupPostProcessing(canvas: HTMLCanvasElement): void {
     const renderPass = new RenderPass(this.scene, this.editorCamera);
     
-    // Con esta configuración, el bloom ya no creará halos cuadrados. En su lugar,
-    // añadirá una suave neblina de luz que unifica la escena y la suaviza.
     const bloomPass = new UnrealBloomPass(
       new THREE.Vector2(canvas.clientWidth, canvas.clientHeight),
-      1.5, // strength: Una fuerza muy sutil para que no domine.
-      1.0,  // radius: Un radio grande para un efecto muy difuso y suave.
-      0.1   // threshold: Solo se activa en las zonas más brillantes, evitando artefactos.
+      0.4,  // strength: Reducimos la fuerza para un efecto más sutil y cinematográfico.
+      0.4,  // radius: Mantenemos un radio grande para que el resplandor sea suave y difuso.
+      0.1  // threshold: ¡ESTA ES LA CLAVE! Aumentamos el umbral drásticamente.
+            // Ahora, solo los núcleos verdaderamente brillantes de las estrellas activarán el bloom,
+            // ignorando por completo los bordes tenues que podrían delatar la forma del plano.
     );
 
     const outputPass = new OutputPass();
@@ -76,6 +74,7 @@ export class SceneManagerService {
   }
 
   public onWindowResize(): void {
+    // ... (sin cambios en esta función)
     const canvas = this.renderer.domElement;
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
@@ -92,6 +91,7 @@ export class SceneManagerService {
   }
 
   public frameScene(sceneWidth: number, sceneHeight: number): void {
+    // ... (sin cambios en esta función)
       if (!this.editorCamera || !this.controls) {
           console.warn('[SceneManager] Cámara o controles no están listos para encuadrar.');
           return;

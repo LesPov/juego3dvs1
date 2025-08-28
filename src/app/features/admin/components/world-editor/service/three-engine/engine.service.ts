@@ -1,5 +1,3 @@
-// src/app/features/admin/components/world-editor/service/three-engine/engine.service.ts
-
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
@@ -18,6 +16,12 @@ import { CelestialInstanceData } from './utils/object-manager.service';
 const INSTANCES_TO_CHECK_PER_FRAME = 10000;
 const VISUAL_BOOST_FACTOR = 2.0;
 const DOMINANT_OBJECT_BOOST_FACTOR = 2.0;
+
+// <<< MEJORA CLAVE: CONSTANTES PARA EL DESVANECIMIENTO CON DISTANCIA >>>
+// El brillo de los objetos comenzará a desvanecerse a esta distancia.
+const FADE_START_DISTANCE = 20000;
+// A esta distancia, los objetos serán completamente invisibles (su brillo será 0).
+const FADE_END_DISTANCE = 60000;
 
 @Injectable()
 export class EngineService implements OnDestroy {
@@ -129,7 +133,7 @@ export class EngineService implements OnDestroy {
     this.updateCameraFrustum();
     let needsColorUpdate = false;
     let needsMatrixUpdate = false;
-    const cameraQuaternion = this.sceneManager.editorCamera.quaternion;
+    const camera = this.sceneManager.editorCamera;
     
     const startIndex = this.updateIndexCounter;
     const endIndex = Math.min(startIndex + INSTANCES_TO_CHECK_PER_FRAME, allData.length);
@@ -138,10 +142,17 @@ export class EngineService implements OnDestroy {
         const data = allData[i];
         this.boundingSphere.center.copy(data.position);
         this.boundingSphere.radius = Math.max(data.scale.x, data.scale.y, data.scale.z);
-        const isVisible = this.frustum.intersectsSphere(this.boundingSphere);
+        const isInFrustum = this.frustum.intersectsSphere(this.boundingSphere);
+
+        // <<< MEJORA CLAVE: CÁLCULO DE ATENUACIÓN POR DISTANCIA >>>
+        const distance = data.position.distanceTo(camera.position);
+        const attenuation = 1.0 - THREE.MathUtils.smoothstep(distance, FADE_START_DISTANCE, FADE_END_DISTANCE);
+        
+        // Un objeto es visible solo si está en el campo de visión Y no se ha desvanecido por completo.
+        const isVisible = isInFrustum && attenuation > 0;
 
         if (isVisible) {
-            this.tempMatrix.compose(data.position, cameraQuaternion, data.scale);
+            this.tempMatrix.compose(data.position, camera.quaternion, data.scale);
             instancedMesh.setMatrixAt(i, this.tempMatrix);
             needsMatrixUpdate = true;
             
@@ -150,13 +161,16 @@ export class EngineService implements OnDestroy {
                 : VISUAL_BOOST_FACTOR;
             
             const scaleMultiplier = 1.0 + Math.log1p(data.scale.x * 0.7);
-            const finalIntensity = data.emissiveIntensity * scaleMultiplier * boostFactor;
+            
+            // La intensidad final ahora también depende de la atenuación por distancia.
+            const finalIntensity = data.emissiveIntensity * scaleMultiplier * boostFactor * attenuation;
 
             this.tempColor.copy(data.originalColor).multiplyScalar(finalIntensity);
             instancedMesh.setColorAt(i, this.tempColor);
             needsColorUpdate = true;
         }
 
+        // Si antes era visible pero ahora no, lo apagamos.
         if (!isVisible && data.isVisible) {
             this.tempColor.setRGB(0, 0, 0);
             instancedMesh.setColorAt(i, this.tempColor);
