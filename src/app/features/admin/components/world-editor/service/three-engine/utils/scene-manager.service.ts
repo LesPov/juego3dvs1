@@ -1,4 +1,3 @@
-// src/app/modules/admin/pages/episode-creator/engine/utils/scene-manager.service.ts
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
@@ -25,9 +24,10 @@ export class SceneManagerService {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x000000); 
 
-    const fieldOfView = 20;
-    // --- MEJORA CLAVE: Horizonte de renderizado expandido a una escala cósmica ---
-      const cameraFarPlane = 12000000; // 8 millones de unidades de rango de visión
+    const fieldOfView = 45; 
+    
+    // --- MEJORA: Horizonte de renderizado expandido para máxima seguridad ---
+    const cameraFarPlane = 150000000; // 150 millones de unidades para ver muy, muy lejos.
     const cameraNearPlane = 1.0; 
     
     this.editorCamera = new THREE.PerspectiveCamera(
@@ -38,8 +38,7 @@ export class SceneManagerService {
     );
     
     this.editorCamera.name = 'Cámara del Editor';
-    // Posición inicial panorámica para apreciar la vasta escala de la escena
-    this.editorCamera.position.set(0, 0, 8241185); 
+    this.editorCamera.position.set(0, 0, 11447000); 
     this.scene.add(this.editorCamera);
 
     this.renderer = new THREE.WebGLRenderer({

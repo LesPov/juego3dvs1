@@ -1,4 +1,3 @@
-// src/app/modules/admin/pages/episode-creator/engine/engine.service.ts
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
@@ -32,9 +31,9 @@ const FOREGROUND_DIM_DISTANCE = 100000;
 const HALO_FADE_START_DISTANCE = 35000;
 const HALO_FADE_END_DISTANCE = 90000;
 
-// --- 3. Distancias para Desaparición (¡EXTENSIÓN MASIVA FINAL!) ---
-const FADE_START_DISTANCE = 70000000; // Desvanecimiento empieza en 7.5 millones
-const FADE_END_DISTANCE = 78000000;   // Desaparición completa cerca del límite de la cámara
+// --- 3. MEJORA: Distancias para Desaparición alineadas con la nueva cámara ---
+const FADE_START_DISTANCE = 80000000; // Desvanecimiento empieza en 800 millones
+const FADE_END_DISTANCE = 880000000;   // Desaparición completa cerca del nuevo límite de la cámara
 
 @Injectable()
 export class EngineService implements OnDestroy {
@@ -224,6 +223,7 @@ export class EngineService implements OnDestroy {
   }
 
   public selectObjectByUuid(uuid: string | null): void {
+    // ... (El resto del archivo no necesita cambios)
     this.interactionHelperManager.cleanupHelpers(this.selectedObject);
     this.dragInteractionManager.stopListening();
     this.controlsManager.detach();

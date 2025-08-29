@@ -1,4 +1,3 @@
-// src/app/modules/admin/pages/episode-creator/engine/utils/object-manager.service.ts
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -59,8 +58,8 @@ export class ObjectManagerService {
     if (!objectsData.length) return;
     const count = objectsData.length;
 
-    // --- MEJORA: Aumentamos el tamaño base de la geometría para un halo más prominente ---
-    const geometry = new THREE.PlaneGeometry(15, 15);
+    // --- MEJORA: Aumentamos el tamaño base de la geometría para un halo más prominente a distancia ---
+    const geometry = new THREE.PlaneGeometry(35, 35);
 
     const material = new THREE.MeshBasicMaterial({
       map: this._createGlowTexture(),
@@ -133,23 +132,35 @@ export class ObjectManagerService {
     if (instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
     scene.add(instancedMesh);
   }
-
+  
+  // --- MEJORA CLAVE: Textura de Alta Resolución y Suavizado ---
   private _createGlowTexture(): THREE.CanvasTexture {
     if (this.glowTexture) return this.glowTexture;
+
     const canvas = document.createElement('canvas');
-    const size = 256;
-    canvas.width = size; canvas.height = size;
+    // Aumentamos la resolución para mayor detalle y menos pixelación
+    const size = 512; 
+    canvas.width = size;
+    canvas.height = size;
     const context = canvas.getContext('2d')!;
+
     const gradient = context.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-    gradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
+    
+    // Gradiente más suave con más pasos para una caída de luz natural
+    gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');      // Núcleo sólido blanco
+    gradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.8)');   // Transición suave
+    gradient.addColorStop(0.6, 'rgba(255, 255, 255, 0.2)');   // Halo exterior
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');          // Borde completamente transparente
+
     context.fillStyle = gradient;
     context.fillRect(0, 0, size, size);
+
     this.glowTexture = new THREE.CanvasTexture(canvas);
     this.glowTexture.needsUpdate = true;
     return this.glowTexture;
   }
-
+    
+  // ... (El resto del archivo no necesita cambios)
   public createSelectionProxy(): THREE.Mesh {
     const proxyGeometry = new THREE.SphereGeometry(1.1, 16, 8);
     const proxyMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0, depthTest: true });

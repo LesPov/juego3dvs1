@@ -29,12 +29,11 @@ export class ControlsManagerService implements OnDestroy {
   
   private isFlyModeActiveSubject = new BehaviorSubject<boolean>(false);
   public isFlyModeActive$ = this.isFlyModeActiveSubject.asObservable();
-
-  private velocity = new THREE.Vector3();
-  private readonly MOVEMENT_SPEED = 1000.0;
-  private readonly BOOST_MULTIPLIER = 1000.0;
-  private readonly DAMPING_FACTOR = 0.90;
   
+  // --- MEJORA: Valores de velocidad drásticamente aumentados para navegación a gran escala ---
+  private readonly MOVEMENT_SPEED = 100000.0; // Velocidad base incrementada
+  private readonly BOOST_MULTIPLIER = 25.0;  // Multiplicador más intuitivo y potente para SHIFT
+
   private tempVector = new THREE.Vector3();
 
   constructor() { }
@@ -170,32 +169,38 @@ export class ControlsManagerService implements OnDestroy {
     this.focusHelper.position.copy(this.camera.position).add(direction.multiplyScalar(distance));
   }
 
+  // --- MEJORA: Lógica de movimiento reescrita para ser directa e instantánea ---
   private handleKeyboardFly(delta: number, keyMap: Map<string, boolean>): boolean {
     if (document.pointerLockElement !== this.domElement) return false;
+
     const moveDirection = new THREE.Vector3();
     const forward = new THREE.Vector3();
     const right = new THREE.Vector3();
+    
     this.camera.getWorldDirection(forward);
-    right.copy(forward).cross(this.camera.up).normalize();
+    right.copy(forward).cross(this.camera.up);
+
     if (keyMap.get('w')) moveDirection.add(forward);
     if (keyMap.get('s')) moveDirection.sub(forward);
     if (keyMap.get('a')) moveDirection.sub(right);
     if (keyMap.get('d')) moveDirection.add(right);
     if (keyMap.get('e')) moveDirection.y += 1;
     if (keyMap.get('q')) moveDirection.y -= 1;
-    const didMove = moveDirection.lengthSq() > 0;
-    if (!didMove && this.velocity.lengthSq() < 0.0001) {
-      this.velocity.set(0, 0, 0);
-      return false;
-    }
-    if (didMove) {
+
+    if (moveDirection.lengthSq() > 0) {
       moveDirection.normalize();
-      const currentSpeed = this.MOVEMENT_SPEED * (keyMap.get('shift') ? this.BOOST_MULTIPLIER : 1);
-      this.velocity.lerp(moveDirection.multiplyScalar(currentSpeed), delta * 15);
+      
+      const currentSpeed = this.MOVEMENT_SPEED * (keyMap.get('shift') ? this.BOOST_MULTIPLIER : 1.0);
+      const moveDistance = currentSpeed * delta;
+      
+      // Se aplica el desplazamiento directamente a la posición de la cámara.
+      // Esto elimina la necesidad de `velocity`, `lerp` y `damping`, logrando una parada instantánea.
+      this.camera.position.addScaledVector(moveDirection, moveDistance);
+      
+      return true; // Hubo movimiento
     }
-    this.velocity.multiplyScalar(this.DAMPING_FACTOR);
-    this.camera.position.add(this.velocity.clone().multiplyScalar(delta));
-    return true;
+
+    return false; // No hubo movimiento
   }
 
   private addEventListeners = () => {
