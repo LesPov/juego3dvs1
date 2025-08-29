@@ -34,19 +34,14 @@
     <div *ngIf="(axisLock$ | async) as lockedAxis" class="axis-lock-indicator" [ngClass]="'lock-' + lockedAxis">
       Moviendo en Eje: <b>{{ lockedAxis | uppercase }}</b>
     </div>
-
-    <!-- ======================================================================== -->
-    <!-- === NUEVO: Display para la posición de la cámara (Herramienta de Debug) === -->
-    <!-- ======================================================================== -->
+    
     <div class="camera-position-display" *ngIf="engineService.cameraPosition$ | async as pos">
       <b>Posición Cámara:</b><br>
       X: {{ pos.x | number:'1.2-2' }}<br>
       Y: {{ pos.y | number:'1.2-2' }}<br>
       Z: {{ pos.z | number:'1.2-2' }}
     </div>
- <!-- ======================================================================== -->
-    <!-- === NUEVO: Cruz/Retícula para el modo de vuelo (Fly Mode)              === -->
-    <!-- ======================================================================== -->
+
     <div *ngIf="isFlyModeActive$ | async" class="fly-mode-crosshair">
       <div class="crosshair-line horizontal"></div>
       <div class="crosshair-line vertical"></div>
@@ -73,6 +68,18 @@
             <span class="object-name">{{ e.name }}</span>
           </li>
         </ul>
+
+        <!-- ======================================================= -->
+        <!-- === INICIO DE LA MEJORA: Botón de "Cargar Más" === -->
+        <!-- ======================================================= -->
+        <div class="list-loader" *ngIf="displayedEntityCount < totalEntityCount">
+          <button (click)="showMoreEntities()" class="show-more-button">
+            Cargar Más ({{ displayedEntityCount }} / {{ totalEntityCount }})
+          </button>
+        </div>
+        <!-- ======================================================= -->
+        <!-- === FIN DE LA MEJORA === -->
+        <!-- ======================================================= -->
 
         <ul class="scene-object-list">
           <li *ngFor="let e of placeholderEntities" class="scene-object-item placeholder-item"

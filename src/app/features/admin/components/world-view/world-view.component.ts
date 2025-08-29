@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Observable, Subject, Subscription, of, BehaviorSubject, combineLatest } from 'rxjs';
+import { Observable, Subject, Subscription, BehaviorSubject, combineLatest } from 'rxjs';
 import { switchMap, tap, debounceTime, map } from 'rxjs/operators';
 import * as THREE from 'three';
 import { DragDropModule, CdkDropList, CdkDrag, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
@@ -46,15 +46,15 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   public placeholderEntities: SceneEntity[] = [{ uuid: 'placeholder-1', name: 'Añadir objeto nuevo...', type: 'Model' }];
   private analysisSummary: any = null;
 
-  // NUEVA MEJORA: Propiedades para paginación de la lista de objetos
+  // --- MEJORA: Propiedades para paginación de la lista de objetos ---
   public totalEntityCount = 0;
   public displayedEntityCount = 0;
-  private readonly listIncrement = 50; // Cantidad de objetos a mostrar por cada "Ver más"
+  private readonly listIncrement = 50; // Cantidad de objetos a mostrar por cada "Cargar Más"
   private displayCount$ = new BehaviorSubject<number>(this.listIncrement);
 
   private readonly typeColorMap: { [key: string]: string } = {
     'Camera': 'color-camera', 'Light': 'color-light', 'Model': 'color-model',
-    'star': 'color-star', 'galaxy': 'color-galaxy', 'meteor': 'color-meteor',
+    'star': 'color-star', 'galaxy': 'color-galaxy', 'meteor': 'color-meteor', 'supernova': 'color-supernova', 'diffraction_star': 'color-diffraction-star',
     'default': 'color-default'
   };
 
@@ -73,8 +73,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     this.axisLock$ = this.engineService.axisLockState$;
     this.isFlyModeActive$ = this.engineService.isFlyModeActive$;
 
-    // NUEVA MEJORA: Lógica reactiva para mostrar solo una parte de la lista
-    // Combina la lista completa (allEntities$) con la cantidad a mostrar (displayCount$)
+    // --- MEJORA: Lógica reactiva para mostrar solo una parte de la lista ---
     this.displayEntities$ = combineLatest([this.allEntities$, this.displayCount$]).pipe(
       map(([entities, count]) => {
         this.totalEntityCount = entities.length;
@@ -132,21 +131,34 @@ export class WorldViewComponent implements OnInit, OnDestroy {
 
   private setupSubscriptions(): void {
     const transformSub = this.engineService.onTransformEnd$.subscribe(() => this.handleTransformEnd());
+    
     const propertyUpdateSub = this.propertyUpdate$.pipe(
       debounceTime(400),
       switchMap(update => this.handlePropertyUpdate(update))
     ).subscribe({ error: err => console.error("[WorldView] Error al actualizar propiedad:", err) });
 
     const entitiesSub = this.engineService.getSceneEntities().subscribe(entities => {
-      // Al recibir la lista COMPLETA de entidades...
-      this.allEntities = entities;         // La guardamos para el Drag & Drop.
-      this.allEntities$.next(entities);  // La emitimos al BehaviorSubject para que la lógica reactiva actúe.
-      this.displayCount$.next(this.listIncrement); // Reseteamos el contador de vista al inicial.
+      this.allEntities = entities;
+      this.allEntities$.next(entities);
+      // Al recibir una nueva lista (por ejemplo, al inicio), reseteamos el contador
+      if(this.displayCount$.getValue() > this.listIncrement) {
+        this.displayCount$.next(this.listIncrement);
+      }
     });
 
     this.subscriptions.add(transformSub);
     this.subscriptions.add(propertyUpdateSub);
     this.subscriptions.add(entitiesSub);
+  }
+  
+  private handlePropertyUpdate(update: PropertyUpdate): Observable<SceneObjectResponse> {
+    if (!this.episodeId || !this.selectedObject) {
+        return new Observable(obs => { obs.error(new Error("EpisodeID or SelectedObject is null")); });
+    }
+    const dataToUpdate: Partial<SceneObjectResponse> = { [update.path]: update.value };
+    return this.sceneObjectService.updateSceneObject(this.episodeId, this.selectedObject.id, dataToUpdate).pipe(
+        tap(updatedObj => this.updateLocalSelectedObject(updatedObj))
+    );
   }
 
   private handleTransformEnd(): void {
@@ -165,14 +177,6 @@ export class WorldViewComponent implements OnInit, OnDestroy {
         next: updatedObj => this.updateLocalSelectedObject(updatedObj),
         error: err => console.error("[WorldView] Error al guardar objeto tras transformación:", err)
       });
-  }
-
-  private handlePropertyUpdate(update: PropertyUpdate): Observable<SceneObjectResponse | null> {
-    if (!this.episodeId || !this.selectedObject) return of(null);
-    let dataToUpdate: Partial<SceneObjectResponse> = { [update.path]: update.value };
-    return this.sceneObjectService.updateSceneObject(this.episodeId, this.selectedObject.id, dataToUpdate).pipe(
-      tap(updatedObj => this.updateLocalSelectedObject(updatedObj))
-    );
   }
 
   onEntitySelect(entity: SceneEntity): void {
@@ -217,9 +221,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
 
   updateLocalSelectedObject(updatedData: Partial<SceneObjectResponse>): void {
     if (!this.selectedObject) return;
-
     this.selectedObject = { ...this.selectedObject, ...updatedData };
-
     const index = this.sceneObjects.findIndex(o => o.id === this.selectedObject!.id);
     if (index !== -1) {
       this.sceneObjects[index] = { ...this.sceneObjects[index], ...updatedData };
@@ -228,15 +230,11 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   }
 
   onDrop(event: CdkDragDrop<SceneEntity[]>): void {
-    // moveItemInArray necesita operar sobre la lista COMPLETA de datos
-    // que fue provista a cdkDropListData, que es this.allEntities
     moveItemInArray(this.allEntities, event.previousIndex, event.currentIndex);
-    // Notificamos al stream que la lista completa ha sido reordenada.
-    // La lógica de combineLatest se encargará de volver a cortar y mostrar la porción correcta.
     this.allEntities$.next([...this.allEntities]);
   }
   
-  // NUEVA MEJORA: Método para mostrar más objetos en la lista
+  // --- MEJORA: Método para mostrar más objetos en la lista ---
   public showMoreEntities(): void {
     const newCount = this.displayCount$.getValue() + this.listIncrement;
     this.displayCount$.next(newCount);
@@ -250,6 +248,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   handleLoadingProgress(p: number): void { this.loadingProgress = p; this.cdr.detectChanges(); }
   handleLoadingComplete(): void { this.loadingProgress = 100; setTimeout(() => { this.isRenderingScene = false; this.cdr.detectChanges(); }, 500); }
   closeAddObjectModal(): void { this.isAddObjectModalVisible = false; }
+  
   private simulateLoadingProgress(): void {
     let progress = 0;
     const interval = setInterval(() => {

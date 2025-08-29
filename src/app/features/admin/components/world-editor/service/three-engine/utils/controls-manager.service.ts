@@ -31,8 +31,8 @@ export class ControlsManagerService implements OnDestroy {
   public isFlyModeActive$ = this.isFlyModeActiveSubject.asObservable();
 
   private velocity = new THREE.Vector3();
-  private readonly MOVEMENT_SPEED = 800.0;
-  private readonly BOOST_MULTIPLIER = 800.0;
+  private readonly MOVEMENT_SPEED = 1000.0;
+  private readonly BOOST_MULTIPLIER = 1000.0;
   private readonly DAMPING_FACTOR = 0.90;
   
   private tempVector = new THREE.Vector3();

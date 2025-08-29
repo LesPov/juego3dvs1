@@ -27,7 +27,7 @@ export class SceneManagerService {
 
     const fieldOfView = 20;
     // --- MEJORA CLAVE: Horizonte de renderizado expandido a una escala cósmica ---
-      const cameraFarPlane = 8000000; // 8 millones de unidades de rango de visión
+      const cameraFarPlane = 12000000; // 8 millones de unidades de rango de visión
     const cameraNearPlane = 1.0; 
     
     this.editorCamera = new THREE.PerspectiveCamera(
@@ -39,7 +39,7 @@ export class SceneManagerService {
     
     this.editorCamera.name = 'Cámara del Editor';
     // Posición inicial panorámica para apreciar la vasta escala de la escena
-    this.editorCamera.position.set(0, 0, 5600000); 
+    this.editorCamera.position.set(0, 0, 8241185); 
     this.scene.add(this.editorCamera);
 
     this.renderer = new THREE.WebGLRenderer({
