@@ -1,3 +1,4 @@
+// src/app/modules/admin/pages/episode-creator/engine/engine.service.ts
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
@@ -16,8 +17,24 @@ import { CelestialInstanceData } from './utils/object-manager.service';
 const INSTANCES_TO_CHECK_PER_FRAME = 20000;
 const VISUAL_BOOST_FACTOR = 1.8;
 const DOMINANT_OBJECT_BOOST_FACTOR = 2.0;
-const FADE_START_DISTANCE = 100000;
-const FADE_END_DISTANCE = 180000;
+
+// --- LÓGICA DE VISUALIZACIÓN FINAL ---
+
+// --- 1. Impulso para Objetos de Fondo (Z negativo) ---
+const DEEP_SPACE_SCALE_BOOST = 3.0; 
+const DEEP_SPACE_BRIGHTNESS_MULTIPLIER = 3.5; 
+
+// --- 2. Curva de Brillo para Objetos Cercanos (Z positivo) ---
+const CLOSE_UP_DISTANCE = 4000;
+const FOREGROUND_PEAK_BRIGHTNESS_DISTANCE = 20000;
+const FOREGROUND_FALLOFF_START_DISTANCE = 25000;
+const FOREGROUND_DIM_DISTANCE = 100000;
+const HALO_FADE_START_DISTANCE = 35000;
+const HALO_FADE_END_DISTANCE = 90000;
+
+// --- 3. Distancias para Desaparición (¡EXTENSIÓN MASIVA FINAL!) ---
+const FADE_START_DISTANCE = 7000000; // Desvanecimiento empieza en 7.5 millones
+const FADE_END_DISTANCE = 7000000;   // Desaparición completa cerca del límite de la cámara
 
 @Injectable()
 export class EngineService implements OnDestroy {
@@ -31,7 +48,6 @@ export class EngineService implements OnDestroy {
   private axisLockStateSubject = new BehaviorSubject<'x' | 'y' | 'z' | null>(null);
   public axisLockState$ = this.axisLockStateSubject.asObservable();
   
-  // Subject que emite la orientación de la cámara para que la brújula (y otros componentes) la escuche.
   private cameraOrientationSubject = new BehaviorSubject<THREE.Quaternion>(new THREE.Quaternion());
   public cameraOrientation$ = this.cameraOrientationSubject.asObservable();
 
@@ -46,6 +62,9 @@ export class EngineService implements OnDestroy {
   private projScreenMatrix = new THREE.Matrix4();
   private boundingSphere = new THREE.Sphere();
   private updateIndexCounter = 0;
+  private whiteColor = new THREE.Color(0xffffff);
+  private finalHaloColor = new THREE.Color();
+  private tempScale = new THREE.Vector3();
 
   constructor(
     private sceneManager: SceneManagerService,
@@ -105,22 +124,14 @@ export class EngineService implements OnDestroy {
     this.animationFrameId = requestAnimationFrame(this.animate);
     this.statsManager.begin();
     const delta = this.clock.getDelta();
-
-    // Actualiza los controles de la cámara (fly o orbit) y nos dice si hubo movimiento.
     const cameraMoved = this.controlsManager.update(delta, this.keyMap);
-    
     if (cameraMoved) {
       this.interactionHelperManager.updateScale();
       this.cameraPositionSubject.next(this.sceneManager.editorCamera.position);
     }
     
-    // --- LÓGICA CLAVE PARA LA BRÚJULA ---
-    // En cada fotograma, obtenemos la orientación actual de la cámara.
     this.sceneManager.editorCamera.getWorldQuaternion(this.tempQuaternion);
-    
-    // Para optimizar, solo emitimos el valor si ha cambiado desde el último fotograma.
     if (!this.tempQuaternion.equals(this.cameraOrientationSubject.getValue())) {
-      // Emitimos la nueva orientación. El BrujulaComponent está escuchando este observable.
       this.cameraOrientationSubject.next(this.tempQuaternion.clone());
     }
 
@@ -154,35 +165,59 @@ export class EngineService implements OnDestroy {
     for (let i = startIndex; i < endIndex; i++) {
       const data = allData[i];
       this.boundingSphere.center.copy(data.position);
-      this.boundingSphere.radius = Math.max(data.scale.x, data.scale.y, data.scale.z);
+      
+      const isForegroundObject = data.position.z > 0;
+      const sphereRadiusScale = isForegroundObject ? 1.0 : DEEP_SPACE_SCALE_BOOST;
+      this.boundingSphere.radius = Math.max(data.scale.x, data.scale.y, data.scale.z) * sphereRadiusScale;
+      
       const isInFrustum = this.frustum.intersectsSphere(this.boundingSphere);
       const distance = data.position.distanceTo(camera.position);
-      const attenuation = 1.0 - THREE.MathUtils.smoothstep(distance, FADE_START_DISTANCE, FADE_END_DISTANCE);
-      const isVisible = isInFrustum && attenuation > 0;
+      const finalFadeOut = 1.0 - THREE.MathUtils.smoothstep(distance, FADE_START_DISTANCE, FADE_END_DISTANCE);
+      const isCurrentlyVisible = isInFrustum && finalFadeOut > 0;
 
-      if (isVisible !== data.isVisible) {
-        if (isVisible) {
-          this.tempMatrix.compose(data.position, camera.quaternion, data.scale);
-          instancedMesh.setMatrixAt(i, this.tempMatrix);
-          const boostFactor = data.isDominant ? VISUAL_BOOST_FACTOR * DOMINANT_OBJECT_BOOST_FACTOR : VISUAL_BOOST_FACTOR;
-          const scaleMultiplier = 1.0 + Math.log1p(data.scale.x * 0.7);
-          const finalIntensity = data.emissiveIntensity * scaleMultiplier * boostFactor * attenuation;
-          this.tempColor.copy(data.originalColor).multiplyScalar(finalIntensity);
-          instancedMesh.setColorAt(i, this.tempColor);
-          needsColorUpdate = true;
-          needsMatrixUpdate = true;
+      if (isCurrentlyVisible) {
+        if (!data.isVisible) data.isVisible = true;
+
+        let brightnessByDistance = 1.0;
+        let haloFadeFactor = 0.0;
+        this.tempScale.copy(data.scale);
+        
+        if (isForegroundObject) {
+          if (distance < CLOSE_UP_DISTANCE) {
+            brightnessByDistance = THREE.MathUtils.mapLinear(distance, 0, CLOSE_UP_DISTANCE, 0.4, 0.8);
+          } else if (distance < FOREGROUND_PEAK_BRIGHTNESS_DISTANCE) {
+            brightnessByDistance = THREE.MathUtils.mapLinear(distance, CLOSE_UP_DISTANCE, FOREGROUND_PEAK_BRIGHTNESS_DISTANCE, 0.8, 1.0);
+          } else {
+            brightnessByDistance = 1.0 - THREE.MathUtils.smoothstep(distance, FOREGROUND_FALLOFF_START_DISTANCE, FOREGROUND_DIM_DISTANCE);
+          }
+          haloFadeFactor = THREE.MathUtils.smoothstep(distance, HALO_FADE_START_DISTANCE, HALO_FADE_END_DISTANCE);
         } else {
-          this.tempColor.setRGB(0, 0, 0);
-          instancedMesh.setColorAt(i, this.tempColor);
-          needsColorUpdate = true;
+          brightnessByDistance = DEEP_SPACE_BRIGHTNESS_MULTIPLIER; 
+          this.tempScale.multiplyScalar(DEEP_SPACE_SCALE_BOOST);
+          haloFadeFactor = 0.0;
         }
-        data.isVisible = isVisible;
-      } else if (isVisible) {
-        this.tempMatrix.compose(data.position, camera.quaternion, data.scale);
+        
+        this.tempMatrix.compose(data.position, camera.quaternion, this.tempScale);
         instancedMesh.setMatrixAt(i, this.tempMatrix);
         needsMatrixUpdate = true;
+        
+        this.finalHaloColor.copy(data.originalColor).lerp(this.whiteColor, haloFadeFactor);
+        const boostFactor = data.isDominant ? VISUAL_BOOST_FACTOR * DOMINANT_OBJECT_BOOST_FACTOR : VISUAL_BOOST_FACTOR;
+        const scaleMultiplier = 1.0 + Math.log1p(data.scale.x * 0.7);
+        const baseIntensity = data.emissiveIntensity * scaleMultiplier * boostFactor;
+        const finalIntensity = baseIntensity * brightnessByDistance * finalFadeOut;
+        this.tempColor.copy(this.finalHaloColor).multiplyScalar(finalIntensity);
+        instancedMesh.setColorAt(i, this.tempColor);
+        needsColorUpdate = true;
+
+      } else if (!isCurrentlyVisible && data.isVisible) {
+        this.tempColor.setRGB(0, 0, 0);
+        instancedMesh.setColorAt(i, this.tempColor);
+        needsColorUpdate = true;
+        data.isVisible = false;
       }
     }
+    
     this.updateIndexCounter = endIndex >= allData.length ? 0 : endIndex;
     if (needsColorUpdate && instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
     if (needsMatrixUpdate) instancedMesh.instanceMatrix.needsUpdate = true;
@@ -268,8 +303,6 @@ export class EngineService implements OnDestroy {
   };
 
   private onControlsChange = () => {
-    // La orientación de la cámara ya se gestiona en el bucle 'animate'.
-    // Aquí solo gestionamos acciones específicas del evento 'change' de OrbitControls.
     this.interactionHelperManager.updateScale();
   };
 

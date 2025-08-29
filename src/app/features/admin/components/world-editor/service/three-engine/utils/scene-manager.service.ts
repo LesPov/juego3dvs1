@@ -25,12 +25,10 @@ export class SceneManagerService {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x000000); 
 
-    // --- MEJORA CLAVE: Aumentar el campo de visión de la cámara ---
     const fieldOfView = 20;
-    // El valor de SCENE_DEPTH_SPREAD en Python es 200000. Ponemos un valor superior
-    // para asegurarnos de que todo se renderice.
-    const cameraFarPlane = 250000; 
-    const cameraNearPlane = 1.0; // Un valor ligeramente mayor puede mejorar la precisión de la profundidad.
+    // --- MEJORA CLAVE: Horizonte de renderizado expandido a una escala cósmica ---
+      const cameraFarPlane = 8000000; // 8 millones de unidades de rango de visión
+    const cameraNearPlane = 1.0; 
     
     this.editorCamera = new THREE.PerspectiveCamera(
       fieldOfView, 
@@ -40,8 +38,8 @@ export class SceneManagerService {
     );
     
     this.editorCamera.name = 'Cámara del Editor';
-    // Ajustamos la posición inicial para tener una buena vista de la escena expandida.
-    this.editorCamera.position.set(0, 0, 50000);
+    // Posición inicial panorámica para apreciar la vasta escala de la escena
+    this.editorCamera.position.set(0, 0, 5600000); 
     this.scene.add(this.editorCamera);
 
     this.renderer = new THREE.WebGLRenderer({
@@ -51,8 +49,7 @@ export class SceneManagerService {
     });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    // Reducimos ligeramente la exposición para compensar el brillo de miles de objetos
-    this.renderer.toneMappingExposure = 0.5;
+    this.renderer.toneMappingExposure = 0.7;
     
     const normalPixelRatio = Math.min(window.devicePixelRatio, 2);
     this.renderer.setPixelRatio(normalPixelRatio);
@@ -70,9 +67,9 @@ export class SceneManagerService {
     
     const bloomPass = new UnrealBloomPass(
       new THREE.Vector2(canvas.clientWidth, canvas.clientHeight),
-      0.2,  // strength
-      0.2,  // radius
-      0.1   // threshold (bajo para capturar colores)
+      0.15,
+      0.4,
+      0.9
     );
 
     const outputPass = new OutputPass();
@@ -107,7 +104,6 @@ export class SceneManagerService {
       const fovRad = THREE.MathUtils.degToRad(this.editorCamera.fov);
       const effectiveHeight = sceneWidth / this.editorCamera.aspect > sceneHeight ? sceneWidth / this.editorCamera.aspect : sceneHeight;
       const distance = (effectiveHeight / 2) / Math.tan(fovRad / 2);
-      // Aumentamos el multiplicador para alejarnos un poco más y ver toda la escena inicial.
       const finalZ = distance * 1.5;
       this.editorCamera.position.set(0, 0, finalZ);
       this.editorCamera.lookAt(0, 0, 0);

@@ -1,3 +1,4 @@
+// src/app/modules/admin/pages/episode-creator/engine/utils/object-manager.service.ts
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -58,7 +59,8 @@ export class ObjectManagerService {
     if (!objectsData.length) return;
     const count = objectsData.length;
 
-    const geometry = new THREE.PlaneGeometry(10, 10);
+    // --- MEJORA: Aumentamos el tamaño base de la geometría para un halo más prominente ---
+    const geometry = new THREE.PlaneGeometry(15, 15);
 
     const material = new THREE.MeshBasicMaterial({
       map: this._createGlowTexture(),
@@ -67,7 +69,6 @@ export class ObjectManagerService {
       depthWrite: false,
     });
 
-    // <<< SOLUCIÓN FINAL: SHADER DE MEZCLA DE COLOR + MÁSCARA CIRCULAR >>>
     material.onBeforeCompile = (shader) => {
       shader.vertexShader = 'varying vec2 vUv;\n' + shader.vertexShader;
       shader.vertexShader = shader.vertexShader.replace(
@@ -75,34 +76,16 @@ export class ObjectManagerService {
         '#include <uv_vertex>\nvUv = uv;'
       );
 
-      // Reemplazamos toda la lógica de color y transparencia
       shader.fragmentShader = 'varying vec2 vUv;\n' + shader.fragmentShader;
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <map_fragment>',
         `
-          // 1. OBTENER EL FACTOR DE MEZCLA DE LA TEXTURA
-          // La textura ahora es un simple gradiente de blanco a negro.
-          // El valor .r nos da un número entre 0.0 (borde) y 1.0 (centro).
           float mixFactor = texture2D(map, vUv).r;
-
-          // 2. DEFINIR LOS COLORES A MEZCLAR
-          // 'vColor' es el color del resplandor (emissive_color) que viene de la instancia.
-          vec3 haloColor = vColor;
-          // El núcleo del objeto siempre será blanco puro, como en tu backend.
+          vec3 haloColor = vColor; 
           vec3 coreColor = vec3(1.0, 1.0, 1.0);
-
-          // 3. MEZCLAR LOS COLORES
-          // 'mix(A, B, factor)' mezcla entre A y B.
-          // Si factor=0, el resultado es A (haloColor).
-          // Si factor=1, el resultado es B (coreColor).
           vec3 finalColor = mix(haloColor, coreColor, mixFactor);
-
-          // 4. APLICAR LA MÁSCARA CIRCULAR PARA LA FORMA
           float dist = distance(vUv, vec2(0.5));
           float alphaMask = 1.0 - smoothstep(0.48, 0.5, dist);
-
-          // El color final se asigna a diffuseColor. La transparencia es la del gradiente original
-          // multiplicada por nuestra máscara circular perfecta.
           diffuseColor = vec4(finalColor, mixFactor * alphaMask);
         `
       );
@@ -122,8 +105,6 @@ export class ObjectManagerService {
     for (let i = 0; i < count; i++) {
       const objData = objectsData[i];
       const properties = objData.properties || {};
-      // ¡IMPORTANTE! Ahora usamos 'emissive_color' como el color principal.
-      // El color del núcleo (blanco) se maneja en el shader.
       const visualColorHex = properties['emissive_color'] || properties['color'];
       const visualColor = new THREE.Color(sanitizeHexColor(visualColorHex));
       const emissiveIntensity = properties['emissive_intensity'] as number || 0.0;
@@ -153,27 +134,17 @@ export class ObjectManagerService {
     scene.add(instancedMesh);
   }
 
-  // <<< MEJORA CLAVE: TEXTURA DE MAPA DE MEZCLA >>>
-  // Esta textura ya no es un "resplandor", sino un simple gradiente que el shader
-  // usará para mezclar entre el color del núcleo y el color del resplandor.
   private _createGlowTexture(): THREE.CanvasTexture {
     if (this.glowTexture) return this.glowTexture;
-
     const canvas = document.createElement('canvas');
     const size = 256;
-    canvas.width = size;
-    canvas.height = size;
+    canvas.width = size; canvas.height = size;
     const context = canvas.getContext('2d')!;
-
     const gradient = context.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-
-    // Un gradiente simple y suave: blanco en el centro (valor 1.0), negro en el borde (valor 0.0).
-    gradient.addColorStop(0, 'rgba(255, 255, 255, 1)'); // Núcleo
-    gradient.addColorStop(1, 'rgba(0, 0, 0, 1)');     // Borde
-
+    gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
     context.fillStyle = gradient;
     context.fillRect(0, 0, size, size);
-
     this.glowTexture = new THREE.CanvasTexture(canvas);
     this.glowTexture.needsUpdate = true;
     return this.glowTexture;
