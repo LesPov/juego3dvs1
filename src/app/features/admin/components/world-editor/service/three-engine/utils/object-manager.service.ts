@@ -14,6 +14,8 @@ export interface CelestialInstanceData {
   scale: THREE.Vector3;
   isVisible: boolean;
   isDominant: boolean;
+  // --- MEJORA: Se añade una puntuación de luminosidad pre-calculada para la visibilidad ---
+  luminosity: number;
 }
 
 function sanitizeHexColor(color: any, defaultColor: string = '#ffffff'): string {
@@ -58,9 +60,7 @@ export class ObjectManagerService {
     if (!objectsData.length) return;
     const count = objectsData.length;
 
-    // --- MEJORA: Aumentamos el tamaño base de la geometría para un halo más prominente a distancia ---
-    const geometry = new THREE.PlaneGeometry(35, 35);
-
+    const geometry = new THREE.PlaneGeometry(20, 20);
     const material = new THREE.MeshBasicMaterial({
       map: this._createGlowTexture(),
       transparent: true,
@@ -74,7 +74,6 @@ export class ObjectManagerService {
         '#include <uv_vertex>',
         '#include <uv_vertex>\nvUv = uv;'
       );
-
       shader.fragmentShader = 'varying vec2 vUv;\n' + shader.fragmentShader;
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <map_fragment>',
@@ -101,6 +100,9 @@ export class ObjectManagerService {
     const quaternion = new THREE.Quaternion();
     const scale = new THREE.Vector3();
 
+    const BASE_SCALE = 600.0; // Corresponde a UNIFORM_SCALE.x en el script de Python.
+    const DOMINANT_LUMINOSITY_MULTIPLIER = 5.0; // Qué tan "potentes" son los objetos dominantes.
+
     for (let i = 0; i < count; i++) {
       const objData = objectsData[i];
       const properties = objData.properties || {};
@@ -116,6 +118,11 @@ export class ObjectManagerService {
       instancedMesh.setMatrixAt(i, matrix);
       instancedMesh.setColorAt(i, new THREE.Color(0x000000));
 
+      // --- MEJORA: Cálculo de la puntuación de luminosidad ---
+      const scaleLuminosity = Math.max(1.0, objData.scale.x / BASE_SCALE);
+      const dominantBoost = isDominant ? DOMINANT_LUMINOSITY_MULTIPLIER : 1.0;
+      const finalLuminosity = scaleLuminosity * dominantBoost;
+
       celestialData.push({
         originalColor: visualColor.clone(),
         emissiveIntensity: emissiveIntensity,
@@ -125,42 +132,34 @@ export class ObjectManagerService {
         originalUuid: objData.id.toString(),
         originalName: objData.name,
         isVisible: false,
-        isDominant: isDominant
+        isDominant: isDominant,
+        luminosity: finalLuminosity
       });
     }
     instancedMesh.instanceMatrix.needsUpdate = true;
     if (instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
     scene.add(instancedMesh);
   }
-  
-  // --- MEJORA CLAVE: Textura de Alta Resolución y Suavizado ---
+
   private _createGlowTexture(): THREE.CanvasTexture {
     if (this.glowTexture) return this.glowTexture;
-
     const canvas = document.createElement('canvas');
-    // Aumentamos la resolución para mayor detalle y menos pixelación
-    const size = 512; 
+    const size = 512;
     canvas.width = size;
     canvas.height = size;
     const context = canvas.getContext('2d')!;
-
     const gradient = context.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    
-    // Gradiente más suave con más pasos para una caída de luz natural
-    gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');      // Núcleo sólido blanco
-    gradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.8)');   // Transición suave
-    gradient.addColorStop(0.6, 'rgba(255, 255, 255, 0.2)');   // Halo exterior
-    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');          // Borde completamente transparente
-
+    gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    gradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.8)');
+    gradient.addColorStop(0.6, 'rgba(255, 255, 255, 0.2)');
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
     context.fillStyle = gradient;
     context.fillRect(0, 0, size, size);
-
     this.glowTexture = new THREE.CanvasTexture(canvas);
     this.glowTexture.needsUpdate = true;
     return this.glowTexture;
   }
-    
-  // ... (El resto del archivo no necesita cambios)
+
   public createSelectionProxy(): THREE.Mesh {
     const proxyGeometry = new THREE.SphereGeometry(1.1, 16, 8);
     const proxyMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0, depthTest: true });

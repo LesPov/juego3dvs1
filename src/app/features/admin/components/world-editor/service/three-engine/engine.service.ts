@@ -14,26 +14,27 @@ import { DragInteractionManagerService } from './utils/drag-interaction.manager.
 import { CelestialInstanceData } from './utils/object-manager.service';
 
 const INSTANCES_TO_CHECK_PER_FRAME = 20000;
-const VISUAL_BOOST_FACTOR = 1.8;
-const DOMINANT_OBJECT_BOOST_FACTOR = 2.0;
-
-// --- LÓGICA DE VISUALIZACIÓN FINAL ---
 
 // --- 1. Impulso para Objetos de Fondo (Z negativo) ---
-const DEEP_SPACE_SCALE_BOOST = 3.0; 
-const DEEP_SPACE_BRIGHTNESS_MULTIPLIER = 3.5; 
+const DEEP_SPACE_SCALE_BOOST = 3.0;
+const DEEP_SPACE_BRIGHTNESS_MULTIPLIER = 3.5;
 
 // --- 2. Curva de Brillo para Objetos Cercanos (Z positivo) ---
 const CLOSE_UP_DISTANCE = 4000;
 const FOREGROUND_PEAK_BRIGHTNESS_DISTANCE = 20000;
 const FOREGROUND_FALLOFF_START_DISTANCE = 25000;
 const FOREGROUND_DIM_DISTANCE = 100000;
-const HALO_FADE_START_DISTANCE = 35000;
-const HALO_FADE_END_DISTANCE = 90000;
 
-// --- 3. MEJORA: Distancias para Desaparición alineadas con la nueva cámara ---
-const FADE_START_DISTANCE = 80000000; // Desvanecimiento empieza en 800 millones
-const FADE_END_DISTANCE = 880000000;   // Desaparición completa cerca del nuevo límite de la cámara
+
+// --- 3. LÓGICA DE VISIBILIDAD PERCEPTUAL CORREGIDA Y AJUSTADA ---
+
+// Distancia base a la que una estrella "normal" (luminosidad = 1.0) se vuelve completamente visible.
+const BASE_VISIBILITY_DISTANCE = 8000000; 
+// Límite máximo de distancia de visibilidad para evitar que objetos super-brillantes se vean desde el infinito.
+const MAX_PERCEPTUAL_DISTANCE = 1000000000; 
+// Porcentaje de la distancia de visibilidad que se usa para el desvanecimiento (fade-in). 0.3 = 30%
+const VISIBILITY_FADE_RANGE_PERCENT = 0.1; 
+
 
 @Injectable()
 export class EngineService implements OnDestroy {
@@ -128,12 +129,10 @@ export class EngineService implements OnDestroy {
       this.interactionHelperManager.updateScale();
       this.cameraPositionSubject.next(this.sceneManager.editorCamera.position);
     }
-    
     this.sceneManager.editorCamera.getWorldQuaternion(this.tempQuaternion);
     if (!this.tempQuaternion.equals(this.cameraOrientationSubject.getValue())) {
       this.cameraOrientationSubject.next(this.tempQuaternion.clone());
     }
-
     this.updateVisibleCelestialInstances();
     this.sceneManager.composer.render();
     this.statsManager.end();
@@ -149,7 +148,6 @@ export class EngineService implements OnDestroy {
   private updateVisibleCelestialInstances(): void {
     const instancedMesh = this.sceneManager.scene.getObjectByName('CelestialObjectsInstanced') as THREE.InstancedMesh;
     if (!instancedMesh) return;
-
     const allData: CelestialInstanceData[] = instancedMesh.userData['celestialData'];
     if (!allData || allData.length === 0) return;
 
@@ -157,60 +155,79 @@ export class EngineService implements OnDestroy {
     let needsColorUpdate = false;
     let needsMatrixUpdate = false;
     const camera = this.sceneManager.editorCamera;
-
     const startIndex = this.updateIndexCounter;
     const endIndex = Math.min(startIndex + INSTANCES_TO_CHECK_PER_FRAME, allData.length);
 
     for (let i = startIndex; i < endIndex; i++) {
       const data = allData[i];
       this.boundingSphere.center.copy(data.position);
-      
-      const isForegroundObject = data.position.z > 0;
-      const sphereRadiusScale = isForegroundObject ? 1.0 : DEEP_SPACE_SCALE_BOOST;
-      this.boundingSphere.radius = Math.max(data.scale.x, data.scale.y, data.scale.z) * sphereRadiusScale;
-      
-      const isInFrustum = this.frustum.intersectsSphere(this.boundingSphere);
+      this.boundingSphere.radius = Math.max(data.scale.x, data.scale.y, data.scale.z) * DEEP_SPACE_SCALE_BOOST;
+
+      if (!this.frustum.intersectsSphere(this.boundingSphere)) {
+        if (data.isVisible) {
+          this.tempColor.setScalar(0);
+          instancedMesh.setColorAt(i, this.tempColor);
+          needsColorUpdate = true;
+          data.isVisible = false;
+        }
+        continue;
+      }
+
       const distance = data.position.distanceTo(camera.position);
-      const finalFadeOut = 1.0 - THREE.MathUtils.smoothstep(distance, FADE_START_DISTANCE, FADE_END_DISTANCE);
-      const isCurrentlyVisible = isInFrustum && finalFadeOut > 0;
+      const isForegroundObject = data.position.z > 0;
+      let finalIntensity = 0;
 
-      if (isCurrentlyVisible) {
-        if (!data.isVisible) data.isVisible = true;
-
-        let brightnessByDistance = 1.0;
-        let haloFadeFactor = 0.0;
-        this.tempScale.copy(data.scale);
-        
-        if (isForegroundObject) {
-          if (distance < CLOSE_UP_DISTANCE) {
-            brightnessByDistance = THREE.MathUtils.mapLinear(distance, 0, CLOSE_UP_DISTANCE, 0.4, 0.8);
-          } else if (distance < FOREGROUND_PEAK_BRIGHTNESS_DISTANCE) {
-            brightnessByDistance = THREE.MathUtils.mapLinear(distance, CLOSE_UP_DISTANCE, FOREGROUND_PEAK_BRIGHTNESS_DISTANCE, 0.8, 1.0);
-          } else {
-            brightnessByDistance = 1.0 - THREE.MathUtils.smoothstep(distance, FOREGROUND_FALLOFF_START_DISTANCE, FOREGROUND_DIM_DISTANCE);
-          }
-          haloFadeFactor = THREE.MathUtils.smoothstep(distance, HALO_FADE_START_DISTANCE, HALO_FADE_END_DISTANCE);
+      if (isForegroundObject && distance < FOREGROUND_DIM_DISTANCE) {
+        // --- LÓGICA PARA OBJETOS CERCANOS (Z POSITIVO) ---
+        let brightnessByDistance = 0;
+        if (distance < CLOSE_UP_DISTANCE) {
+          brightnessByDistance = THREE.MathUtils.mapLinear(distance, 0, CLOSE_UP_DISTANCE, 0.4, 0.8);
+        } else if (distance < FOREGROUND_PEAK_BRIGHTNESS_DISTANCE) {
+          brightnessByDistance = THREE.MathUtils.mapLinear(distance, CLOSE_UP_DISTANCE, FOREGROUND_PEAK_BRIGHTNESS_DISTANCE, 0.8, 1.0);
         } else {
-          brightnessByDistance = DEEP_SPACE_BRIGHTNESS_MULTIPLIER; 
-          this.tempScale.multiplyScalar(DEEP_SPACE_SCALE_BOOST);
-          haloFadeFactor = 0.0;
+          brightnessByDistance = 1.0 - THREE.MathUtils.smoothstep(distance, FOREGROUND_FALLOFF_START_DISTANCE, FOREGROUND_DIM_DISTANCE);
+        }
+        finalIntensity = data.emissiveIntensity * brightnessByDistance;
+        this.tempScale.copy(data.scale);
+      } else {
+        // --- LÓGICA MEJORADA PARA OBJETOS LEJANOS (Z NEGATIVO) ---
+        // 1. Calcular la distancia a la que este objeto debería ser visible.
+        const personalVisibilityDistance = Math.min(BASE_VISIBILITY_DISTANCE * data.luminosity, MAX_PERCEPTUAL_DISTANCE);
+
+        // 2. Si la cámara está más lejos que esa distancia, el objeto es invisible.
+        if (distance > personalVisibilityDistance) {
+          if (data.isVisible) {
+             this.tempColor.setScalar(0);
+             instancedMesh.setColorAt(i, this.tempColor);
+             needsColorUpdate = true;
+             data.isVisible = false;
+          }
+          continue; // Saltar al siguiente objeto
         }
         
+        // 3. Calcular el factor de desvanecimiento (fade-in).
+        const fadeInStartsAt = personalVisibilityDistance;
+        const fadeInEndsAt = personalVisibilityDistance * (1.0 - VISIBILITY_FADE_RANGE_PERCENT);
+        // La fórmula `1.0 - smoothstep` crea un fade-in correcto a medida que la distancia disminuye.
+        const visibilityFactor = 1.0 - THREE.MathUtils.smoothstep(distance, fadeInEndsAt, fadeInStartsAt);
+        
+        // 4. Calcular la intensidad final combinando todo.
+        finalIntensity = data.emissiveIntensity * DEEP_SPACE_BRIGHTNESS_MULTIPLIER * visibilityFactor;
+        this.tempScale.copy(data.scale).multiplyScalar(DEEP_SPACE_SCALE_BOOST);
+      }
+
+      if (finalIntensity > 0.001) {
+        if (!data.isVisible) data.isVisible = true;
+
         this.tempMatrix.compose(data.position, camera.quaternion, this.tempScale);
         instancedMesh.setMatrixAt(i, this.tempMatrix);
         needsMatrixUpdate = true;
-        
-        this.finalHaloColor.copy(data.originalColor).lerp(this.whiteColor, haloFadeFactor);
-        const boostFactor = data.isDominant ? VISUAL_BOOST_FACTOR * DOMINANT_OBJECT_BOOST_FACTOR : VISUAL_BOOST_FACTOR;
-        const scaleMultiplier = 1.0 + Math.log1p(data.scale.x * 0.7);
-        const baseIntensity = data.emissiveIntensity * scaleMultiplier * boostFactor;
-        const finalIntensity = baseIntensity * brightnessByDistance * finalFadeOut;
-        this.tempColor.copy(this.finalHaloColor).multiplyScalar(finalIntensity);
+
+        this.tempColor.copy(data.originalColor).multiplyScalar(finalIntensity);
         instancedMesh.setColorAt(i, this.tempColor);
         needsColorUpdate = true;
-
-      } else if (!isCurrentlyVisible && data.isVisible) {
-        this.tempColor.setRGB(0, 0, 0);
+      } else if (data.isVisible) {
+        this.tempColor.setScalar(0);
         instancedMesh.setColorAt(i, this.tempColor);
         needsColorUpdate = true;
         data.isVisible = false;
@@ -221,9 +238,9 @@ export class EngineService implements OnDestroy {
     if (needsColorUpdate && instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
     if (needsMatrixUpdate) instancedMesh.instanceMatrix.needsUpdate = true;
   }
-
+  
+  // --- MÉTODOS RESTANTES (SIN CAMBIOS) ---
   public selectObjectByUuid(uuid: string | null): void {
-    // ... (El resto del archivo no necesita cambios)
     this.interactionHelperManager.cleanupHelpers(this.selectedObject);
     this.dragInteractionManager.stopListening();
     this.controlsManager.detach();
@@ -295,17 +312,14 @@ export class EngineService implements OnDestroy {
   private removeEventListeners = (): void => {
     const controls = this.controlsManager.getControls();
     controls?.removeEventListener('end', this.handleTransformEnd);
-    controls?.removeEventListener('change', this.onControlsChange);
+    controls?.removeEventListener('change', a => this.onControlsChange());
     window.removeEventListener('resize', this.onWindowResize);
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     this.controlsSubscription?.unsubscribe();
   };
 
-  private onControlsChange = () => {
-    this.interactionHelperManager.updateScale();
-  };
-
+  private onControlsChange = () => { this.interactionHelperManager.updateScale(); };
   private onKeyDown = (e: KeyboardEvent) => {
     const key = e.key.toLowerCase();
     if (key === 'escape') { this.controlsManager.exitFlyMode(); return; }
@@ -316,7 +330,6 @@ export class EngineService implements OnDestroy {
       this.axisLockStateSubject.next(this.axisLock);
     }
   };
-
   private onKeyUp = (e: KeyboardEvent) => this.keyMap.set(e.key.toLowerCase(), false);
   public frameScene = (width: number, height: number) => this.sceneManager.frameScene(width, height);
   public getGizmoAttachedObject = (): THREE.Object3D | undefined => this.selectedObject;
@@ -324,11 +337,7 @@ export class EngineService implements OnDestroy {
   private onWindowResize = () => { this.sceneManager.onWindowResize(); this.selectionManager.onResize(this.sceneManager.renderer.domElement.width, this.sceneManager.renderer.domElement.height); this.interactionHelperManager.updateScale(); };
   public addObjectToScene = (objData: SceneObjectResponse) => this.entityManager.createObjectFromData(objData);
   public updateObjectName = (uuid: string, newName: string) => this.entityManager.updateObjectName(uuid, newName);
-  public updateObjectTransform = (uuid: string, path: 'position' | 'rotation' | 'scale', value: { x: number; y: number; z: number; }) => {
-    const obj = this.entityManager.getObjectByUuid(uuid);
-    if (obj) { obj[path].set(value.x, value.y, value.z); if (path === 'position') this.interactionHelperManager.updateHelperPositions(obj); }
-  };
-    
+  public updateObjectTransform = (uuid: string, path: 'position' | 'rotation' | 'scale', value: { x: number; y: number; z: number; }) => { const obj = this.entityManager.getObjectByUuid(uuid); if (obj) { obj[path].set(value.x, value.y, value.z); if (path === 'position') this.interactionHelperManager.updateHelperPositions(obj); }};
   public setCameraView = (axisName: string) => {
     const controls = this.controlsManager.getControls(); if (!controls) return;
     const target = this.sceneManager.focusPivot.position; const distance = Math.max(this.sceneManager.editorCamera.position.distanceTo(target), 5);
