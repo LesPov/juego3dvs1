@@ -1,2 +1,16 @@
-<!-- Ubicación sugerida: src/app/features/admin/components/world-editor/brujula/brujula.component.html -->
-<div #brujulaContainer class="brujula-container"></div>
+<!-- src/app/features/admin/components/world-editor/brujula/brujula.component.html -->
+
+<!-- Un contenedor principal para la brújula y el botón -->
+<div class="brujula-wrapper">
+
+  <!-- El contenedor del canvas 3D no cambia -->
+  <div #brujulaContainer class="brujula-container"></div>
+
+  <!-- ¡NUEVO! El botón para cambiar de perspectiva -->
+  <button class="perspective-toggle" (click)="toggleViewMode()">
+    <!-- El texto del botón cambia según el modo actual -->
+    <span *ngIf="cameraMode === 'perspective'"> 2D</span>
+    <span *ngIf="cameraMode === 'orthographic'"> 3D</span>
+  </button>
+  
+</div>

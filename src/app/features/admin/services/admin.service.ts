@@ -14,7 +14,7 @@ export interface SceneObjectResponse {
     id: number;
    type: 'cube' | 'sphere' | 'floor' | 'model' |
           'camera' | 'ambientLight' | 'directionalLight' | 'cone' | 'torus' |
-          'star' | 'galaxy' | 'meteor' | 'supernova'; // <-- AÑADIDOS
+          'star' | 'galaxy' | 'supernova'; // <-- AÑADIDOS
 
     name: string;
     position: { x: number; y: number; z: number };

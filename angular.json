@@ -11,7 +11,7 @@
       "prefix": "app",
       "architect": {
         "build": {
-         "builder": "@angular-devkit/build-angular:browser",
+          "builder": "@angular-devkit/build-angular:browser",
           "options": {
             "outputPath": "www",
             "index": "src/index.html",
@@ -49,10 +49,10 @@
               "leaflet",
               "rgbcolor",
               "raf",
-              "raf",
               "jspdf",
               "html2canvas",
-              "cannon"
+              "cannon",
+              "stats.js"
             ],
             "optimization": true,
             "vendorChunk": true,
