@@ -26,8 +26,7 @@ export class SceneManagerService {
 
     const fieldOfView = 45;
 
-    // --- MEJORA: Horizonte de renderizado expandido drásticamente para la nueva lógica de visibilidad ---
-    const cameraFarPlane = 100000000; // 100 millones, para asegurar que los objetos lejanos no se corten.
+    const cameraFarPlane = 1000000000;
     const cameraNearPlane = 10.0;     
 
     this.editorCamera = new THREE.PerspectiveCamera(
@@ -38,7 +37,7 @@ export class SceneManagerService {
     );
 
     this.editorCamera.name = 'Cámara del Editor';
-    this.editorCamera.position.set(0, 0, 4200000);
+    this.editorCamera.position.set(0, 0, 9200000);
     this.scene.add(this.editorCamera);
 
     this.renderer = new THREE.WebGLRenderer({
@@ -48,7 +47,10 @@ export class SceneManagerService {
     });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.5; // Un poco más de exposición para compensar brillos lejanos.
+    
+    // MEJORA: Aumentamos la exposición general para que el fondo no sea tan oscuro.
+    // Al controlar el bloom, podemos permitirnos una escena base más brillante.
+    this.renderer.toneMappingExposure = 0.5;
 
     const normalPixelRatio = Math.min(window.devicePixelRatio, 2);
     this.renderer.setPixelRatio(normalPixelRatio);
@@ -64,11 +66,12 @@ export class SceneManagerService {
   private setupPostProcessing(canvas: HTMLCanvasElement): void {
     const renderPass = new RenderPass(this.scene, this.editorCamera);
 
+    // MEJORA: Lógica de bloom reajustada para control y realismo.
     const bloomPass = new UnrealBloomPass(
       new THREE.Vector2(canvas.clientWidth, canvas.clientHeight),
-      0.3, // strength
-      0.5, // radius
-      0.1 // threshold
+      0.35, // strength: Un poco más de fuerza para que los objetos que sí florecen se noten.
+      0.6,  // radius: Un radio mayor para un resplandor más suave y difuso.
+      0.95  // threshold: ¡EL CAMBIO CLAVE! Solo píxeles casi blancos (brillo > 95%) activarán el bloom.
     );
 
     const outputPass = new OutputPass();

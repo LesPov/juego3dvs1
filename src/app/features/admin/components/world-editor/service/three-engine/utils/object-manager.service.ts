@@ -1,8 +1,10 @@
+// src/app/features/admin/components/world-editor/service/three-engine/utils/object-manager.service.ts
+
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+ import { environment } from '../../../../../../../../environments/environment';
 import { SceneObjectResponse } from '../../../../../services/admin.service';
-import { environment } from '../../../../../../../../environments/environment';
 
 export interface CelestialInstanceData {
   originalColor: THREE.Color;
@@ -14,7 +16,6 @@ export interface CelestialInstanceData {
   scale: THREE.Vector3;
   isVisible: boolean;
   isDominant: boolean;
-  // --- MEJORA: Se añade una puntuación de luminosidad pre-calculada para la visibilidad ---
   luminosity: number;
 }
 
@@ -43,7 +44,7 @@ export class ObjectManagerService {
           this.loadGltfModel(scene, objData, loader);
         }
         break;
-      case 'star': case 'galaxy': case 'meteor':
+      case 'star': case 'galaxy': case 'supernova':
         console.warn(`[ObjectManager] La creación individual de '${objData.type}' se maneja por InstancedMesh.`);
         break;
       case 'cube': case 'sphere': case 'cone': case 'torus': case 'floor':
@@ -60,7 +61,7 @@ export class ObjectManagerService {
     if (!objectsData.length) return;
     const count = objectsData.length;
 
-    const geometry = new THREE.PlaneGeometry(20, 20);
+    const geometry = new THREE.PlaneGeometry(10, 10);
     const material = new THREE.MeshBasicMaterial({
       map: this._createGlowTexture(),
       transparent: true,
@@ -100,8 +101,8 @@ export class ObjectManagerService {
     const quaternion = new THREE.Quaternion();
     const scale = new THREE.Vector3();
 
-    const BASE_SCALE = 600.0; // Corresponde a UNIFORM_SCALE.x en el script de Python.
-    const DOMINANT_LUMINOSITY_MULTIPLIER = 5.0; // Qué tan "potentes" son los objetos dominantes.
+    const BASE_SCALE = 600.0;
+    const DOMINANT_LUMINOSITY_MULTIPLIER = 5.0;
 
     for (let i = 0; i < count; i++) {
       const objData = objectsData[i];
@@ -118,7 +119,6 @@ export class ObjectManagerService {
       instancedMesh.setMatrixAt(i, matrix);
       instancedMesh.setColorAt(i, new THREE.Color(0x000000));
 
-      // --- MEJORA: Cálculo de la puntuación de luminosidad ---
       const scaleLuminosity = Math.max(1.0, objData.scale.x / BASE_SCALE);
       const dominantBoost = isDominant ? DOMINANT_LUMINOSITY_MULTIPLIER : 1.0;
       const finalLuminosity = scaleLuminosity * dominantBoost;
