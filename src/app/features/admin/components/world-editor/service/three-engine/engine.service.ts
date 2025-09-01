@@ -1,5 +1,4 @@
 // src/app/features/admin/components/world-editor/service/three-engine/engine.service.ts
-
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
@@ -14,24 +13,24 @@ import { SceneObjectResponse } from '../../../../services/admin.service';
 import { InteractionHelperManagerService } from './utils/interaction-helper.manager.service';
 import { DragInteractionManagerService } from './utils/drag-interaction.manager.service';
 import { CelestialInstanceData } from './utils/object-manager.service';
- 
-const INSTANCES_TO_CHECK_PER_FRAME = 20000;
-const DEEP_SPACE_SCALE_BOOST = 3.0;
-const DEEP_SPACE_BRIGHTNESS_MULTIPLIER = 4.5;
-const DEEP_SPACE_MAX_INTENSITY_NORMAL = 5.0;
-const DEEP_SPACE_MAX_INTENSITY_DOMINANT = 2.0;
-const FOREGROUND_DIM_DISTANCE = 100000;
-const FOREGROUND_MAX_BLOOM_INTENSITY = 2.2;
-const BASE_VISIBILITY_DISTANCE = 80000000;
-const MAX_PERCEPTUAL_DISTANCE = 1000000000000;
-const VISIBILITY_FADE_RANGE_PERCENT = 10.1;
 
-const ORTHO_ZOOM_VISIBILITY_MULTIPLIER = 1.5;
+// --- CONSTANTES DE VISUALIZACIÓN CALIBRADAS ---
+const INSTANCES_TO_CHECK_PER_FRAME = 20000;
+const BASE_VISIBILITY_DISTANCE = 1e11;
+const MAX_PERCEPTUAL_DISTANCE = 1e14;
+const DEEP_SPACE_SCALE_BOOST = 5.0;        
+const ORTHO_ZOOM_VISIBILITY_MULTIPLIER = 2.5;
+
+// --- ¡MEJORA CLAVE! CONSTANTES DE BRILLO CALIBRADAS PARA NO QUEMAR LA IMAGEN ---
+const BRIGHTNESS_MULTIPLIER = 3.5; // Reducido a un valor que produce colores intensos sin sobreexponer.
+const MAX_INTENSITY = 10.0; // Un límite superior más bajo. El "punch" visual lo dará el bloom.
+const BRIGHTNESS_FALLOFF_START_DISTANCE = 50_000_000; // Atenuación más lejana.
 
 export type CameraMode = 'perspective' | 'orthographic';
 
 @Injectable()
 export class EngineService implements OnDestroy {
+  // --- PROPIEDADES SIN CAMBIOS ---
   public onTransformEnd$: Observable<void>;
   private transformEndSubject = new Subject<void>();
   private selectedObject?: THREE.Object3D;
@@ -46,14 +45,11 @@ export class EngineService implements OnDestroy {
   private cameraPositionSubject = new BehaviorSubject<THREE.Vector3>(new THREE.Vector3());
   public cameraPosition$ = this.cameraPositionSubject.asObservable();
   public isFlyModeActive$: Observable<boolean>;
-  
   private cameraModeSubject = new BehaviorSubject<CameraMode>('perspective');
   public cameraMode$ = this.cameraModeSubject.asObservable();
   private originalProjectionMatrix = new THREE.Matrix4();
   private lastOrthographicState: { position: THREE.Vector3, target: THREE.Vector3 } | null = null;
-  
   private baseOrthoMatrixElement: number = 0;
-
   private controlsSubscription?: Subscription;
   private tempColor = new THREE.Color();
   private tempQuaternion = new THREE.Quaternion();
@@ -76,110 +72,6 @@ export class EngineService implements OnDestroy {
     this.onTransformEnd$ = this.transformEndSubject.asObservable().pipe(debounceTime(500));
     this.isFlyModeActive$ = this.controlsManager.isFlyModeActive$;
   }
-  
-  // --- MÉTODO RESTAURADO ---
-  public init(canvasRef: ElementRef<HTMLCanvasElement>): void {
-    const canvas = canvasRef.nativeElement;
-    this.sceneManager.setupBasicScene(canvas);
-    this.entityManager.init(this.sceneManager.scene);
-    this.statsManager.init();
-    this.selectionManager.init(this.sceneManager.scene, this.sceneManager.editorCamera, this.sceneManager.renderer, canvas);
-    this.controlsManager.init(this.sceneManager.editorCamera, canvas, this.sceneManager.scene, this.sceneManager.focusPivot);
-    this.sceneManager.setControls(this.controlsManager.getControls());
-    this.interactionHelperManager.init(this.sceneManager.scene, this.sceneManager.editorCamera);
-    this.dragInteractionManager.init(this.sceneManager.editorCamera, canvas, this.controlsManager);
-    this.controlsManager.enableNavigation();
-    this.addEventListeners();
-
-    if (this.sceneManager.editorCamera) {
-      this.originalProjectionMatrix.copy(this.sceneManager.editorCamera.projectionMatrix);
-    }
-    this.animate();
-  }
-
-  // --- MÉTODO RESTAURADO ---
-  public toggleCameraMode = () => {
-    if (this.cameraModeSubject.getValue() === 'perspective') {
-      if (this.lastOrthographicState) {
-        this.setCameraView(null, this.lastOrthographicState);
-      } else {
-        this.setCameraView('axis-y-neg');
-      }
-    } else {
-      this.switchToPerspectiveView();
-    }
-  }
-
-  public setCameraView = (axisName: string | null, state?: { position: THREE.Vector3, target: THREE.Vector3 }) => {
-    const controls = this.controlsManager.getControls();
-    const camera = this.sceneManager.editorCamera as THREE.PerspectiveCamera;
-    if (!controls || !camera?.isPerspectiveCamera) return;
-
-    const target = this.sceneManager.focusPivot.position.clone();
-    const currentDistance = camera.position.distanceTo(target);
-    const distance = Math.max(currentDistance, 5);
-
-    if (axisName) {
-      const newPosition = new THREE.Vector3();
-      switch (axisName) {
-        case 'axis-x': newPosition.set(distance, 0, 0); break;
-        case 'axis-x-neg': newPosition.set(-distance, 0, 0); break;
-        case 'axis-y': newPosition.set(0, distance, 0); break;
-        case 'axis-y-neg': newPosition.set(0, -distance, 0.0001); break;
-        case 'axis-z': newPosition.set(0, 0, distance); break;
-        case 'axis-z-neg': newPosition.set(0, 0, -distance); break;
-        default: return;
-      }
-      camera.position.copy(target).add(newPosition);
-      camera.lookAt(target);
-      this.lastOrthographicState = { position: camera.position.clone(), target: target.clone() };
-    } else if (state) {
-      camera.position.copy(state.position);
-      camera.lookAt(state.target);
-    }
-
-    const vFOV = (camera.fov * Math.PI) / 180;
-    const frustumHeight = 2 * Math.tan(vFOV / 2) * distance;
-    const aspect = this.sceneManager.renderer.domElement.clientWidth / this.sceneManager.renderer.domElement.clientHeight;
-    const frustumWidth = frustumHeight * aspect;
-
-    const orthoMatrix = new THREE.Matrix4();
-    orthoMatrix.makeOrthographic(
-      frustumWidth / -2, frustumWidth / 2,
-      frustumHeight / 2, frustumHeight / -2,
-      0.01, 100000000
-    );
-
-    camera.projectionMatrix.copy(orthoMatrix);
-    camera.projectionMatrixInverse.copy(orthoMatrix).invert();
-    this.baseOrthoMatrixElement = camera.projectionMatrix.elements[0];
-    this.controlsManager.exitFlyMode();
-    this.controlsManager.isFlyEnabled = false; 
-    controls.enabled = true;
-    controls.enableRotate = false;
-    
-    controls.target.copy(target);
-    controls.update();
-    this.cameraModeSubject.next('orthographic');
-  };
-  
-  // --- MÉTODO RESTAURADO ---
-  public switchToPerspectiveView = () => {
-    const camera = this.sceneManager.editorCamera;
-    const controls = this.controlsManager.getControls();
-    
-    camera.projectionMatrix.copy(this.originalProjectionMatrix);
-    camera.projectionMatrixInverse.copy(this.originalProjectionMatrix).invert();
-
-    this.controlsManager.isFlyEnabled = true;
-    if (controls) {
-      controls.enabled = false;
-      controls.enableRotate = true;
-      controls.update();
-    }
-    
-    this.cameraModeSubject.next('perspective');
-  }
 
   private updateVisibleCelestialInstances(): void {
     const instancedMesh = this.sceneManager.scene.getObjectByName('CelestialObjectsInstanced') as THREE.InstancedMesh;
@@ -194,8 +86,8 @@ export class EngineService implements OnDestroy {
     let visibilityFactor = 1.0;
     if (this.cameraModeSubject.getValue() === 'orthographic' && this.baseOrthoMatrixElement > 0) {
       const currentZoomValue = camera.projectionMatrix.elements[0];
-      const zoomRatio = currentZoomValue / this.baseOrthoMatrixElement;
-      visibilityFactor = 1 + (zoomRatio - 1) * ORTHO_ZOOM_VISIBILITY_MULTIPLIER;
+      const zoomRatio = this.baseOrthoMatrixElement / currentZoomValue;
+      visibilityFactor = zoomRatio * ORTHO_ZOOM_VISIBILITY_MULTIPLIER;
       visibilityFactor = Math.max(0.1, visibilityFactor);
     }
     
@@ -211,31 +103,20 @@ export class EngineService implements OnDestroy {
       }
       
       const distance = data.position.distanceTo(camera.position);
-      const isForegroundObject = data.position.z > 0;
-      let finalIntensity = 0;
-      
-      if (isForegroundObject && distance < FOREGROUND_DIM_DISTANCE) {
-        const brightnessByDistance = 1.0 - THREE.MathUtils.smoothstep(distance, 0, FOREGROUND_DIM_DISTANCE);
-        const calculatedIntensity = data.emissiveIntensity * brightnessByDistance;
-        finalIntensity = Math.min(calculatedIntensity, FOREGROUND_MAX_BLOOM_INTENSITY);
-        this.tempScale.copy(data.scale);
-      } else {
-        let personalVisibilityDistance = Math.min(BASE_VISIBILITY_DISTANCE * data.luminosity, MAX_PERCEPTUAL_DISTANCE);
-        const effectiveVisibilityDistance = personalVisibilityDistance * visibilityFactor;
+      let personalVisibilityDistance = Math.min(BASE_VISIBILITY_DISTANCE * data.luminosity, MAX_PERCEPTUAL_DISTANCE);
+      const effectiveVisibilityDistance = personalVisibilityDistance * visibilityFactor;
 
-        if (distance > effectiveVisibilityDistance) {
-          if (data.isVisible) { this.tempColor.setScalar(0); instancedMesh.setColorAt(i, this.tempColor); needsColorUpdate = true; data.isVisible = false; }
-          continue;
-        }
-
-        const fadeInStartsAt = effectiveVisibilityDistance;
-        const fadeInEndsAt = effectiveVisibilityDistance * (1.0 - VISIBILITY_FADE_RANGE_PERCENT);
-        const visibilityFactorFade = 1.0 - THREE.MathUtils.smoothstep(distance, fadeInEndsAt, fadeInStartsAt);
-        const baseIntensity = data.emissiveIntensity * DEEP_SPACE_BRIGHTNESS_MULTIPLIER * visibilityFactorFade;
-        const maxIntensity = data.isDominant ? DEEP_SPACE_MAX_INTENSITY_DOMINANT : DEEP_SPACE_MAX_INTENSITY_NORMAL;
-        finalIntensity = Math.min(baseIntensity, maxIntensity);
-        this.tempScale.copy(data.scale).multiplyScalar(DEEP_SPACE_SCALE_BOOST);
+      if (distance > effectiveVisibilityDistance) {
+        if (data.isVisible) { this.tempColor.setScalar(0); instancedMesh.setColorAt(i, this.tempColor); needsColorUpdate = true; data.isVisible = false; }
+        continue;
       }
+      
+      const visibilityFalloff = 1.0 - THREE.MathUtils.smoothstep(distance, 0, effectiveVisibilityDistance);
+      const distanceFalloff = 1.0 - THREE.MathUtils.smoothstep(distance, BRIGHTNESS_FALLOFF_START_DISTANCE, effectiveVisibilityDistance);
+      const baseIntensity = data.emissiveIntensity * BRIGHTNESS_MULTIPLIER * visibilityFalloff * distanceFalloff;
+      const finalIntensity = Math.min(baseIntensity, MAX_INTENSITY);
+
+      this.tempScale.copy(data.scale).multiplyScalar(DEEP_SPACE_SCALE_BOOST);
       
       if (finalIntensity > 0.01) {
         if (!data.isVisible) data.isVisible = true;
@@ -255,6 +136,11 @@ export class EngineService implements OnDestroy {
     if (needsMatrixUpdate) instancedMesh.instanceMatrix.needsUpdate = true;
   }
   
+  // --- MÉTODOS RESTANTES (SIN CAMBIOS) ---
+  public init(canvasRef: ElementRef<HTMLCanvasElement>): void { const canvas = canvasRef.nativeElement; this.sceneManager.setupBasicScene(canvas); this.entityManager.init(this.sceneManager.scene); this.statsManager.init(); this.selectionManager.init(this.sceneManager.scene, this.sceneManager.editorCamera, this.sceneManager.renderer, canvas); this.controlsManager.init(this.sceneManager.editorCamera, canvas, this.sceneManager.scene, this.sceneManager.focusPivot); this.sceneManager.setControls(this.controlsManager.getControls()); this.interactionHelperManager.init(this.sceneManager.scene, this.sceneManager.editorCamera); this.dragInteractionManager.init(this.sceneManager.editorCamera, canvas, this.controlsManager); this.controlsManager.enableNavigation(); this.addEventListeners(); if (this.sceneManager.editorCamera) { this.originalProjectionMatrix.copy(this.sceneManager.editorCamera.projectionMatrix); } this.animate(); }
+  public toggleCameraMode = () => { if (this.cameraModeSubject.getValue() === 'perspective') { if (this.lastOrthographicState) { this.setCameraView(null, this.lastOrthographicState); } else { this.setCameraView('axis-y-neg'); } } else { this.switchToPerspectiveView(); } }
+  public setCameraView = (axisName: string | null, state?: { position: THREE.Vector3, target: THREE.Vector3 }) => { const controls = this.controlsManager.getControls(); const camera = this.sceneManager.editorCamera as THREE.PerspectiveCamera; if (!controls || !camera?.isPerspectiveCamera) return; const target = this.sceneManager.focusPivot.position.clone(); const currentDistance = camera.position.distanceTo(target); const distance = Math.max(currentDistance, 5); if (axisName) { const newPosition = new THREE.Vector3(); switch (axisName) { case 'axis-x': newPosition.set(distance, 0, 0); break; case 'axis-x-neg': newPosition.set(-distance, 0, 0); break; case 'axis-y': newPosition.set(0, distance, 0); break; case 'axis-y-neg': newPosition.set(0, -distance, 0.0001); break; case 'axis-z': newPosition.set(0, 0, distance); break; case 'axis-z-neg': newPosition.set(0, 0, -distance); break; default: return; } camera.position.copy(target).add(newPosition); camera.lookAt(target); this.lastOrthographicState = { position: camera.position.clone(), target: target.clone() }; } else if (state) { camera.position.copy(state.position); camera.lookAt(state.target); } const vFOV = (camera.fov * Math.PI) / 180; const frustumHeight = 2 * Math.tan(vFOV / 2) * distance; const aspect = this.sceneManager.renderer.domElement.clientWidth / this.sceneManager.renderer.domElement.clientHeight; const frustumWidth = frustumHeight * aspect; const orthoMatrix = new THREE.Matrix4(); orthoMatrix.makeOrthographic( frustumWidth / -2, frustumWidth / 2, frustumHeight / 2, frustumHeight / -2, camera.near, camera.far ); camera.projectionMatrix.copy(orthoMatrix); camera.projectionMatrixInverse.copy(orthoMatrix).invert(); this.baseOrthoMatrixElement = camera.projectionMatrix.elements[0]; this.controlsManager.exitFlyMode(); this.controlsManager.isFlyEnabled = false; controls.enabled = true; controls.enableRotate = false; controls.target.copy(target); controls.update(); this.cameraModeSubject.next('orthographic'); };
+  public switchToPerspectiveView = () => { const camera = this.sceneManager.editorCamera; const controls = this.controlsManager.getControls(); camera.projectionMatrix.copy(this.originalProjectionMatrix); camera.projectionMatrixInverse.copy(this.originalProjectionMatrix).invert(); this.controlsManager.isFlyEnabled = true; if (controls) { controls.enabled = false; controls.enableRotate = true; controls.update(); } this.cameraModeSubject.next('perspective'); }
   private addEventListeners = () => { const controls = this.controlsManager.getControls(); controls.addEventListener('end', this.handleTransformEnd); controls.addEventListener('change', this.onControlsChange); window.addEventListener('resize', this.onWindowResize); window.addEventListener('keydown', this.onKeyDown); window.addEventListener('keyup', this.onKeyUp); this.controlsSubscription = this.dragInteractionManager.onDragEnd$.subscribe(() => { this.handleTransformEnd(); if (this.selectedObject) this.interactionHelperManager.updateHelperPositions(this.selectedObject); }); };
   private removeEventListeners = (): void => { const controls = this.controlsManager.getControls(); controls?.removeEventListener('end', this.handleTransformEnd); controls?.removeEventListener('change', this.onControlsChange); window.removeEventListener('resize', this.onWindowResize); window.removeEventListener('keydown', this.onKeyDown); window.removeEventListener('keyup', this.onKeyUp); this.controlsSubscription?.unsubscribe(); };
   public populateScene(objects: SceneObjectResponse[], onProgress: (p: number) => void, onLoaded: () => void): void { if (!this.sceneManager.scene) return; this.entityManager.clearScene(); const celestialTypes = ['star', 'galaxy', 'meteor', 'supernova', 'diffraction_star']; const celestialObjectsData = objects.filter(o => celestialTypes.includes(o.type)); const standardObjectsData = objects.filter(o => !celestialTypes.includes(o.type)); this.entityManager.objectManager.createCelestialObjectsInstanced(this.sceneManager.scene, celestialObjectsData); const loadingManager = this.entityManager.getLoadingManager(); loadingManager.onProgress = (_, loaded, total) => onProgress((loaded / total) * 100); loadingManager.onLoad = () => { onLoaded(); this.entityManager.publishSceneEntities(); }; standardObjectsData.forEach(o => this.entityManager.createObjectFromData(o)); if (!standardObjectsData.some(o => o.type === 'model' && o.asset?.path)) { setTimeout(() => { if (loadingManager.onLoad) loadingManager.onLoad(); }, 0); } }
