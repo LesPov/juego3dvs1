@@ -1,5 +1,3 @@
-// src/app/features/admin/components/world-editor/service/three-engine/utils/entity-manager.service.ts
-
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -15,10 +13,10 @@ export interface SceneEntity {
 }
 
 // =================================================================================
-// === MEJORA CLAVE VISUAL: Multiplicador de escala simplificado y predecible     ===
+// === MEJORA CLAVE 2D: Multiplicador de escala aumentado para un halo más grande ===
 // =================================================================================
-// El contorno será el doble del tamaño del objeto original. Simple y consistente.
-const PROXY_SCALE_MULTIPLIER = 8;
+// Un valor mayor crea un halo de selección más expansivo y visible.
+const PROXY_SCALE_MULTIPLIER = 7.0;
 
 @Injectable({
   providedIn: 'root'
@@ -26,7 +24,6 @@ const PROXY_SCALE_MULTIPLIER = 8;
 export class EntityManagerService {
   private scene!: THREE.Scene;
   private gltfLoader!: GLTFLoader;
-  private selectedHelper: THREE.Object3D | null = null;
   private sceneEntities = new BehaviorSubject<SceneEntity[]>([]);
   private unselectableNames = ['Cámara del Editor', 'Luz Ambiental', 'FocusPivot', 'EditorGrid', 'SelectionProxy'];
   private instancedObjectNames = ['CelestialObjectsInstanced'];
@@ -58,7 +55,6 @@ export class EntityManagerService {
     const mainObject = this.scene.getObjectByProperty('uuid', uuid);
     if (mainObject) {
       focusPivot.position.copy(mainObject.position);
-      // Para objetos 3D normales (no instanciados), el contorno se aplica directamente a su geometría.
       this.selectionManager.selectObjects([mainObject]);
       return;
     }
@@ -74,15 +70,9 @@ export class EntityManagerService {
         instanceData.originalMatrix.decompose(pos, quat, scale);
 
         selectionProxy.position.copy(pos);
-
-        // ========================================================================================
-        // === MEJORA CLAVE VISUAL: Lógica de escalado simplificada y predecible                ===
-        // ========================================================================================
-        // Se elimina la fórmula dependiente de la intensidad. Ahora el contorno siempre es
-        // proporcional al tamaño del objeto, lo que da un resultado consistente y profesional.
         selectionProxy.scale.copy(scale).multiplyScalar(PROXY_SCALE_MULTIPLIER);
-
         selectionProxy.uuid = instanceData.originalUuid;
+        
         this.scene.add(selectionProxy);
         this.selectionManager.selectObjects([selectionProxy]);
         focusPivot.position.copy(selectionProxy.position);
