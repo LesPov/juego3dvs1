@@ -56,6 +56,23 @@
     <!-- Lista Objetos -->
     <div class="panel scene-list-panel">
       <div class="panel-header">Elementos en la Escena</div>
+
+      <!-- ======================================================= -->
+      <!-- === INICIO DE LA MEJORA: Campo de Búsqueda          === -->
+      <!-- ======================================================= -->
+      <div class="search-bar-container">
+        <input 
+          type="text" 
+          class="search-input"
+          placeholder=" Buscar por nombre..." 
+          [(ngModel)]="searchFilter"
+          (ngModelChange)="onSearchChange($event)"
+          aria-label="Buscar objeto en la escena">
+      </div>
+      <!-- ======================================================= -->
+      <!-- === FIN DE LA MEJORA                                === -->
+      <!-- ======================================================= -->
+
       <div #sceneListContent class="panel-content scrollable">
         <ul *ngIf="displayEntities$ | async as entities" class="scene-object-list" cdkDropList
           [cdkDropListData]="entities" (cdkDropListDropped)="onDrop($event)">
@@ -70,24 +87,30 @@
         </ul>
 
         <!-- ======================================================= -->
-        <!-- === INICIO DE LA MEJORA: Botón de "Cargar Más" === -->
+        <!-- === INICIO DE LA MEJORA: Lógica del Botón "Cargar Más" === -->
         <!-- ======================================================= -->
-        <div class="list-loader" *ngIf="displayedEntityCount < totalEntityCount">
+        <div class="list-loader" *ngIf="displayedEntityCount < totalFilteredEntityCount">
           <button (click)="showMoreEntities()" class="show-more-button">
-            Cargar Más ({{ displayedEntityCount }} / {{ totalEntityCount }})
+            Cargar Más ({{ displayedEntityCount }} / {{ totalFilteredEntityCount }})
           </button>
         </div>
         <!-- ======================================================= -->
-        <!-- === FIN DE LA MEJORA === -->
+        <!-- === FIN DE LA MEJORA                                 === -->
         <!-- ======================================================= -->
 
-        <ul class="scene-object-list">
+        <ul class="scene-object-list" *ngIf="!searchFilter">
           <li *ngFor="let e of placeholderEntities" class="scene-object-item placeholder-item"
             (click)="onEntitySelect(e)">
             {{ e.name }}
           </li>
         </ul>
-        <div *ngIf="!allEntities.length && !(displayEntities$ | async)?.length" class="empty-state">
+
+        <!-- Estado cuando no hay resultados en la búsqueda -->
+        <div *ngIf="searchFilter && totalFilteredEntityCount === 0" class="empty-state">
+          No se encontraron objetos con ese nombre.
+        </div>
+
+        <div *ngIf="!searchFilter && !allEntities.length && !(displayEntities$ | async)?.length" class="empty-state">
           La escena está vacía.
         </div>
       </div>

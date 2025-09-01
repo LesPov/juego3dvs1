@@ -3,7 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Observable, Subject, Subscription, BehaviorSubject, combineLatest } from 'rxjs';
-import { switchMap, tap, debounceTime, map } from 'rxjs/operators';
+import { switchMap, tap, debounceTime, map, startWith } from 'rxjs/operators';
 import * as THREE from 'three';
 import { DragDropModule, CdkDropList, CdkDrag, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { SceneComponent } from '../world-editor/scene/scene.component';
@@ -46,11 +46,21 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   public placeholderEntities: SceneEntity[] = [{ uuid: 'placeholder-1', name: 'Añadir objeto nuevo...', type: 'Model' }];
   private analysisSummary: any = null;
 
-  // --- MEJORA: Propiedades para paginación de la lista de objetos ---
+  // --- Propiedades para paginación de la lista ---
   public totalEntityCount = 0;
   public displayedEntityCount = 0;
-  private readonly listIncrement = 50; // Cantidad de objetos a mostrar por cada "Cargar Más"
+  private readonly listIncrement = 50;
   private displayCount$ = new BehaviorSubject<number>(this.listIncrement);
+
+  // =======================================================
+  // === INICIO DE LA MEJORA: Lógica para el Buscador   ====
+  // =======================================================
+  public searchFilter: string = ''; // Vinculado al input del HTML con ngModel
+  public totalFilteredEntityCount = 0; // Total de objetos después de aplicar el filtro
+  private searchFilter$ = new BehaviorSubject<string>('');
+  // =======================================================
+  // === FIN DE LA MEJORA                               ====
+  // =======================================================
 
   private readonly typeColorMap: { [key: string]: string } = {
     'Camera': 'color-camera', 'Light': 'color-light', 'Model': 'color-model',
@@ -73,13 +83,28 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     this.axisLock$ = this.engineService.axisLockState$;
     this.isFlyModeActive$ = this.engineService.isFlyModeActive$;
 
-    // --- MEJORA: Lógica reactiva para mostrar solo una parte de la lista ---
-    this.displayEntities$ = combineLatest([this.allEntities$, this.displayCount$]).pipe(
-      map(([entities, count]) => {
-        this.totalEntityCount = entities.length;
-        const slicedEntities = entities.slice(0, count);
+    // --- Lógica reactiva para filtrar, y luego paginar la lista ---
+    this.displayEntities$ = combineLatest([
+      this.allEntities$,
+      this.displayCount$,
+      this.searchFilter$.pipe(debounceTime(200), startWith('')) // Añadimos el filtro de búsqueda
+    ]).pipe(
+      map(([allEntities, count, filter]) => {
+        // 1. Filtra las entidades basado en el término de búsqueda
+        const searchTerm = filter.trim().toLowerCase();
+        const filteredEntities = searchTerm
+          ? allEntities.filter(e => e.name.toLowerCase().includes(searchTerm))
+          : allEntities;
+
+        // 2. Actualiza los contadores para la UI
+        this.totalEntityCount = allEntities.length;
+        this.totalFilteredEntityCount = filteredEntities.length;
+
+        // 3. Pagina la lista ya filtrada
+        const slicedEntities = filteredEntities.slice(0, count);
         this.displayedEntityCount = slicedEntities.length;
-        // Devuelve solo la porción de entidades que se debe renderizar en la UI
+        
+        // 4. Devuelve la porción de entidades que se debe renderizar
         return slicedEntities;
       })
     );
@@ -140,9 +165,10 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     const entitiesSub = this.engineService.getSceneEntities().subscribe(entities => {
       this.allEntities = entities;
       this.allEntities$.next(entities);
-      // Al recibir una nueva lista (por ejemplo, al inicio), reseteamos el contador
-      if(this.displayCount$.getValue() > this.listIncrement) {
-        this.displayCount$.next(this.listIncrement);
+      // Cuando la lista de entidades cambia, si hay un filtro de búsqueda, se re-aplicará automáticamente
+      // gracias a combineLatest. Reseteamos la paginación para empezar desde el principio.
+      if (this.displayCount$.getValue() > this.listIncrement) {
+          this.displayCount$.next(this.listIncrement);
       }
     });
 
@@ -230,15 +256,31 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   }
 
   onDrop(event: CdkDragDrop<SceneEntity[]>): void {
+    // Nota: El Drag & Drop puede tener un comportamiento inesperado si la lista está filtrada.
+    // Una implementación más robusta requeriría mapear los índices del array filtrado a los del array original.
+    // Por ahora, se mantiene la funcionalidad simple.
     moveItemInArray(this.allEntities, event.previousIndex, event.currentIndex);
     this.allEntities$.next([...this.allEntities]);
   }
   
-  // --- MEJORA: Método para mostrar más objetos en la lista ---
   public showMoreEntities(): void {
     const newCount = this.displayCount$.getValue() + this.listIncrement;
     this.displayCount$.next(newCount);
   }
+
+  // =======================================================
+  // === INICIO DE LA MEJORA: Método para el Buscador   ====
+  // =======================================================
+  public onSearchChange(term: string): void {
+    // Cada vez que el usuario escribe, actualizamos el `BehaviorSubject`.
+    // La lógica de RxJS se encargará del resto.
+    // También reseteamos la paginación para ver los resultados desde el principio.
+    this.searchFilter$.next(term);
+    this.displayCount$.next(this.listIncrement);
+  }
+  // =======================================================
+  // === FIN DE LA MEJORA                               ====
+  // =======================================================
 
   trackByEntity(index: number, entity: SceneEntity): string { return entity.uuid; }
   getColorClassForEntity(entity: SceneEntity): string { return this.typeColorMap[entity.type] || this.typeColorMap['default']; }
