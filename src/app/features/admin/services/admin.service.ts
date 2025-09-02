@@ -1,4 +1,3 @@
-// src/app/features/admin/services/admin.service.ts
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
@@ -10,30 +9,23 @@ export interface AssetResponse {
     type: 'model_glb' | 'video_mp4' | 'texture_png' | 'texture_jpg' | 'sound_mp3';
     path: string;
 }
+
 export interface SceneObjectResponse {
     id: number;
-   type: 'cube' | 'sphere' | 'floor' | 'model' |
+    type: 'cube' | 'sphere' | 'floor' | 'model' |
           'camera' | 'ambientLight' | 'directionalLight' | 'cone' | 'torus' |
           'star' | 'galaxy' | 'supernova'  | 'diffraction_star';
-
     name: string;
     position: { x: number; y: number; z: number };
     rotation: { x: number; y: number; z: number };
     scale: { x: number; y: number; z: number };
-    
-    // ============ ¡AJUSTE CRÍTICO! ============
-    // Cambiamos el tipo para que sea igual de flexible que en el backend.
-    // Esto te permitirá enviar cualquier tipo de propiedad (fov, near, far, intensity, etc.)
-    // sin que TypeScript se queje.
     properties: { [key: string]: any }; 
-    // ==========================================
-
     assetId?: number | null;
     asset?: AssetResponse | null;
 }
 
 export interface EpisodeResponse {
-    analysisSummary: null;
+    analysisSummary: any; // Ajustado para permitir objetos
     id: number;
     title: string;
     description: string;
