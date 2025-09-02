@@ -1,5 +1,4 @@
 // src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/entity-manager.service.ts
-
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -38,24 +37,13 @@ export class EntityManagerService {
     this.gltfLoader = new GLTFLoader(loadingManager);
   }
 
-  // =======================================================
-  // === INICIO DE LA MEJORA: Nueva función para resetear brillo
-  // =======================================================
-  /**
-   * Restaura el brillo/opacidad de todos los objetos al valor por defecto (1.0).
-   * Esencial para cuando se cambia de vista 2D a 3D.
-   */
   public resetAllGroupsBrightness(): void {
     if (!this.scene) return;
-
-    // 1. Resetear objetos instanciados
     const celestialInstancedMesh = this.scene.getObjectByName('CelestialObjectsInstanced') as THREE.InstancedMesh | undefined;
     const allInstanceData = celestialInstancedMesh?.userData["celestialData"] as CelestialInstanceData[] | undefined;
     if (allInstanceData) {
       allInstanceData.forEach(data => data.brightness = 1.0);
     }
-
-    // 2. Resetear objetos estándar
     this.scene.children.forEach(object => {
       if (!this.unselectableNames.includes(object.name) && !this.instancedObjectNames.includes(object.name)) {
         object.traverse(child => {
@@ -72,9 +60,6 @@ export class EntityManagerService {
       }
     });
   }
-  // =======================================================
-  // === FIN DE LA MEJORA
-  // =======================================================
 
   public setGroupBrightness(uuids: string[], brightness: number): void {
     if (!this.scene) return;

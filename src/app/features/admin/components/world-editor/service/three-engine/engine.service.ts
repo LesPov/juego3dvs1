@@ -1,5 +1,4 @@
 // src/app/features/admin/views/world-editor/world-view/service/three-engine/engine.service.ts
-
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
@@ -140,14 +139,8 @@ export class EngineService implements OnDestroy {
         const distanceFalloff = 1.0 - THREE.MathUtils.smoothstep(distance, BRIGHTNESS_FALLOFF_START_DISTANCE, effectiveVisibilityDistance);
         const baseIntensity = data.emissiveIntensity * BRIGHTNESS_MULTIPLIER * visibilityFalloff * distanceFalloff;
         
-        // =======================================================
-        // === INICIO DE LA MEJORA: Aplicar brillo solo en 2D
-        // =======================================================
         const brightnessMultiplier = isOrthographic ? data.brightness : 1.0;
         let finalIntensity = Math.min(baseIntensity, MAX_INTENSITY) * bloomDampeningFactor * brightnessMultiplier;
-        // =======================================================
-        // === FIN DE LA MEJORA
-        // =======================================================
         
         this.tempScale.copy(data.scale).multiplyScalar(DEEP_SPACE_SCALE_BOOST);
         if (finalIntensity > 0.01) {
@@ -176,14 +169,7 @@ export class EngineService implements OnDestroy {
   public setCameraView = (axisName: string | null, state?: { position: THREE.Vector3, target: THREE.Vector3 }) => { const controls = this.controlsManager.getControls(); const camera = this.sceneManager.editorCamera as THREE.PerspectiveCamera; if (!controls || !camera?.isPerspectiveCamera) return; const target = this.sceneManager.focusPivot.position.clone(); const currentDistance = camera.position.distanceTo(target); const distance = Math.max(currentDistance, 5); if (axisName) { const newPosition = new THREE.Vector3(); switch (axisName) { case 'axis-x': newPosition.set(distance, 0, 0); break; case 'axis-x-neg': newPosition.set(-distance, 0, 0); break; case 'axis-y': newPosition.set(0, distance, 0); break; case 'axis-y-neg': newPosition.set(0, -distance, 0.0001); break; case 'axis-z': newPosition.set(0, 0, distance); break; case 'axis-z-neg': newPosition.set(0, 0, -distance); break; default: return; } camera.position.copy(target).add(newPosition); camera.lookAt(target); this.lastOrthographicState = { position: camera.position.clone(), target: target.clone() }; } else if (state) { camera.position.copy(state.position); camera.lookAt(state.target); } const vFOV = (camera.fov * Math.PI) / 180; const frustumHeight = 2 * Math.tan(vFOV / 2) * distance; const aspect = this.sceneManager.renderer.domElement.clientWidth / this.sceneManager.renderer.domElement.clientHeight; const frustumWidth = frustumHeight * aspect; const orthoMatrix = new THREE.Matrix4(); orthoMatrix.makeOrthographic( frustumWidth / -2, frustumWidth / 2, frustumHeight / 2, frustumHeight / -2, camera.near, camera.far ); camera.projectionMatrix.copy(orthoMatrix); camera.projectionMatrixInverse.copy(orthoMatrix).invert(); this.baseOrthoMatrixElement = camera.projectionMatrix.elements[0]; this.controlsManager.exitFlyMode(); this.controlsManager.isFlyEnabled = false; controls.enabled = true; controls.enableRotate = false; controls.target.copy(target); controls.update(); this.selectionManager.updateOutlineParameters('orthographic'); this.cameraModeSubject.next('orthographic'); };
 
   public switchToPerspectiveView = () => {
-    // =======================================================
-    // === INICIO DE LA MEJORA: Resetear opacidad al cambiar a 3D
-    // =======================================================
     this.entityManager.resetAllGroupsBrightness();
-    // =======================================================
-    // === FIN DE LA MEJORA
-    // =======================================================
-
     const camera = this.sceneManager.editorCamera; const controls = this.controlsManager.getControls(); camera.projectionMatrix.copy(this.originalProjectionMatrix); camera.projectionMatrixInverse.copy(this.originalProjectionMatrix).invert(); this.controlsManager.isFlyEnabled = true; if (controls) { controls.enabled = false; controls.enableRotate = true; controls.update(); }
     this.selectionManager.updateOutlineParameters('perspective');
     this.cameraModeSubject.next('perspective');
@@ -204,5 +190,63 @@ export class EngineService implements OnDestroy {
   private onWindowResize = () => { this.sceneManager.onWindowResize(); this.interactionHelperManager.updateScale(); };
   public addObjectToScene = (objData: SceneObjectResponse) => this.entityManager.createObjectFromData(objData);
   public updateObjectName = (uuid: string, newName: string) => this.entityManager.updateObjectName(uuid, newName);
-  public updateObjectTransform = (uuid: string, path: 'position' | 'rotation' | 'scale', value: { x: number; y: number; z: number; }) => { const obj = this.entityManager.getObjectByUuid(uuid); if (obj) { obj[path].set(value.x, value.y, value.z); if (path === 'position') this.interactionHelperManager.updateHelperPositions(obj); } };
+
+  public updateObjectTransform = (uuid: string, path: 'position' | 'rotation' | 'scale', value: { x: number; y: number; z: number; }) => {
+    const standardObject = this.entityManager.getObjectByUuid(uuid);
+
+    if (standardObject && standardObject.name !== 'SelectionProxy') {
+        standardObject[path].set(value.x, value.y, value.z);
+        if (path === 'position') {
+            this.interactionHelperManager.updateHelperPositions(standardObject);
+        }
+        return;
+    }
+
+    const instancedMesh = this.sceneManager.scene.getObjectByName('CelestialObjectsInstanced') as THREE.InstancedMesh;
+    if (!instancedMesh) return;
+
+    const allData: CelestialInstanceData[] = instancedMesh.userData["celestialData"];
+    const instanceIndex = allData.findIndex(d => d.originalUuid === uuid);
+
+    if (instanceIndex > -1) {
+        const data = allData[instanceIndex];
+        const tempQuaternion = new THREE.Quaternion();
+        const tempScale = new THREE.Vector3();
+
+        data.originalMatrix.decompose(new THREE.Vector3(), tempQuaternion, tempScale);
+
+        switch (path) {
+            case 'position':
+                data.position.set(value.x, value.y, value.z);
+                break;
+            case 'rotation':
+                tempQuaternion.setFromEuler(new THREE.Euler(value.x, value.y, value.z));
+                break;
+            case 'scale':
+                data.scale.set(value.x, value.y, value.z);
+                tempScale.copy(data.scale);
+                break;
+        }
+        
+        data.originalMatrix.compose(data.position, tempQuaternion, tempScale);
+        instancedMesh.setMatrixAt(instanceIndex, data.originalMatrix);
+        instancedMesh.instanceMatrix.needsUpdate = true;
+
+        // =======================================================
+        // === INICIO DE LA CORRECCIÓN                               ===
+        // =======================================================
+        // Mover Y ESCALAR también el proxy de selección si existe, para que el halo siga al objeto
+        const selectionProxy = this.sceneManager.scene.getObjectByName('SelectionProxy');
+        if (selectionProxy && selectionProxy.uuid === uuid) {
+            selectionProxy.position.copy(data.position);
+            
+            // ✅ CORRECCIÓN: Aplicar la nueva escala al proxy para que el halo se redimensione.
+            const PROXY_SCALE_MULTIPLIER = 7.0; // Mantenemos consistencia con EntityManagerService
+            selectionProxy.scale.copy(data.scale).multiplyScalar(PROXY_SCALE_MULTIPLIER);
+        }
+        // =======================================================
+        // === FIN DE LA CORRECCIÓN                                  ===
+        // =======================================================
+    }
+  };
 }

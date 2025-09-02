@@ -5,10 +5,9 @@ import { FormsModule, ReactiveFormsModule, FormGroup, FormBuilder } from '@angul
 import { debounceTime, distinctUntilChanged, Subscription } from 'rxjs';
 import { SceneObjectResponse } from '../../../services/admin.service';
 
-// ✅ CORRECCIÓN: La interfaz se exporta desde aquí, ya que es el origen del evento.
 export interface TransformUpdate {
   type: 'transform';
-  path: 'position' | 'rotation' | 'scale'; // Eliminamos 'name' de aquí
+  path: 'position' | 'rotation' | 'scale';
   value: { x: number; y: number; z: number };
 }
 
@@ -17,12 +16,10 @@ export interface TransformUpdate {
   standalone: true,
   imports: [CommonModule, FormsModule, ReactiveFormsModule],
   templateUrl: './transform-properties.component.html',
-  // ✅ CORRECCIÓN: Apuntamos al archivo .css en lugar de .scss
   styleUrls: ['./transform-properties.component.css'] 
 })
 export class TransformPropertiesComponent implements OnChanges, OnDestroy {
   @Input() selectedObject!: SceneObjectResponse;
-  // ✅ CORRECCIÓN: El nombre del Output debe coincidir con el usado en el HTML del padre.
   @Output() transformChange = new EventEmitter<TransformUpdate>();
 
   transformForm: FormGroup;

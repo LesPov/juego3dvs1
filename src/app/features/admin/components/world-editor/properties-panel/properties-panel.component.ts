@@ -1,9 +1,9 @@
+// src/app/features/admin/views/world-editor/properties-panel/properties-panel.component.ts
 import { Component, Input, Output, EventEmitter, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SceneObjectResponse } from '../../../services/admin.service';
 
-// Componentes Hijos
 import { TransformPropertiesComponent, TransformUpdate } from '../transform-properties/transform-properties.component';
 import { CustomPropertiesComponent } from '../custom-properties/custom-properties.component';
 import { MetadataPropertiesComponent } from '../metadata-properties/metadata-properties.component';
@@ -17,7 +17,6 @@ export type PropertyUpdate = TransformUpdate | NameUpdate;
 @Component({
   selector: 'app-properties-panel',
   standalone: true,
-  // ¡IMPORTANTE! Añade los nuevos componentes al array de imports
   imports: [
     CommonModule, 
     FormsModule, 
@@ -33,9 +32,6 @@ export class PropertiesPanelComponent implements OnChanges {
   @Output() objectUpdate = new EventEmitter<PropertyUpdate>();
   
   public editableObjectName: string = '';
-  // LÓGICA ELIMINADA: La propiedad `objectProperties` ya no es necesaria aquí.
-  // LÓGICA ELIMINADA: El método `parseObjectProperties` ya no es necesario aquí.
-  // LÓGICA ELIMINADA: El método `formatPropertyValue` ya no es necesario aquí.
 
   constructor() {}
 
