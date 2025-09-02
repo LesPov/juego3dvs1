@@ -18,13 +18,14 @@ export interface CelestialInstanceData {
   isDominant: boolean;
   luminosity: number;
   type: string;
-  // =======================================================
-  // === INICIO DE LA CORRECCIÓN: Bandera de visibilidad
-  // =======================================================
-  // Añadimos esta propiedad para rastrear si el usuario ha ocultado manualmente el objeto.
   isManuallyHidden: boolean;
   // =======================================================
-  // === FIN DE LA CORRECCIÓN
+  // === INICIO DE LA MEJORA: Propiedad de Brillo
+  // =======================================================
+  // Multiplicador para el brillo/opacidad del grupo (0.0 a 1.0).
+  brightness: number;
+  // =======================================================
+  // === FIN DE LA MEJORA
   // =======================================================
 }
 
@@ -104,10 +105,6 @@ export class ObjectManagerService {
       const dominantBoost = isDominant ? DOMINANT_LUMINOSITY_MULTIPLIER : 1.0;
       const finalLuminosity = scaleLuminosity * dominantBoost;
 
-      // =======================================================
-      // === INICIO DE LA CORRECCIÓN: Inicializar la bandera
-      // =======================================================
-      // Cuando creamos el objeto, por defecto NO está oculto manualmente.
       celestialData.push({ 
           originalColor: visualColor.clone(), 
           emissiveIntensity: emissiveIntensity, 
@@ -120,11 +117,15 @@ export class ObjectManagerService {
           isDominant: isDominant, 
           luminosity: finalLuminosity, 
           type: objData.type,
-          isManuallyHidden: false // <-- ¡AQUÍ!
+          isManuallyHidden: false,
+          // =======================================================
+          // === INICIO DE LA MEJORA: Inicializar brillo
+          // =======================================================
+          brightness: 1.0 // Por defecto, todos los objetos empiezan con brillo máximo.
+          // =======================================================
+          // === FIN DE LA MEJORA
+          // =======================================================
       });
-      // =======================================================
-      // === FIN DE LA CORRECCIÓN
-      // =======================================================
     }
     instancedMesh.instanceMatrix.needsUpdate = true;
     if (instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;

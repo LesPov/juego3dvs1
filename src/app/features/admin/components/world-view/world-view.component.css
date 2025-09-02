@@ -10,16 +10,17 @@
   font-family: Segoe UI, sans-serif;
   overflow: hidden;
 }
+
 /* ======================================================= */
-/* === INICIO DE LA MEJORA: Estilos para visibilidad
+/* === INICIO DE LA MEJORA: Estilos de visibilidad y brillo
 /* ======================================================= */
 .group-header {
-  position: relative; /* Necesario para posicionar el botón del ojo */
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 8px 10px;
-  padding-right: 40px; /* Espacio para el botón del ojo */
+  padding-right: 40px;
   background-color: #3a3a3a;
   color: #e0e0e0;
   font-weight: bold;
@@ -31,7 +32,6 @@
   transition: background-color 0.2s, opacity 0.3s;
 }
 
-/* Estilo para cuando el grupo está oculto */
 .group-header.group-hidden {
   opacity: 0.6;
 }
@@ -61,7 +61,6 @@
   opacity: 1;
 }
 
-/* Iconos de ojo creados con CSS */
 .icon-eye-open, .icon-eye-closed {
   width: 16px;
   height: 16px;
@@ -87,74 +86,90 @@
   mask-repeat: no-repeat;
   mask-position: center;
 }
+
+/* Contenedor para los controles del grupo (slider) */
+.group-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: #2c2c2c;
+  border-bottom: 1px solid #202020;
+}
+
+.brightness-icon {
+  width: 16px;
+  height: 16px;
+  background-color: #a0a0a0;
+  flex-shrink: 0;
+  mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69zM12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6zm0-10c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z"/></svg>');
+}
+
+/* Estilos para el slider de brillo */
+.brightness-slider {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.brightness-slider:focus { outline: none; }
+/***** Estilos para Chrome, Safari, Edge *****/
+.brightness-slider::-webkit-slider-runnable-track {
+  background: #1c1c1c;
+  height: 6px;
+  border-radius: 3px;
+}
+.brightness-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -5px; /* ( (thumb_height - track_height) / 2 ) * -1 */
+  background-color: #f5b300;
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.4);
+}
+/***** Estilos para Firefox *****/
+.brightness-slider::-moz-range-track {
+  background: #1c1c1c;
+  height: 6px;
+  border-radius: 3px;
+}
+.brightness-slider::-moz-range-thumb {
+  background-color: #f5b300;
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.4);
+}
 /* ======================================================= */
 /* === FIN DE LA MEJORA
 /* ======================================================= */
 
 
-.group-header:hover {
-  background-color: #454545;
-}
+.group-header:hover { background-color: #454545; }
+.group-toggle-icon { width: 12px; font-size: 10px; }
+.group-name { flex-grow: 1; }
+.group-count { font-size: 12px; font-weight: normal; color: #999; }
+.scene-object-list .scene-object-item { padding-left: 24px; }
+.list-loader { padding: 5px 10px 10px 10px; background-color: #252525; }
+.show-more-button { width: 100%; padding: 8px 10px; font-weight: 500; color: #c4c4c4; background-color: #3e3e3e; border: 1px solid #4a4a4a; border-radius: 4px; cursor: pointer; transition: background-color 0.2s, color 0.2s; text-align: center; }
+.show-more-button:hover { background-color: #4A82C4; border-color: #5a93d5; color: #fff; }
 
-.group-toggle-icon {
-  width: 12px;
-  font-size: 10px;
-}
-
-.group-name {
-  flex-grow: 1;
-}
-
-.group-count {
-  font-size: 12px;
-  font-weight: normal;
-  color: #999;
-}
-
-.scene-object-list .scene-object-item {
-  padding-left: 24px;
-}
-.list-loader {
-  padding: 5px 10px 10px 10px;
-  background-color: #252525;
-}
-
-.show-more-button {
-  width: 100%;
-  padding: 8px 10px;
-  font-weight: 500;
-  color: #c4c4c4;
-  background-color: #3e3e3e;
-  border: 1px solid #4a4a4a;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.2s, color 0.2s;
-  text-align: center;
-}
-
-.show-more-button:hover {
-  background-color: #4A82C4;
-  border-color: #5a93d5;
-  color: #fff;
-}
-
-/* --- ESTILOS DE PRELOADER (sin cambios) --- */
+/* --- OTROS ESTILOS (sin cambios) --- */
 .preloader-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(30, 30, 30, 0.95); z-index: 9999; display: flex; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
 .preloader-content { text-align: center; color: #e0e0e0; width: 80%; max-width: 400px; }
 .preloader-content h1 { font-size: 1.5rem; font-weight: 300; margin-bottom: 20px; letter-spacing: 1px; }
 .progress-bar-container { width: 100%; height: 12px; background-color: #3a3a3a; border-radius: 6px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4); }
 .progress-bar { height: 100%; background-color: #5294e2; border-radius: 6px; transition: width 0.2s ease-out; }
 .progress-text { margin-top: 15px; font-size: 1.2rem; font-weight: 500; color: #ffffff; }
-
-/* ---- ESTILOS DE EDITOR ---- */
 .editor-layout { display: grid; grid-template-areas: "header header" "viewport sidebar"; grid-template-columns: 1fr 380px; grid-template-rows: 40px 1fr; width: 100%; height: 100%; }
 .editor-header { grid-area: header; background: #2b2b2b; border-bottom: 1px solid #202020; display: flex; align-items: center; padding: 0 20px; font-weight: bold; }
 .viewport { grid-area: viewport; position: relative; overflow: hidden; }
 .sidebar { grid-area: sidebar; background: #2b2b2b; border-left: 1px solid #202020; display: flex; flex-direction: column; overflow: hidden; }
 .mobile-sidebar-toggle { display: none; }
 .panel-header { background: #353535; padding: 8px 12px; border-bottom: 1px solid #202020; font-weight: 500; user-select: none; }
-
-/* ---- LISTA DE ESCENA ---- */
 .scene-list-panel { flex: 1; border: none; border-bottom: 1px solid #202020; min-height: 0; display: flex; flex-direction: column; }
 .panel-content { background: #252525; overflow-y: auto; flex-grow: 1; }
 .scene-object-list { list-style: none; margin: 0; padding: 0; }
@@ -167,14 +182,10 @@
 .object-icon { width: 16px; text-align: center; opacity: 0.7; font-size: 14px; }
 .object-name { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .scene-object-item.selected { background-color: #4A82C4; color: #fff; border-left-color: #F5B300 !important; }
-
-/* ---- DRAG & DROP ---- */
 .cdk-drag-preview { box-sizing: border-box; border-radius: 3px; box-shadow: 0 5px 5px -3px rgba(0, 0, 0, 0.2), 0 8px 10px 1px rgba(0, 0, 0, 0.14), 0 3px 14px 2px rgba(0, 0, 0, 0.12); background: #3f3f46; color: #fff; }
 .cdk-drag-placeholder { background: rgba(74, 130, 196, 0.2); border-top: 1px solid #4A82C4; border-bottom: 1px solid #4A82C4; opacity: 1; transition: transform 250ms cubic-bezier(0, 0, 0.2, 1); }
 .cdk-drop-list-dragging .cdk-drag { transition: transform 250ms cubic-bezier(0, 0, 0.2, 1); }
 .cdk-drag-animating { transition: transform 250ms cubic-bezier(0, 0, 0.2, 1); }
-
-/* ---- PANEL DE PROPIEDADES ---- */
 .properties-container { flex: 1; display: flex; min-height: 0; }
 .properties-tabs { width: 100px; background: #2b2b2b; display: flex; flex-direction: column; align-items: center; gap: 1px; border-right: 1px solid #202020; padding: 5px 0; overflow-y: auto; overflow-x: hidden; }
 .tab-button { width: 100%; background: none; border: none; color: #a0a0a0; font-size: 20px; padding: 6px 0; cursor: pointer; border-left: 2px solid transparent; transition: background .2s, color .2s; flex-shrink: 0; }
@@ -201,8 +212,6 @@
 .property-key { color: #a0a0a0; margin-right: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1; }
 .property-value { color: #e0e0e0; font-weight: 500; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60%; }
 .empty-state-small { padding: 20px; text-align: center; color: #888; font-style: italic; font-size: 13px; }
-
-/* ---- OTROS ELEMENTOS DE LA UI (sin cambios significativos) ---- */
 .search-bar-container { padding: 8px 10px; border-bottom: 1px solid #333; background-color: #2a2a2a; }
 .search-input { width: 100%; padding: 8px 10px; background-color: #1c1c1c; border: 1px solid #444; border-radius: 4px; color: #e0e0e0; outline: none; box-sizing: border-box; }
 .search-input:focus { border-color: #5294e2; }
@@ -213,10 +222,6 @@ app-brujula { position: absolute; top: 15px; right: 15px; width: 150px; height: 
 .crosshair-line { position: absolute; background-color: rgba(255, 255, 0, 0.7); box-shadow: 0 0 5px rgba(255, 217, 0, 0.5); }
 .crosshair-line.horizontal { width: 100%; height: 2px; top: 50%; left: 0; transform: translateY(-50%); }
 .crosshair-line.vertical { width: 2px; height: 100%; left: 50%; top: 0; transform: translateX(-50%); }
-
-/* ======================================================= */
-/* === ESTILOS DE SCROLL PERSONALIZADO (Aplicado a nuevas clases) === */
-/* ======================================================= */
 .panel-content, .tab-pane { scrollbar-width: none; scrollbar-color: rgba(255, 255, 255, 0.3) transparent; }
 :host ::-webkit-scrollbar { width: 8px; height: 8px; }
 :host ::-webkit-scrollbar-track { background: transparent; margin: 2px; }

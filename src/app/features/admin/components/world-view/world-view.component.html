@@ -74,9 +74,6 @@
           <div *ngIf="groups.length > 0; else noResults">
             <div *ngFor="let group of groups; trackBy: trackByGroupType" class="object-group">
               
-              <!-- ======================================================= -->
-              <!-- === INICIO DE LA MEJORA: Botón de visibilidad añadido
-              <!-- ======================================================= -->
               <div class="group-header" 
                    (click)="toggleGroup(group)"
                    [class.group-hidden]="!group.isGroupVisible">
@@ -84,20 +81,36 @@
                 <span class="group-name">{{ group.type }}</span>
                 <span class="group-count">({{ group.totalCount }})</span>
                 
-                <!-- El nuevo botón de visibilidad (ojo) -->
                 <button class="group-visibility-toggle" 
                         (click)="toggleGroupVisibility(group, $event)" 
                         [title]="group.isGroupVisible ? 'Ocultar grupo' : 'Mostrar grupo'">
-                  <!-- Muestra un icono u otro dependiendo del estado -->
                   <span *ngIf="group.isGroupVisible" class="icon-eye-open"></span>
                   <span *ngIf="!group.isGroupVisible" class="icon-eye-closed"></span>
                 </button>
               </div>
-              <!-- ======================================================= -->
-              <!-- === FIN DE LA MEJORA -->
-              <!-- ======================================================= -->
 
               <ng-container *ngIf="group.isExpanded">
+
+                <!-- ======================================================= -->
+                <!-- === INICIO DE LA MEJORA: Slider de Brillo/Opacidad
+                <!-- ======================================================= -->
+                <div class="group-controls">
+                   <span class="brightness-icon" title="Brillo / Opacidad del Grupo"></span>
+                   <input 
+                      type="range" 
+                      class="brightness-slider"
+                      min="0" 
+                      max="1" 
+                      step="0.01"
+                      [value]="group.brightness"
+                      (input)="onGroupBrightnessChange(group, $event)"
+                      (click)="$event.stopPropagation()"
+                      title="Brillo / Opacidad: {{ group.brightness * 100 | number:'1.0-0' }}%">
+                </div>
+                <!-- ======================================================= -->
+                <!-- === FIN DE LA MEJORA
+                <!-- ======================================================= -->
+
                 <ul class="scene-object-list" 
                     cdkDropList
                     [cdkDropListData]="group.visibleEntities"
