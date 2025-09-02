@@ -25,13 +25,7 @@ export interface EntityGroup {
   isExpanded: boolean;
   totalCount: number;
   isGroupVisible: boolean;
-  // =======================================================
-  // === INICIO DE LA MEJORA: Propiedad de brillo para el binding
-  // =======================================================
   brightness: number;
-  // =======================================================
-  // === FIN DE LA MEJORA
-  // =======================================================
 }
 
 @Component({
@@ -66,14 +60,8 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   
   private groupExpansionState = new Map<string, boolean>();
   private groupVisibilityState = new Map<string, boolean>();
-  // =======================================================
-  // === INICIO DE LA MEJORA: Estado y Subject para brillo
-  // =======================================================
   private groupBrightnessState = new Map<string, number>();
   private brightnessUpdate$ = new Subject<{ groupType: string, brightness: number }>();
-  // =======================================================
-  // === FIN DE LA MEJORA
-  // =======================================================
   private groupDisplayCountState = new Map<string, number>();
   private readonly listIncrement = 50;
   
@@ -125,13 +113,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
             
             if (this.groupExpansionState.get(type) === undefined) this.groupExpansionState.set(type, false);
             if (this.groupVisibilityState.get(type) === undefined) this.groupVisibilityState.set(type, true);
-            // =======================================================
-            // === INICIO DE LA MEJORA: Inicializar estado de brillo
-            // =======================================================
             if (this.groupBrightnessState.get(type) === undefined) this.groupBrightnessState.set(type, 1.0);
-            // =======================================================
-            // === FIN DE LA MEJORA
-            // =======================================================
 
             const isExpanded = this.groupExpansionState.get(type)!;
             const displayCount = this.groupDisplayCountState.get(type) || this.listIncrement;
@@ -206,10 +188,11 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     });
 
     // =======================================================
-    // === INICIO DE LA MEJORA: Suscripción para el brillo
+    // === INICIO DE LA CORRECCIÓN: Optimización de Rendimiento
     // =======================================================
     const brightnessSub = this.brightnessUpdate$.pipe(
-      debounceTime(50) // Espera 50ms después del último cambio para evitar sobrecargar
+      // Aumentamos el tiempo de espera para reducir la carga. 150ms sigue siendo muy reactivo.
+      debounceTime(150)
     ).subscribe(({ groupType, brightness }) => {
       const entityUuidsInGroup = this.allEntities
         .filter(entity => entity.type === groupType)
@@ -219,32 +202,40 @@ export class WorldViewComponent implements OnInit, OnDestroy {
         this.engineService.setGroupBrightness(entityUuidsInGroup, brightness);
       }
     });
+
+    // Suscripción para resetear los sliders al cambiar a modo 3D
+    const cameraModeSub = this.engineService.cameraMode$.subscribe(mode => {
+      if (mode === 'perspective') {
+        let stateChanged = false;
+        for (const key of this.groupBrightnessState.keys()) {
+          if (this.groupBrightnessState.get(key) !== 1.0) {
+            this.groupBrightnessState.set(key, 1.0);
+            stateChanged = true;
+          }
+        }
+        // Solo actualizamos la UI si realmente hubo un cambio.
+        if (stateChanged) {
+          this.allEntities$.next([...this.allEntities]);
+        }
+      }
+    });
     // =======================================================
-    // === FIN DE LA MEJORA
+    // === FIN DE LA CORRECCIÓN
     // =======================================================
 
     this.subscriptions.add(transformSub);
     this.subscriptions.add(propertyUpdateSub);
     this.subscriptions.add(entitiesSub);
     this.subscriptions.add(brightnessSub);
+    this.subscriptions.add(cameraModeSub); // Añadimos la nueva suscripción
   }
 
-  // =======================================================
-  // === INICIO DE LA MEJORA: Nueva función para el slider de brillo
-  // =======================================================
   public onGroupBrightnessChange(group: EntityGroup, event: Event): void {
     const slider = event.target as HTMLInputElement;
     const brightness = parseFloat(slider.value);
-    
-    // Actualizamos el estado local inmediatamente para que el slider se sienta responsivo
     this.groupBrightnessState.set(group.type, brightness);
-    
-    // Enviamos el evento al Subject para que se procese con debounce
     this.brightnessUpdate$.next({ groupType: group.type, brightness });
   }
-  // =======================================================
-  // === FIN DE LA MEJORA
-  // =======================================================
 
   public toggleGroupVisibility(group: EntityGroup, event: MouseEvent): void {
     event.stopPropagation();

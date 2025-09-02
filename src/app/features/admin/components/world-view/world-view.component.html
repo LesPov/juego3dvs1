@@ -89,50 +89,21 @@
                 </button>
               </div>
 
-              <ng-container *ngIf="group.isExpanded">
-
-                <!-- ======================================================= -->
-                <!-- === INICIO DE LA MEJORA: Slider de Brillo/Opacidad
-                <!-- ======================================================= -->
-                <div class="group-controls">
-                   <span class="brightness-icon" title="Brillo / Opacidad del Grupo"></span>
-                   <input 
-                      type="range" 
-                      class="brightness-slider"
-                      min="0" 
-                      max="1" 
-                      step="0.01"
-                      [value]="group.brightness"
-                      (input)="onGroupBrightnessChange(group, $event)"
-                      (click)="$event.stopPropagation()"
-                      title="Brillo / Opacidad: {{ group.brightness * 100 | number:'1.0-0' }}%">
-                </div>
-                <!-- ======================================================= -->
-                <!-- === FIN DE LA MEJORA
-                <!-- ======================================================= -->
-
-                <ul class="scene-object-list" 
-                    cdkDropList
-                    [cdkDropListData]="group.visibleEntities"
-                    (cdkDropListDropped)="onDrop($event)">
-                  
-                  <li *ngFor="let e of group.visibleEntities; trackBy: trackByEntity" 
-                      cdkDrag 
-                      class="scene-object-item"
-                      [class.selected]="e.uuid === selectedEntityUuid" 
-                      [ngClass]="getColorClassForEntity(e)"
-                      (click)="onEntitySelect(e)">
-                    <span class="object-icon">{{ e.type === 'Camera' ? '📷' : e.type==='Light'?'💡': (e.type === 'Model' ? '📦' : '●') }}</span>
-                    <span class="object-name">{{ e.name }}</span>
-                  </li>
-                </ul>
-                
-                <div class="list-loader" *ngIf="group.visibleEntities.length < group.totalCount">
-                  <button (click)="showMoreInGroup(group)" class="show-more-button">
-                    Cargar Más ({{ group.visibleEntities.length }} / {{ group.totalCount }})
-                  </button>
-                </div>
-              </ng-container>
+             <ng-container *ngIf="(engineService.cameraMode$ | async) === 'orthographic'">
+                  <div class="group-controls">
+                     <span class="brightness-icon" title="Brillo / Opacidad del Grupo"></span>
+                     <input 
+                        type="range" 
+                        class="brightness-slider"
+                        min="0" 
+                        max="1" 
+                        step="0.01"
+                        [value]="group.brightness"
+                        (input)="onGroupBrightnessChange(group, $event)"
+                        (click)="$event.stopPropagation()"
+                        title="Brillo / Opacidad: {{ group.brightness * 100 | number:'1.0-0' }}%">
+                  </div>
+                </ng-container>
               
             </div>
           </div>
