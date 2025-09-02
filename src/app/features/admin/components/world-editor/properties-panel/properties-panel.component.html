@@ -1,76 +1,63 @@
-<div class="panel-container" *ngIf="selectedObject">
+<!-- El contenedor principal solo se muestra si hay un objeto seleccionado -->
+<div class="properties-panel-wrapper" *ngIf="selectedObject">
 
-  <!-- Grupo de Transformación -->
-  <details class="properties-section" open>
-    <summary class="section-header">
-      <span class="arrow"></span>
-      Transformación
-    </summary>
-    <div class="section-content">
-      
-      <!-- Posición -->
-      <div class="property-row vector-row">
-        <div class="vector-label">Posición</div>
-        <div class="vector-inputs">
-          <!-- Eje X -->
-          <div class="input-wrapper x-label" (mousedown)="startDrag($event, 'position', 'x')">
-            <div class="input-label">X</div>
-            <input type="number" step="0.1" class="vector-input" [(ngModel)]="position.x" (ngModelChange)="onTransformChange('position')">
-          </div>
-          <!-- Eje Y -->
-          <div class="input-wrapper y-label" (mousedown)="startDrag($event, 'position', 'y')">
-            <div class="input-label">Y</div>
-            <input type="number" step="0.1" class="vector-input" [(ngModel)]="position.y" (ngModelChange)="onTransformChange('position')">
-          </div>
-          <!-- Eje Z -->
-          <div class="input-wrapper z-label" (mousedown)="startDrag($event, 'position', 'z')">
-            <div class="input-label">Z</div>
-            <input type="number" step="0.1" class="vector-input" [(ngModel)]="position.z" (ngModelChange)="onTransformChange('position')">
-          </div>
-        </div>
-      </div>
-
-      <!-- Rotación -->
-      <div class="property-row vector-row">
-        <div class="vector-label">Rotación</div>
-        <div class="vector-inputs">
-          <div class="input-wrapper x-label" (mousedown)="startDrag($event, 'rotation', 'x')">
-            <div class="input-label">X</div>
-            <input type="number" step="1" class="vector-input" [(ngModel)]="rotation.x" (ngModelChange)="onTransformChange('rotation')">
-          </div>
-          <div class="input-wrapper y-label" (mousedown)="startDrag($event, 'rotation', 'y')">
-            <div class="input-label">Y</div>
-            <input type="number" step="1" class="vector-input" [(ngModel)]="rotation.y" (ngModelChange)="onTransformChange('rotation')">
-          </div>
-          <div class="input-wrapper z-label" (mousedown)="startDrag($event, 'rotation', 'z')">
-            <div class="input-label">Z</div>
-            <input type="number" step="1" class="vector-input" [(ngModel)]="rotation.z" (ngModelChange)="onTransformChange('rotation')">
-          </div>
-        </div>
-      </div>
-
-      <!-- Escala -->
-      <div class="property-row vector-row">
-        <div class="vector-label">Escala</div>
-        <div class="vector-inputs">
-          <div class="input-wrapper x-label" (mousedown)="startDrag($event, 'scale', 'x')">
-            <div class="input-label">X</div>
-            <input type="number" step="0.1" class="vector-input" [(ngModel)]="scale.x" (ngModelChange)="onTransformChange('scale')">
-          </div>
-          <div class="input-wrapper y-label" (mousedown)="startDrag($event, 'scale', 'y')">
-            <div class="input-label">Y</div>
-            <input type="number" step="0.1" class="vector-input" [(ngModel)]="scale.y" (ngModelChange)="onTransformChange('scale')">
-          </div>
-          <div class="input-wrapper z-label" (mousedown)="startDrag($event, 'scale', 'z')">
-            <div class="input-label">Z</div>
-            <input type="number" step="0.1" class="vector-input" [(ngModel)]="scale.z" (ngModelChange)="onTransformChange('scale')">
-          </div>
-        </div>
-      </div>
-      
+  <!-- ENCABEZADO: Nombre del objeto e ícono (se mantiene igual) -->
+  <div class="panel-header">
+    <div class="object-icon-header">
+      <span *ngIf="selectedObject.type === 'camera'">📷</span>
+      <span *ngIf="selectedObject.type.toLowerCase().includes('light')">💡</span>
+      <span *ngIf="selectedObject.type === 'model' || selectedObject.type === 'cube'">🧊</span>
     </div>
-  </details>
+    <input type="text" class="object-name-input" [(ngModel)]="editableObjectName" (blur)="onNameChange()">
+    <button class="pin-btn" title="Fijar panel">📌</button>
+  </div>
+  
+  <!-- CONTENIDO: Lista de secciones desplegables -->
+  <div class="panel-content">
+    
+    <!-- Sección 1: Transformación (se mantiene igual) -->
+    <details class="properties-section" open>
+      <summary class="section-header">
+        <span class="arrow"></span>
+        Transformación
+      </summary>
+      <div class="section-content">
+        <app-transform-properties 
+          [selectedObject]="selectedObject" 
+          (transformChange)="onTransformChange($event)">
+        </app-transform-properties>
+      </div>
+    </details>
 
-  <!-- Otras secciones (sin cambios) -->
-
+    <!-- Sección 2: Propiedades Personalizadas (AHORA USA EL NUEVO COMPONENTE) -->
+    <details class="properties-section" open>
+      <summary class="section-header">
+        <span class="arrow"></span>
+        Propiedades Personalizadas
+      </summary>
+      <div class="section-content">
+          <!-- REEMPLAZADO: Toda la lógica de la lista se ha movido -->
+          <app-custom-properties [selectedObject]="selectedObject"></app-custom-properties>
+      </div>
+    </details>
+  
+    <!-- Sección 3: Metadatos (AHORA USA EL NUEVO COMPONENTE) -->
+    <details class="properties-section">
+      <summary class="section-header">
+        <span class="arrow"></span>
+        Metadatos
+      </summary>
+      <div class="section-content">
+           <!-- REEMPLAZADO: Toda la lógica de la lista se ha movido -->
+           <app-metadata-properties [selectedObject]="selectedObject"></app-metadata-properties>
+      </div>
+    </details>
+    
+    <!-- Secciones adicionales (sin cambios) -->
+    <details class="properties-section">
+      <summary class="section-header"><span class="arrow"></span>Relaciones</summary>
+      <div class="section-content placeholder">(Próximamente)</div>
+    </details>
+    
+  </div>
 </div>

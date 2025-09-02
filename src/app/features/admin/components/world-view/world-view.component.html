@@ -89,21 +89,43 @@
                 </button>
               </div>
 
-             <ng-container *ngIf="(engineService.cameraMode$ | async) === 'orthographic'">
-                  <div class="group-controls">
-                     <span class="brightness-icon" title="Brillo / Opacidad del Grupo"></span>
-                     <input 
-                        type="range" 
-                        class="brightness-slider"
-                        min="0" 
-                        max="1" 
-                        step="0.01"
-                        [value]="group.brightness"
-                        (input)="onGroupBrightnessChange(group, $event)"
-                        (click)="$event.stopPropagation()"
-                        title="Brillo / Opacidad: {{ group.brightness * 100 | number:'1.0-0' }}%">
-                  </div>
-                </ng-container>
+              <ng-container *ngIf="group.isExpanded">
+                <div class="group-controls">
+                   <span class="brightness-icon" title="Brillo / Opacidad del Grupo"></span>
+                   <input 
+                      type="range" 
+                      class="brightness-slider"
+                      min="0" 
+                      max="1" 
+                      step="0.01"
+                      [value]="group.brightness"
+                      (input)="onGroupBrightnessChange(group, $event)"
+                      (click)="$event.stopPropagation()"
+                      title="Brillo / Opacidad: {{ group.brightness * 100 | number:'1.0-0' }}%">
+                </div>
+
+                <ul class="scene-object-list" 
+                    cdkDropList
+                    [cdkDropListData]="group.visibleEntities"
+                    (cdkDropListDropped)="onDrop($event)">
+                  
+                  <li *ngFor="let e of group.visibleEntities; trackBy: trackByEntity" 
+                      cdkDrag 
+                      class="scene-object-item"
+                      [class.selected]="e.uuid === selectedEntityUuid" 
+                      [ngClass]="getColorClassForEntity(e)"
+                      (click)="onEntitySelect(e)">
+                    <span class="object-icon">{{ e.type === 'Camera' ? '📷' : e.type==='Light'?'💡': (e.type === 'Model' ? '📦' : '●') }}</span>
+                    <span class="object-name">{{ e.name }}</span>
+                  </li>
+                </ul>
+                
+                <div class="list-loader" *ngIf="group.visibleEntities.length < group.totalCount">
+                  <button (click)="showMoreInGroup(group)" class="show-more-button">
+                    Cargar Más ({{ group.visibleEntities.length }} / {{ group.totalCount }})
+                  </button>
+                </div>
+              </ng-container>
               
             </div>
           </div>
@@ -131,6 +153,7 @@
    
     </div>
 
+    <!-- Contenedor de Propiedades Simplificado -->
     <div class="properties-container">
       <div class="properties-tabs" [class.object-selected]="selectedObject">
         <button class="tab-button" title="Render" [class.active]="activePropertiesTab==='render'"
@@ -147,63 +170,38 @@
 
       <div class="properties-content">
         <ng-container [ngSwitch]="activePropertiesTab">
+
+          <!-- Pestaña de Objeto: Muestra el panel de propiedades unificado -->
           <ng-container *ngSwitchCase="'object'">
-            <div *ngIf="selectedObject" class="object-properties-panel">
-              <div class="object-tabs">
-                <button class="object-tab-button" [class.active]="activeObjectTab === 'transform'" (click)="selectObjectTab('transform')">Transformación</button>
-                <button class="object-tab-button" [class.active]="activeObjectTab === 'properties'" (click)="selectObjectTab('properties')">Propiedades</button>
-                <button class="object-tab-button" [class.active]="activeObjectTab === 'metadata'" (click)="selectObjectTab('metadata')">Metadatos</button>
-              </div>
-              <div class="object-tab-content">
-                <ng-container [ngSwitch]="activeObjectTab">
-                  
-                  <div *ngSwitchCase="'transform'" class="tab-pane">
-                    <app-properties-panel [selectedObject]="selectedObject" (objectUpdate)="handleObjectUpdate($event)"></app-properties-panel>
-                  </div>
-
-                  <div *ngSwitchCase="'properties'" class="tab-pane">
-                    <div class="scrollable-content">
-                      <ul class="property-list" *ngIf="objectProperties.length > 0; else noProperties">
-                        <li *ngFor="let prop of objectProperties" class="property-item">
-                          <span class="property-key" [title]="prop.key">{{ prop.key }}</span>
-                          <span class="property-value" [title]="prop.value">{{ formatPropertyValue(prop.value) }}</span>
-                        </li>
-                      </ul>
-                      <ng-template #noProperties>
-                        <div class="empty-state-small">Este objeto no tiene propiedades adicionales.</div>
-                      </ng-template>
-                    </div>
-                  </div>
-
-                  <div *ngSwitchCase="'metadata'" class="tab-pane">
-                    <div class="scrollable-content">
-                       <ul class="property-list">
-                          <li class="property-item"><span class="property-key">ID</span><span class="property-value">{{ selectedObject.id }}</span></li>
-                          <li class="property-item"><span class="property-key">Tipo</span><span class="property-value">{{ selectedObject.type }}</span></li>
-                          <li class="property-item" *ngIf="selectedObject.assetId"><span class="property-key">Asset ID</span><span class="property-value">{{ selectedObject.assetId }}</span></li>
-                       </ul>
-                    </div>
-                  </div>
-
-                </ng-container>
-              </div>
+            <app-properties-panel 
+              [selectedObject]="selectedObject" 
+              (objectUpdate)="handleObjectUpdate($event)">
+            </app-properties-panel>
+            
+            <!-- Mensaje si no hay objeto seleccionado -->
+            <div *ngIf="!selectedObject" class="placeholder-panel">
+               <h2>Propiedades del Objeto</h2>
+               <p>Selecciona un objeto en la lista para ver y editar sus propiedades.</p>
             </div>
           </ng-container>
-
+          
+          <!-- Pestaña de Escena -->
           <ng-container *ngSwitchCase="'scene'">
             <app-scene-settings-panel></app-scene-settings-panel>
           </ng-container>
 
+          <!-- Paneles por defecto para otras pestañas -->
           <div *ngSwitchDefault class="placeholder-panel">
             <h2>{{ activePropertiesTab | titlecase }}</h2>
             <p>Selecciona una pestaña para ver sus propiedades.</p>
           </div>
+
         </ng-container>
       </div>
     </div>
   </aside>
 
-  <button class="mobile-sidebar-toggle" (click)="toggleMobileSidebar()" title="Mostrar/Ocultar Paneles">
+  <button class="mobile-sidebar-toggle" (click)="toggleMobileSidebar()" title="Mostrar/Ocular Paneles">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
       <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
     </svg>

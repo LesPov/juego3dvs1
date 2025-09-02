@@ -1,0 +1,10 @@
+<ul class="property-list" *ngIf="displayProperties.length > 0; else noProperties">
+  <li *ngFor="let prop of displayProperties" class="property-item">
+    <span class="property-key" [title]="prop.key">{{ prop.key }}</span>
+    <span class="property-value" [title]="prop.value">{{ formatPropertyValue(prop.value) }}</span>
+  </li>
+</ul>
+
+<ng-template #noProperties>
+  <div class="placeholder">(Este objeto no tiene propiedades adicionales)</div>
+</ng-template>

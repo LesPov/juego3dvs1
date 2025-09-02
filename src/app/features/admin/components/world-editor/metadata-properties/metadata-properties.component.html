@@ -1,0 +1,16 @@
+<div *ngIf="selectedObject">
+  <ul class="property-list">
+    <li class="property-item">
+        <span class="property-key">ID de Objeto</span>
+        <span class="property-value">{{ selectedObject.id }}</span>
+    </li>
+    <li class="property-item">
+        <span class="property-key">Tipo</span>
+        <span class="property-value">{{ selectedObject.type }}</span>
+    </li>
+    <li class="property-item" *ngIf="selectedObject.assetId">
+        <span class="property-key">ID de Asset</span>
+        <span class="property-value">{{ selectedObject.assetId }}</span>
+    </li>
+  </ul>
+</div>

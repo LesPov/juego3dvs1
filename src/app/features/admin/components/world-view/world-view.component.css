@@ -186,26 +186,72 @@
 .cdk-drag-placeholder { background: rgba(74, 130, 196, 0.2); border-top: 1px solid #4A82C4; border-bottom: 1px solid #4A82C4; opacity: 1; transition: transform 250ms cubic-bezier(0, 0, 0.2, 1); }
 .cdk-drop-list-dragging .cdk-drag { transition: transform 250ms cubic-bezier(0, 0, 0.2, 1); }
 .cdk-drag-animating { transition: transform 250ms cubic-bezier(0, 0, 0.2, 1); }
-.properties-container { flex: 1; display: flex; min-height: 0; }
-.properties-tabs { width: 100px; background: #2b2b2b; display: flex; flex-direction: column; align-items: center; gap: 1px; border-right: 1px solid #202020; padding: 5px 0; overflow-y: auto; overflow-x: hidden; }
-.tab-button { width: 100%; background: none; border: none; color: #a0a0a0; font-size: 20px; padding: 6px 0; cursor: pointer; border-left: 2px solid transparent; transition: background .2s, color .2s; flex-shrink: 0; }
+
+/* ======================================================= */
+/* === INICIO DE LA MEJORA DEL DISEÑO DE PROPIEDADES
+/* ======================================================= */
+.properties-container {
+  /* ✅ MEJORA: Se asegura de que ocupe el espacio disponible en el sidebar */
+  flex: 1; 
+  display: flex;
+  /* ✅ MEJORA: flex-direction: row es el default, pero lo dejamos claro. Tabs a la izq, contenido a la der. */
+  flex-direction: row; 
+  /* ✅ MEJORA: Evita que el contenedor crezca más de lo debido y cause un scroll en el sidebar */
+  min-height: 0;
+  overflow: hidden;
+}
+
+.properties-tabs {
+  /* ✅ MEJORA: Ancho fijo para las pestañas. No se encogerá ni estirará. */
+  width: 48px;
+  flex-shrink: 0; 
+  
+  background: #2b2b2b;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  border-right: 1px solid #202020;
+  padding: 5px 0;
+  overflow-y: auto; /* Mantenemos el scroll aquí por si hay muchas pestañas */
+  overflow-x: hidden;
+}
+
+.properties-content {
+  /* ✅ MEJORA: Ocupará todo el espacio restante horizontalmente. */
+  flex-grow: 1;
+  background: #353535;
+  position: relative;
+  /* ✅ MEJORA: CRÍTICO. Evita que el contenido interno (el panel) se desborde y empuje el layout.
+     Ahora el scroll se gestionará DENTRO de los componentes hijos (como app-properties-panel). */
+  overflow: hidden;
+}
+/* ======================================================= */
+/* === FIN DE LA MEJORA DEL DISEÑO
+/* ======================================================= */
+
+.tab-button { width: 100%; background: none; border: none; color: #a0a0a0; font-size: 20px; padding: 10px 0; /* Un poco más de espacio */ cursor: pointer; border-left: 2px solid transparent; transition: background .2s, color .2s; flex-shrink: 0; }
 .tab-button:hover { background: #4a4a4a; }
 .tab-button.active { background: #353535; color: #f5b300; border-left-color: #f5b300; }
 .tabs-separator { width: 70%; height: 1px; background: #444; margin: 5px 0; flex-shrink: 0; }
-.properties-content { flex-grow: 1; background: #353535; position: relative; overflow: hidden; }
-.properties-content>* { width: 100%; height: 100%; }
+
+.properties-content > * {
+  width: 100%;
+  height: 100%;
+}
 .placeholder-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #999; padding: 20px; text-align: center; }
 .placeholder-panel h2 { margin-bottom: 10px; color: #ccc; }
 .object-tab-item { display: none; }
-.properties-tabs.object-selected .object-tab-item { display: block; }
-.object-properties-panel { display: flex; flex-direction: column; height: 100%; }
-.object-tabs { display: flex; flex-shrink: 0; border-bottom: 1px solid #202020; background-color: #2b2b2b; }
-.object-tab-button { flex: 1; padding: 8px 10px; background: none; border: none; border-bottom: 2px solid transparent; color: #a0a0a0; cursor: pointer; transition: all 0.2s ease; font-size: 13px; font-weight: 500; }
-.object-tab-button:hover { background-color: #4a4a4a; color: #e0e0e0; }
-.object-tab-button.active { color: #f5b300; border-bottom-color: #f5b300; background-color: #353535; }
-.object-tab-content { flex-grow: 1; position: relative; min-height: 0; overflow: hidden; }
-.tab-pane { height: 100%; width: 100%; overflow-y: auto; }
-.scrollable-content { padding: 15px; box-sizing: border-box; }
+.properties-tabs.object-selected .object-tab-item { display: flex; /* Usamos flex para centrar el ícono */ justify-content: center; align-items: center; }
+
+/* Eliminamos estas reglas que ya no son necesarias gracias al nuevo layout */
+/* .object-properties-panel { ... } */
+/* .object-tabs { ... } */
+/* .object-tab-button { ... } */
+/* .object-tab-content { ... } */
+/* .tab-pane { ... } */
+/* .scrollable-content { ... } */
+
 .property-list { list-style: none; padding: 0; margin: 0; }
 .property-item { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; border-bottom: 1px solid #444; }
 .property-item:last-child { border-bottom: none; }
@@ -217,12 +263,14 @@
 .search-input:focus { border-color: #5294e2; }
 app-brujula { position: absolute; top: 15px; right: 15px; width: 150px; height: 150px; z-index: 10; pointer-events: auto; }
 .axis-lock-indicator { position: absolute; left: 50%; bottom: 20px; background: rgba(35, 35, 35, 0.5); backdrop-filter: blur(12px); color: #e0e0e0; padding: 10px 24px; border-radius: 25px; font-size: 16px; font-weight: 500; z-index: 10; pointer-events: none; border: 1px solid rgba(255, 255, 255, 0.1); animation: slide-in-from-bottom 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; }
+@keyframes slide-in-from-bottom { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 .camera-position-display { position: absolute; top: 90px; left: 10px; background-color: rgba(0, 0, 0, 0.6); color: white; padding: 8px; border-radius: 5px; font-family: monospace; font-size: 12px; z-index: 100; pointer-events: none; line-height: 1.4; }
 .fly-mode-crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 100; width: 20px; height: 20px; }
 .crosshair-line { position: absolute; background-color: rgba(255, 255, 0, 0.7); box-shadow: 0 0 5px rgba(255, 217, 0, 0.5); }
 .crosshair-line.horizontal { width: 100%; height: 2px; top: 50%; left: 0; transform: translateY(-50%); }
 .crosshair-line.vertical { width: 2px; height: 100%; left: 50%; top: 0; transform: translateX(-50%); }
-.panel-content, .tab-pane { scrollbar-width: none; scrollbar-color: rgba(255, 255, 255, 0.3) transparent; }
+
+/* ✅ MEJORA: Unificamos el estilo de la barra de scroll para todo el componente */
 :host ::-webkit-scrollbar { width: 8px; height: 8px; }
 :host ::-webkit-scrollbar-track { background: transparent; margin: 2px; }
 :host ::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.15); border-radius: 4px; border: 2px solid transparent; background-clip: content-box; }

@@ -1,16 +1,64 @@
 :host {
-  display: block;
-  color: #dcdcdc;
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  font-size: 13px;
+  background-color: #353535; /* Ajustado al color de fondo de tu tema */
+  color: #dcdcdc;
+  overflow: hidden; /* Evita doble barra de scroll */
 }
 
-.panel-container {
-  padding: 8px;
+.properties-panel-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #2a2a2a;
+  background-color: #2b2b2b; /* Coincide con el color de tus tabs */
+  flex-shrink: 0;
+}
+
+.object-icon-header {
+  font-size: 1.2rem;
+  user-select: none;
+}
+
+.object-name-input {
+  flex-grow: 1;
+  background: #1c1c1c; /* Coincide con tu search-input */
+  border: 1px solid #444;
+  color: #e0e0e0;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.object-name-input:focus {
+  outline: none;
+  border-color: #5294e2;
+}
+
+.pin-btn {
+    background: none;
+    border: none;
+    color: #a0a0a0;
+    cursor: pointer;
+    font-size: 16px;
+}
+.pin-btn:hover { color: #fff; }
+
+.panel-content {
+  overflow-y: auto;
+  flex-grow: 1;
 }
 
 .properties-section {
-  margin-bottom: 5px;
+  border-bottom: 1px solid #444;
 }
 .properties-section:last-child {
   border-bottom: none;
@@ -18,109 +66,79 @@
 
 .section-header {
   font-weight: bold;
-  font-size: 12px;
-  padding: 8px 4px;
+  font-size: 13px;
+  padding: 10px 12px;
   cursor: pointer;
-  list-style: none;
+  list-style: none; /* Oculta el marcador por defecto */
   display: flex;
   align-items: center;
   user-select: none;
+  background-color: #303030;
+  transition: background-color 0.2s;
+}
+.section-header:hover {
+    background-color: #454545;
 }
 .section-header::-webkit-details-marker {
   display: none;
 }
+
 .section-header .arrow {
   display: inline-block;
   width: 0;
   height: 0;
-  border-top: 4px solid transparent;
-  border-bottom: 4px solid transparent;
-  border-left: 4px solid #dcdcdc;
-  margin-right: 8px;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 5px solid #dcdcdc;
+  margin-right: 10px;
   transition: transform 0.2s ease;
 }
+
 details[open] > summary .arrow {
   transform: rotate(90deg);
 }
 
 .section-content {
-  padding: 5px 0 10px 16px;
+  padding: 10px 15px 15px 27px; /* Alineado con el texto del header */
+  background-color: #353535;
 }
 
-.property-row {
-  display: flex;
-  align-items: center;
-  margin-bottom: 5px;
-}
-
-/* ======================================================= */
-/* === INICIO DE LA MEJORA: Estilos para Inputs Vectoriales */
-/* ======================================================= */
-.vector-row {
-  display: flex;
-  align-items: center;
-}
-
-.vector-label {
-  width: 75px; /* Ancho fijo para la etiqueta (Posición, etc.) */
-  flex-shrink: 0;
-  color: #a0a0a0;
-  padding-right: 10px;
-}
-
-.vector-inputs {
-  display: flex;
-  gap: 5px;
-  width: 100%;
-}
-
-.input-wrapper {
-  display: flex;
-  flex: 1 1 0; /* Permite que los inputs se encojan y crezcan por igual */
-  background-color: #2a2a2a;
-  border: 1px solid #202020;
-  border-radius: 4px;
-  overflow: hidden;
-  transition: border-color 0.2s ease;
-  cursor: ns-resize; /* Cursor para arrastre vertical */
-  user-select: none; /* Evita seleccionar texto al arrastrar */
-}
-
-.input-wrapper:focus-within {
-  background-color: #333;
-  border-color: #5294e2;
-}
-
-.input-label {
-  padding: 5px 8px;
-  font-weight: bold;
-  color: #fff;
+.placeholder {
+  color: #888;
+  font-style: italic;
   font-size: 12px;
 }
 
-.x-label { border-right: 1px solid #c75353; }
-.y-label { border-right: 1px solid #53c75a; }
-.z-label { border-right: 1px solid #5380c7; }
-
-.vector-input {
-  width: 100%;
-  background: none;
-  border: none;
-  color: #e0e0e0;
-  text-align: left;
-  padding: 4px 6px;
-  outline: none;
-  font-size: 13px;
-  cursor: ns-resize; /* También aplicamos el cursor aquí */
-}
-
-/* Ocultar las flechas por defecto de los inputs de tipo number */
-.vector-input::-webkit-outer-spin-button,
-.vector-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
+/* Estilos para las listas de propiedades (para Metadatos y Personalizadas) */
+.property-list {
+  list-style: none;
+  padding: 0;
   margin: 0;
 }
-.vector-input[type=number] {
-  -moz-appearance: textfield;
-  appearance: textfield;
+
+.property-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 13px;
+  border-bottom: 1px solid #444;
+}
+
+.property-item:last-child {
+  border-bottom: none;
+}
+
+.property-key {
+  color: #a0a0a0;
+  margin-right: 15px;
+}
+
+.property-value {
+  color: #e0e0e0;
+  font-weight: 500;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
 }
