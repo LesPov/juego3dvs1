@@ -52,94 +52,161 @@
     <app-brujula></app-brujula>
   </main>
 
-  <aside class="sidebar" [class.visible-mobile]="isMobileSidebarVisible">
+   <aside class="sidebar" [class.visible-mobile]="isMobileSidebarVisible">
     <!-- Lista Objetos -->
     <div class="panel scene-list-panel">
       <div class="panel-header">Elementos en la Escena</div>
-
-      <!-- ======================================================= -->
-      <!-- === INICIO DE LA MEJORA: Campo de Búsqueda          === -->
-      <!-- ======================================================= -->
       <div class="search-bar-container">
         <input 
           type="text" 
           class="search-input"
           placeholder=" Buscar por nombre..." 
-          [(ngModel)]="searchFilter"
+          [ngModel]="searchFilter"
           (ngModelChange)="onSearchChange($event)"
           aria-label="Buscar objeto en la escena">
       </div>
+
       <!-- ======================================================= -->
-      <!-- === FIN DE LA MEJORA                                === -->
+      <!-- === INICIO DE LA MEJORA: Estructura con Carga Progresiva por Grupo -->
       <!-- ======================================================= -->
+      <div #sceneListContent class="panel-content scrollable" cdkDropListGroup>
+        
+        <ng-container *ngIf="displayGroups$ | async as groups">
+          <div *ngIf="groups.length > 0; else noResults">
+            <!-- Bucle principal para cada GRUPO (carpeta) -->
+            <div *ngFor="let group of groups; trackBy: trackByGroupType" class="object-group">
+              
+              <!-- La cabecera de la carpeta, que es clickeable para expandir/colapsar -->
+              <div class="group-header" (click)="toggleGroup(group)">
+                <span class="group-toggle-icon">{{ group.isExpanded ? '▼' : '▶' }}</span>
+                <span class="group-name">{{ group.type }}</span>
+                <span class="group-count">({{ group.totalCount }})</span>
+              </div>
 
-      <div #sceneListContent class="panel-content scrollable">
-        <ul *ngIf="displayEntities$ | async as entities" class="scene-object-list" cdkDropList
-          [cdkDropListData]="entities" (cdkDropListDropped)="onDrop($event)">
-          <li *ngFor="let e of entities; trackBy: trackByEntity" cdkDrag class="scene-object-item"
-            [class.selected]="e.uuid === selectedEntityUuid" [ngClass]="getColorClassForEntity(e)"
-            (click)="onEntitySelect(e)">
-            <span class="object-icon">{{ e.type === 'Camera' ? '📷' : e.type==='Light'?'💡': (e.type === 'Model' ? '📦'
-              :
-              '●') }}</span>
-            <span class="object-name">{{ e.name }}</span>
-          </li>
-        </ul>
+              <!-- Contenido de la carpeta, solo se muestra si está expandida -->
+              <ng-container *ngIf="group.isExpanded">
+                <!-- La lista de objetos DENTRO de la carpeta -->
+                <ul class="scene-object-list" 
+                    cdkDropList
+                    [cdkDropListData]="group.visibleEntities"
+                    (cdkDropListDropped)="onDrop($event)">
+                  
+                  <li *ngFor="let e of group.visibleEntities; trackBy: trackByEntity" 
+                      cdkDrag 
+                      class="scene-object-item"
+                      [class.selected]="e.uuid === selectedEntityUuid" 
+                      [ngClass]="getColorClassForEntity(e)"
+                      (click)="onEntitySelect(e)">
+                    <span class="object-icon">{{ e.type === 'Camera' ? '📷' : e.type==='Light'?'💡': (e.type === 'Model' ? '📦' : '●') }}</span>
+                    <span class="object-name">{{ e.name }}</span>
+                  </li>
+                </ul>
+                
+                <!-- Botón "Cargar Más" que solo aparece si hay más objetos por mostrar EN ESTE GRUPO -->
+                <div class="list-loader" *ngIf="group.visibleEntities.length < group.totalCount">
+                  <button (click)="showMoreInGroup(group)" class="show-more-button">
+                    Cargar Más ({{ group.visibleEntities.length }} / {{ group.totalCount }})
+                  </button>
+                </div>
+              </ng-container>
+              
+            </div>
+          </div>
+          
+          <!-- Template para cuando no hay resultados -->
+          <ng-template #noResults>
+            <div *ngIf="totalFilteredEntityCount === 0 && searchFilter" class="empty-state">
+              No se encontraron objetos con ese nombre.
+            </div>
+            <div *ngIf="!searchFilter && allEntities.length === 0" class="empty-state">
+              La escena está vacía.
+            </div>
+          </ng-template>
 
-        <!-- ======================================================= -->
-        <!-- === INICIO DE LA MEJORA: Lógica del Botón "Cargar Más" === -->
-        <!-- ======================================================= -->
-        <div class="list-loader" *ngIf="displayedEntityCount < totalFilteredEntityCount">
-          <button (click)="showMoreEntities()" class="show-more-button">
-            Cargar Más ({{ displayedEntityCount }} / {{ totalFilteredEntityCount }})
-          </button>
-        </div>
-        <!-- ======================================================= -->
-        <!-- === FIN DE LA MEJORA                                 === -->
-        <!-- ======================================================= -->
+        </ng-container>
 
+        <!-- Elemento para añadir nuevos objetos (fuera de los grupos) -->
         <ul class="scene-object-list" *ngIf="!searchFilter">
-          <li *ngFor="let e of placeholderEntities" class="scene-object-item placeholder-item"
-            (click)="onEntitySelect(e)">
+          <li *ngFor="let e of placeholderEntities" 
+              class="scene-object-item placeholder-item"
+              (click)="onEntitySelect(e)">
             {{ e.name }}
           </li>
         </ul>
 
-        <!-- Estado cuando no hay resultados en la búsqueda -->
-        <div *ngIf="searchFilter && totalFilteredEntityCount === 0" class="empty-state">
-          No se encontraron objetos con ese nombre.
-        </div>
-
-        <div *ngIf="!searchFilter && !allEntities.length && !(displayEntities$ | async)?.length" class="empty-state">
-          La escena está vacía.
-        </div>
       </div>
+   
     </div>
 
-    <!-- Propiedades -->
     <div class="properties-container">
-      <div class="properties-tabs">
+      <div class="properties-tabs" [class.object-selected]="selectedObject">
         <button class="tab-button" title="Render" [class.active]="activePropertiesTab==='render'"
           (click)="selectPropertiesTab('render')">📷</button>
         <button class="tab-button" title="Scene" [class.active]="activePropertiesTab==='scene'"
           (click)="selectPropertiesTab('scene')">🏞️</button>
         <button class="tab-button" title="World" [class.active]="activePropertiesTab==='world'"
           (click)="selectPropertiesTab('world')">🌍</button>
-        <ng-container *ngIf="selectedObject">
-          <div class="tabs-separator"></div>
-          <button class="tab-button" title="Object" [class.active]="activePropertiesTab==='object'"
-            (click)="selectPropertiesTab('object')">🧊</button>
-        </ng-container>
+        
+        <div class="tabs-separator object-tab-item"></div>
+        <button class="tab-button object-tab-item" title="Object" [class.active]="activePropertiesTab==='object'"
+          (click)="selectPropertiesTab('object')">🧊</button>
       </div>
+
       <div class="properties-content">
         <ng-container [ngSwitch]="activePropertiesTab">
           <ng-container *ngSwitchCase="'object'">
-            <app-properties-panel [selectedObject]="selectedObject" (objectUpdate)="handleObjectUpdate($event)">
-            </app-properties-panel>
+            <div *ngIf="selectedObject" class="object-properties-panel">
+              <div class="object-tabs">
+                <button class="object-tab-button" [class.active]="activeObjectTab === 'transform'" (click)="selectObjectTab('transform')">Transformación</button>
+                <button class="object-tab-button" [class.active]="activeObjectTab === 'properties'" (click)="selectObjectTab('properties')">Propiedades</button>
+                <button class="object-tab-button" [class.active]="activeObjectTab === 'metadata'" (click)="selectObjectTab('metadata')">Metadatos</button>
+              </div>
+              <div class="object-tab-content">
+                <ng-container [ngSwitch]="activeObjectTab">
+                  
+                  <!-- ======================================================= -->
+                  <!-- === INICIO DE LA MEJORA: Se añade la clase .tab-pane ==== -->
+                  <!-- ======================================================= -->
+                  <div *ngSwitchCase="'transform'" class="tab-pane">
+                    <app-properties-panel [selectedObject]="selectedObject" (objectUpdate)="handleObjectUpdate($event)"></app-properties-panel>
+                  </div>
+
+                  <div *ngSwitchCase="'properties'" class="tab-pane">
+                    <div class="scrollable-content">
+                      <ul class="property-list" *ngIf="objectProperties.length > 0; else noProperties">
+                        <li *ngFor="let prop of objectProperties" class="property-item">
+                          <span class="property-key" [title]="prop.key">{{ prop.key }}</span>
+                          <span class="property-value" [title]="prop.value">{{ formatPropertyValue(prop.value) }}</span>
+                        </li>
+                      </ul>
+                      <ng-template #noProperties>
+                        <div class="empty-state-small">Este objeto no tiene propiedades adicionales.</div>
+                      </ng-template>
+                    </div>
+                  </div>
+
+                  <div *ngSwitchCase="'metadata'" class="tab-pane">
+                    <div class="scrollable-content">
+                       <ul class="property-list">
+                          <li class="property-item"><span class="property-key">ID</span><span class="property-value">{{ selectedObject.id }}</span></li>
+                          <li class="property-item"><span class="property-key">Tipo</span><span class="property-value">{{ selectedObject.type }}</span></li>
+                          <li class="property-item" *ngIf="selectedObject.assetId"><span class="property-key">Asset ID</span><span class="property-value">{{ selectedObject.assetId }}</span></li>
+                       </ul>
+                    </div>
+                  </div>
+                  <!-- ======================================================= -->
+                  <!-- === FIN DE LA MEJORA                                 ==== -->
+                  <!-- ======================================================= -->
+
+                </ng-container>
+              </div>
+            </div>
           </ng-container>
+
           <ng-container *ngSwitchCase="'scene'">
             <app-scene-settings-panel></app-scene-settings-panel>
           </ng-container>
+
           <div *ngSwitchDefault class="placeholder-panel">
             <h2>{{ activePropertiesTab | titlecase }}</h2>
             <p>Selecciona una pestaña para ver sus propiedades.</p>

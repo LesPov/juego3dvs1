@@ -1,43 +1,16 @@
-/* src/app/features/admin/views/world-editor/properties-panel/properties-panel.component.css */
-
 :host {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background-color: #393939;
+  display: block;
   color: #dcdcdc;
+  height: 100%;
+  font-size: 13px;
 }
 
-.panel-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-bottom: 1px solid #2a2a2a;
-}
-
-.object-icon-header {
-  font-size: 1.2rem;
-}
-
-.object-name-input {
-  flex-grow: 1;
-  background: #555;
-  border: 1px solid #666;
-  color: #fff;
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 1rem;
-}
-
-.panel-content {
-  overflow-y: auto;
-  flex-grow: 1;
+.panel-container {
   padding: 8px;
 }
 
 .properties-section {
-  border-bottom: 1px solid #4a4a4a;
+  margin-bottom: 5px;
 }
 .properties-section:last-child {
   border-bottom: none;
@@ -46,36 +19,108 @@
 .section-header {
   font-weight: bold;
   font-size: 12px;
-  padding: 10px 4px;
+  padding: 8px 4px;
   cursor: pointer;
-  list-style: none; /* Oculta el marcador por defecto */
+  list-style: none;
   display: flex;
   align-items: center;
+  user-select: none;
 }
 .section-header::-webkit-details-marker {
-  display: none; /* Oculta el marcador en Chrome/Safari */
+  display: none;
 }
 .section-header .arrow {
   display: inline-block;
   width: 0;
   height: 0;
-  border-top: 5px solid transparent;
-  border-bottom: 5px solid transparent;
-  border-left: 5px solid #dcdcdc;
-  margin-right: 10px;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 4px solid #dcdcdc;
+  margin-right: 8px;
   transition: transform 0.2s ease;
 }
-
 details[open] > summary .arrow {
   transform: rotate(90deg);
 }
 
 .section-content {
-  padding: 10px 5px 15px 19px; /* Alineado con el texto del header */
+  padding: 5px 0 10px 16px;
 }
 
-.placeholder {
-  color: #888;
-  font-style: italic;
+.property-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+/* ======================================================= */
+/* === INICIO DE LA MEJORA: Estilos para Inputs Vectoriales */
+/* ======================================================= */
+.vector-row {
+  display: flex;
+  align-items: center;
+}
+
+.vector-label {
+  width: 75px; /* Ancho fijo para la etiqueta (Posición, etc.) */
+  flex-shrink: 0;
+  color: #a0a0a0;
+  padding-right: 10px;
+}
+
+.vector-inputs {
+  display: flex;
+  gap: 5px;
+  width: 100%;
+}
+
+.input-wrapper {
+  display: flex;
+  flex: 1 1 0; /* Permite que los inputs se encojan y crezcan por igual */
+  background-color: #2a2a2a;
+  border: 1px solid #202020;
+  border-radius: 4px;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+  cursor: ns-resize; /* Cursor para arrastre vertical */
+  user-select: none; /* Evita seleccionar texto al arrastrar */
+}
+
+.input-wrapper:focus-within {
+  background-color: #333;
+  border-color: #5294e2;
+}
+
+.input-label {
+  padding: 5px 8px;
+  font-weight: bold;
+  color: #fff;
   font-size: 12px;
+}
+
+.x-label { border-right: 1px solid #c75353; }
+.y-label { border-right: 1px solid #53c75a; }
+.z-label { border-right: 1px solid #5380c7; }
+
+.vector-input {
+  width: 100%;
+  background: none;
+  border: none;
+  color: #e0e0e0;
+  text-align: left;
+  padding: 4px 6px;
+  outline: none;
+  font-size: 13px;
+  cursor: ns-resize; /* También aplicamos el cursor aquí */
+}
+
+/* Ocultar las flechas por defecto de los inputs de tipo number */
+.vector-input::-webkit-outer-spin-button,
+.vector-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.vector-input[type=number] {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }

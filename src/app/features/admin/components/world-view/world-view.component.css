@@ -1,34 +1,202 @@
 /* Estilos base (sin cambios) */
-:host { 
-  display: block; 
-  width: 100vw; 
-  height: 100vh; 
-  background: #1e1e1e; 
-  color: #ccc; 
-  font-family: Segoe UI, sans-serif; 
-  overflow: hidden; 
+:host {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  background: #1e1e1e;
+  color: #ccc;
+  font-family: Segoe UI, sans-serif;
+  overflow: hidden;
+}
+/* ======================================================= */
+/* === INICIO DE LA MEJORA: Estilos para las carpetas/grupos === */
+/* ======================================================= */
+.group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background-color: #3a3a3a;
+  color: #e0e0e0;
+  font-weight: bold;
+  font-size: 14px;
+  border-top: 1px solid #202020;
+  border-bottom: 1px solid #202020;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s;
 }
 
+.group-header:hover {
+  background-color: #454545;
+}
+
+.group-toggle-icon {
+  width: 12px;
+  font-size: 10px;
+}
+
+.group-name {
+  flex-grow: 1;
+}
+
+.group-count {
+  font-size: 12px;
+  font-weight: normal;
+  color: #999;
+}
+
+/* Añade un poco de indentación a los objetos dentro de las carpetas */
+.scene-object-list .scene-object-item {
+  padding-left: 24px;
+}
+.list-loader {
+  padding: 5px 10px 10px 10px;
+  background-color: #252525;
+}
+
+.show-more-button {
+  width: 100%;
+  padding: 8px 10px;
+  font-weight: 500;
+  color: #c4c4c4;
+  background-color: #3e3e3e;
+  border: 1px solid #4a4a4a;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+  text-align: center;
+}
+
+.show-more-button:hover {
+  background-color: #4A82C4;
+  border-color: #5a93d5;
+  color: #fff;
+}
+/* ======================================================= */
+/* === FIN DE LA MEJORA                                ==== */
+/* ======================================================= */
+
 /* --- ESTILOS DE PRELOADER (sin cambios) --- */
-.preloader-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(30, 30, 30, 0.95); z-index: 9999; display: flex; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
-.preloader-content { text-align: center; color: #e0e0e0; width: 80%; max-width: 400px; }
-.preloader-content h1 { font-size: 1.5rem; font-weight: 300; margin-bottom: 20px; letter-spacing: 1px; }
-.progress-bar-container { width: 100%; height: 12px; background-color: #3a3a3a; border-radius: 6px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.4); }
-.progress-bar { height: 100%; background-color: #5294e2; border-radius: 6px; transition: width 0.2s ease-out; }
-.progress-text { margin-top: 15px; font-size: 1.2rem; font-weight: 500; color: #ffffff; }
+.preloader-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(30, 30, 30, 0.95);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.5s ease;
+}
+
+.preloader-content {
+  text-align: center;
+  color: #e0e0e0;
+  width: 80%;
+  max-width: 400px;
+}
+
+.preloader-content h1 {
+  font-size: 1.5rem;
+  font-weight: 300;
+  margin-bottom: 20px;
+  letter-spacing: 1px;
+}
+
+.progress-bar-container {
+  width: 100%;
+  height: 12px;
+  background-color: #3a3a3a;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.progress-bar {
+  height: 100%;
+  background-color: #5294e2;
+  border-radius: 6px;
+  transition: width 0.2s ease-out;
+}
+
+.progress-text {
+  margin-top: 15px;
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: #ffffff;
+}
 
 /* ---- ESTILOS DE EDITOR ---- */
-.editor-layout { display: grid; grid-template-areas: "header header" "viewport sidebar"; grid-template-columns: 1fr 380px; grid-template-rows: 40px 1fr; width:100%; height:100%; }
-.editor-header { grid-area: header; background: #2b2b2b; border-bottom: 1px solid #202020; display: flex; align-items: center; padding: 0 20px; font-weight: bold; }
-.viewport { grid-area: viewport; position: relative; overflow: hidden; } 
-.sidebar { grid-area: sidebar; background: #2b2b2b; border-left: 1px solid #202020; display: flex; flex-direction: column; overflow: hidden; }
-.mobile-sidebar-toggle { display: none; }
-.panel-header { background: #353535; padding: 8px 12px; border-bottom: 1px solid #202020; font-weight: 500; user-select: none; }
+.editor-layout {
+  display: grid;
+  grid-template-areas: "header header" "viewport sidebar";
+  grid-template-columns: 1fr 380px;
+  grid-template-rows: 40px 1fr;
+  width: 100%;
+  height: 100%;
+}
 
-/* ---- 🎯 NUEVOS ESTILOS: LISTA DE ESCENA TIPO BLENDER ---- */
-.scene-list-panel { flex: 1; border: none; border-bottom: 1px solid #202020; min-height: 0; display: flex; flex-direction: column; }
-.panel-content { background: #252525; overflow-y: auto; flex-grow: 1; }
-.scene-object-list { list-style: none; margin: 0; padding: 0; }
+.editor-header {
+  grid-area: header;
+  background: #2b2b2b;
+  border-bottom: 1px solid #202020;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  font-weight: bold;
+}
+
+.viewport {
+  grid-area: viewport;
+  position: relative;
+  overflow: hidden;
+}
+
+.sidebar {
+  grid-area: sidebar;
+  background: #2b2b2b;
+  border-left: 1px solid #202020;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mobile-sidebar-toggle {
+  display: none;
+}
+
+.panel-header {
+  background: #353535;
+  padding: 8px 12px;
+  border-bottom: 1px solid #202020;
+  font-weight: 500;
+  user-select: none;
+}
+
+/* ---- LISTA DE ESCENA ---- */
+.scene-list-panel {
+  flex: 1;
+  border: none;
+  border-bottom: 1px solid #202020;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-content {
+  background: #252525;
+  overflow-y: auto;
+  flex-grow: 1;
+}
+
+.scene-object-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
 
 .scene-object-item {
   display: flex;
@@ -37,46 +205,55 @@
   padding: 4px 12px;
   font-size: 13px;
   color: #c4c4c4;
-  /* Borde izquierdo que tomará el color de la posición */
-  border-left: 3px solid transparent; 
-  /* Línea divisoria entre elementos, como en Blender */
+  border-left: 3px solid transparent;
   border-bottom: 1px solid rgba(0, 0, 0, 0.2);
   transition: background .15s, border-color .15s;
-  user-select: none; /* Evita que se seleccione el texto al arrastrar */
+  user-select: none;
 }
 
-/* Cursores para indicar interactividad */
-.scene-object-item:not(.placeholder-item) { cursor: grab; }
-.scene-object-item:not(.placeholder-item):active { cursor: grabbing; }
-.scene-object-item:not(.placeholder-item):hover { background-color: rgba(255, 255, 255, 0.08); }
+.scene-object-item:not(.placeholder-item) {
+  cursor: grab;
+}
 
-/* Estilos de los placeholders "Añadir objeto" */
-.placeholder-item { font-style: italic; color: #777; cursor: pointer; }
-.placeholder-item:hover { background-color: rgba(255, 255, 255, 0.05); }
+.scene-object-item:not(.placeholder-item):active {
+  cursor: grabbing;
+}
 
-/* Estilos de los iconos */
-.object-icon { width: 16px; text-align: center; opacity: 0.7; font-size: 14px; }
-.object-name { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scene-object-item:not(.placeholder-item):hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
 
-/* Estilo para el elemento SELECCIONADO (tiene más prioridad que el hover) */
+.placeholder-item {
+  font-style: italic;
+  color: #777;
+  cursor: pointer;
+}
+
+.placeholder-item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.object-icon {
+  width: 16px;
+  text-align: center;
+  opacity: 0.7;
+  font-size: 14px;
+}
+
+.object-name {
+  flex-grow: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .scene-object-item.selected {
-  background-color: #4A82C4; /* Azul de selección de Blender */
+  background-color: #4A82C4;
   color: #fff;
-  border-left-color: #F5B300 !important; /* Borde naranja, !important para que siempre gane al color de posición */
+  border-left-color: #F5B300 !important;
 }
 
-/* ---- 🎯 NUEVOS ESTILOS: COLORES POR POSICIÓN EN LA LISTA ---- */
-/* Cada clase corresponde a un color de la paleta en el TS */
-.scene-object-item.list-color-0 { border-left-color: #88a8d1; }
-.scene-object-item.list-color-1 { border-left-color: #a8d188; }
-.scene-object-item.list-color-2 { border-left-color: #d188a8; }
-.scene-object-item.list-color-3 { border-left-color: #d1a888; }
-.scene-object-item.list-color-4 { border-left-color: #88d1d1; }
-.scene-object-item.list-color-5 { border-left-color: #d1d188; }
-
-/* ---- 🎯 NUEVOS ESTILOS: EXPERIENCIA VISUAL DE DRAG & DROP ---- */
-
-/* Estilo del elemento "fantasma" que se arrastra */
+/* ---- DRAG & DROP ---- */
 .cdk-drag-preview {
   box-sizing: border-box;
   border-radius: 3px;
@@ -85,7 +262,6 @@
   color: #fff;
 }
 
-/* Estilo del espacio que deja el elemento al ser arrastrado */
 .cdk-drag-placeholder {
   background: rgba(74, 130, 196, 0.2);
   border-top: 1px solid #4A82C4;
@@ -94,107 +270,217 @@
   transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
 }
 
-/* Animación suave para los otros elementos cuando se mueven para hacer espacio */
 .cdk-drop-list-dragging .cdk-drag {
   transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
 }
 
-/* Ocultamos el elemento original mientras se arrastra, para que solo se vea el placeholder */
 .cdk-drag-animating {
   transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
 }
 
-/* ---- ESTILOS DEL PANEL DE PROPIEDADES (sin cambios) ---- */
-.properties-container { flex: 1; display: flex; min-height: 0; }
-.properties-tabs { width: 40px; background: #2b2b2b; display: flex; flex-direction: column; align-items: center; gap: 1px; border-right: 1px solid #202020; padding: 5px 0; overflow-y: auto; overflow-x: hidden; }
-.tab-button { width: 100%; background: none; border: none; color: #a0a0a0; font-size: 20px; padding: 6px 0; cursor: pointer; border-left: 2px solid transparent; transition: background .2s, color .2s; flex-shrink: 0; }
-.tab-button:hover { background: #4a4a4a; }
-.tab-button.active { background: #353535; color: #f5b300; border-left-color: #f5b300; }
-.tabs-separator { width: 70%; height: 1px; background: #444; margin: 5px 0; flex-shrink: 0; }
-.properties-content { flex-grow: 1; background: #353535; position: relative; overflow-y: auto; }
-.properties-content>* { width: 100%; height: 100%; }
-.placeholder-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #999; padding: 20px; text-align: center; }
-.placeholder-panel h2 { margin-bottom: 10px; color: #ccc; }
-app-brujula {
-  position: absolute;
-  top: 15px;
-  right: 15px;
-  /* Aumentamos el tamaño del espacio de 120px a 150px */
-  width: 150px;
-  height: 150px;
-  z-index: 10;
-  pointer-events: auto; /* Esto ya estaba bien */
+/* ---- PANEL DE PROPIEDADES ---- */
+.properties-container {
+  flex: 1;
+  display: flex;
+  min-height: 0;
 }
 
-/* ---- ESTILOS DEL INDICADOR DE EJE (sin cambios) ---- */
-@keyframes slide-in-from-bottom { from { opacity: 0; transform: translate(-50%, 30px); } to { opacity: 1; transform: translate(-50%, 0); } }
-.axis-lock-indicator { position: absolute; left: 50%; bottom: 20px; background: rgba(35, 35, 35, 0.5); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); color: #e0e0e0; padding: 10px 24px; border-radius: 25px; font-size: 16px; font-weight: 500; z-index: 10; pointer-events: none; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 4px 20px rgba(0,0,0,0.3); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); animation: slide-in-from-bottom 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; }
-.axis-lock-indicator b { font-weight: 700; color: #ffffff; }
-.axis-lock-indicator.lock-x b { color: #ff556f; text-shadow: 0 0 10px #ff556f, 0 0 20px #ff556f; }
-.axis-lock-indicator.lock-y b { color: #55ff88; text-shadow: 0 0 10px #55ff88, 0 0 20px #55ff88; }
-.axis-lock-indicator.lock-z b { color: #55aaff; text-shadow: 0 0 10px #55aaff, 0 0 20px #55aaff; }
-.camera-position-display {
-  position: absolute;
-  top: 90px;
-  left: 10px;
-  background-color: rgba(0, 0, 0, 0.6);
-  color: white;
-  padding: 8px;
-  border-radius: 5px;
-  font-family: monospace;
-  font-size: 12px;
-  z-index: 100;
-  pointer-events: none; /* Para que no interfiera con el clic en la escena */
-  line-height: 1.4;
-}
-/* ... (todos tus estilos existentes) ... */
-
-/* ============================================== */
-/* === NUEVO: ESTILOS PARA LA CRUZ (CROSSHAIR) === */
-/* ============================================== */
-.fly-mode-crosshair {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  /* Usamos transform para centrarlo perfectamente */
-  transform: translate(-50%, -50%);
-  /* Muy importante: para que no intercepte los clics del ratón */
-  pointer-events: none; 
-  z-index: 100;
-  width: 20px;
-  height: 20px;
+.properties-tabs {
+  width: 100px;
+  background: #2b2b2b;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  border-right: 1px solid #202020;
+  padding: 5px 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
-.crosshair-line {
-  position: absolute;
-  background-color: rgba(255, 255, 0, 0.7); /* Amarillo semi-transparente */
-  box-shadow: 0 0 5px rgba(255, 217, 0, 0.5); /* Un ligero brillo sutil */
+.tab-button {
+  width: 100%;
+  background: none;
+  border: none;
+  color: #a0a0a0;
+  font-size: 20px;
+  padding: 6px 0;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: background .2s, color .2s;
+  flex-shrink: 0;
 }
 
-.crosshair-line.horizontal {
-  width: 100%; /* Ocupa todo el ancho del contenedor */
-  height: 2px;
-  top: 50%;
-  left: 0;
-  transform: translateY(-50%); /* Centrado vertical */
+.tab-button:hover {
+  background: #4a4a4a;
 }
 
-.crosshair-line.vertical {
-  width: 2px;
-  height: 100%; /* Ocupa toda la altura del contenedor */
-  left: 50%;
-  top: 0;
-  transform: translateX(-50%); /* Centrado horizontal */
+.tab-button.active {
+  background: #353535;
+  color: #f5b300;
+  border-left-color: #f5b300;
 }
 
-/* ... Tus otros estilos existentes ... */
+.tabs-separator {
+  width: 70%;
+  height: 1px;
+  background: #444;
+  margin: 5px 0;
+  flex-shrink: 0;
+}
 
+.properties-content {
+  flex-grow: 1;
+  background: #353535;
+  position: relative;
+  overflow: hidden;
+}
+
+.properties-content>* {
+  width: 100%;
+  height: 100%;
+}
+
+.placeholder-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  padding: 20px;
+  text-align: center;
+}
+
+.placeholder-panel h2 {
+  margin-bottom: 10px;
+  color: #ccc;
+}
+
+.object-tab-item {
+  display: none;
+}
+
+.properties-tabs.object-selected .object-tab-item {
+  display: block;
+}
+
+.object-properties-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.object-tabs {
+  display: flex;
+  flex-shrink: 0;
+  border-bottom: 1px solid #202020;
+  background-color: #2b2b2b;
+}
+
+.object-tab-button {
+  flex: 1;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #a0a0a0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.object-tab-button:hover {
+  background-color: #4a4a4a;
+  color: #e0e0e0;
+}
+
+.object-tab-button.active {
+  color: #f5b300;
+  border-bottom-color: #f5b300;
+  background-color: #353535;
+}
+
+/* ======================================================= */
+/* === INICIO DE LA MEJORA: Lógica de Scroll Definitiva ==== */
+/* ======================================================= */
+
+/* 1. Contenedor padre ESTABLE. No gestiona scroll. */
+.object-tab-content {
+  flex-grow: 1;
+  position: relative;
+  min-height: 0;
+  overflow: hidden; /* ¡CLAVE! Evita que este contenedor intente hacer scroll */
+}
+
+/* 2. CADA PESTAÑA INDIVIDUAL gestiona su propio scroll. */
+.tab-pane {
+  height: 100%;
+  width: 100%;
+  overflow-y: auto; /* ¡CLAVE! El scroll solo aparece aquí si es necesario */
+}
+
+/* 3. El contenedor interno es para padding y no necesita scroll */
+.scrollable-content {
+  /* overflow-y ya no es necesario aquí */
+  padding: 15px;
+  box-sizing: border-box;
+}
+/* ======================================================= */
+/* === FIN DE LA MEJORA                                 ==== */
+/* ======================================================= */
+
+.property-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.property-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 13px;
+  border-bottom: 1px solid #444;
+}
+
+.property-item:last-child {
+  border-bottom: none;
+}
+
+.property-key {
+  color: #a0a0a0;
+  margin-right: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+}
+
+.property-value {
+  color: #e0e0e0;
+  font-weight: 500;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
+}
+
+.empty-state-small {
+  padding: 20px;
+  text-align: center;
+  color: #888;
+  font-style: italic;
+  font-size: 13px;
+}
+
+/* ---- OTROS ELEMENTOS DE LA UI (sin cambios significativos) ---- */
 .search-bar-container {
   padding: 8px 10px;
-  border-bottom: 1px solid #333; /* Separador visual */
+  border-bottom: 1px solid #333;
   background-color: #2a2a2a;
 }
-
 .search-input {
   width: 100%;
   padding: 8px 10px;
@@ -202,18 +488,47 @@ app-brujula {
   border: 1px solid #444;
   border-radius: 4px;
   color: #e0e0e0;
-  font-family: 'Font Awesome 5 Free', sans-serif; /* Opcional, para el icono de lupa */
-  font-weight: 900;
   outline: none;
-  box-sizing: border-box; /* Asegura que padding no afecte el ancho */
+  box-sizing: border-box;
 }
-
 .search-input:focus {
-  border-color: #007bff;
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+  border-color: #5294e2;
 }
 
-.search-input::placeholder {
-  color: #777;
-  font-weight: 400; /* Estilo normal para el placeholder */
+app-brujula { position: absolute; top: 15px; right: 15px; width: 150px; height: 150px; z-index: 10; pointer-events: auto; }
+.axis-lock-indicator { position: absolute; left: 50%; bottom: 20px; background: rgba(35, 35, 35, 0.5); backdrop-filter: blur(12px); color: #e0e0e0; padding: 10px 24px; border-radius: 25px; font-size: 16px; font-weight: 500; z-index: 10; pointer-events: none; border: 1px solid rgba(255, 255, 255, 0.1); animation: slide-in-from-bottom 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; }
+.camera-position-display { position: absolute; top: 90px; left: 10px; background-color: rgba(0, 0, 0, 0.6); color: white; padding: 8px; border-radius: 5px; font-family: monospace; font-size: 12px; z-index: 100; pointer-events: none; line-height: 1.4; }
+.fly-mode-crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 100; width: 20px; height: 20px; }
+.crosshair-line { position: absolute; background-color: rgba(255, 255, 0, 0.7); box-shadow: 0 0 5px rgba(255, 217, 0, 0.5); }
+.crosshair-line.horizontal { width: 100%; height: 2px; top: 50%; left: 0; transform: translateY(-50%); }
+.crosshair-line.vertical { width: 2px; height: 100%; left: 50%; top: 0; transform: translateX(-50%); }
+
+/* ======================================================= */
+/* === ESTILOS DE SCROLL PERSONALIZADO (Aplicado a nuevas clases) === */
+/* ======================================================= */
+
+/* --- Estilos para Firefox --- */
+.panel-content,
+.tab-pane { /* Aplicamos al contenedor de pestañas individuales */
+  scrollbar-width: none;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+/* --- Estilos para navegadores WebKit (Chrome, Edge, Safari) --- */
+:host ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+:host ::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 2px;
+}
+:host ::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+:host ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.35);
 }

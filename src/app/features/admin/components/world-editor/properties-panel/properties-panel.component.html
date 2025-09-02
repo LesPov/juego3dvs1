@@ -1,60 +1,76 @@
-<!-- ✅ SOLUCIÓN: Envolvemos todo en un *ngIf para asegurarnos de que `selectedObject` no es nulo -->
-<div class="properties-panel-wrapper" *ngIf="selectedObject">
+<div class="panel-container" *ngIf="selectedObject">
 
-  <div class="panel-header">
-    <div class="object-icon-header">
-      <!-- Ahora es seguro acceder a selectedObject.type -->
-      <span *ngIf="selectedObject.type === 'camera'">📷</span>
-      <!-- Agregamos más tipos para ser más robustos -->
-      <span *ngIf="selectedObject.type.toLowerCase().includes('light')">💡</span>
-      <!-- Por defecto para modelos y cubos -->
-      <span *ngIf="selectedObject.type === 'model' || selectedObject.type === 'cube'">🧊</span>
-    </div>
-    <input type="text" class="object-name-input" [(ngModel)]="editableObjectName" (blur)="onNameChange()">
-    <button class="pin-btn" title="Fijar panel">📌</button>
-  </div>
-  
-  <div class="panel-content">
-    <details class="properties-section" open>
-      <summary class="section-header">
-        <span class="arrow"></span>
-        Transformación
-      </summary>
-      <div class="section-content">
-        <!-- El binding al hijo ahora también es seguro -->
-        <app-transform-properties 
-          [selectedObject]="selectedObject" 
-          (transformChange)="onTransformChange($event)">
-        </app-transform-properties>
+  <!-- Grupo de Transformación -->
+  <details class="properties-section" open>
+    <summary class="section-header">
+      <span class="arrow"></span>
+      Transformación
+    </summary>
+    <div class="section-content">
+      
+      <!-- Posición -->
+      <div class="property-row vector-row">
+        <div class="vector-label">Posición</div>
+        <div class="vector-inputs">
+          <!-- Eje X -->
+          <div class="input-wrapper x-label" (mousedown)="startDrag($event, 'position', 'x')">
+            <div class="input-label">X</div>
+            <input type="number" step="0.1" class="vector-input" [(ngModel)]="position.x" (ngModelChange)="onTransformChange('position')">
+          </div>
+          <!-- Eje Y -->
+          <div class="input-wrapper y-label" (mousedown)="startDrag($event, 'position', 'y')">
+            <div class="input-label">Y</div>
+            <input type="number" step="0.1" class="vector-input" [(ngModel)]="position.y" (ngModelChange)="onTransformChange('position')">
+          </div>
+          <!-- Eje Z -->
+          <div class="input-wrapper z-label" (mousedown)="startDrag($event, 'position', 'z')">
+            <div class="input-label">Z</div>
+            <input type="number" step="0.1" class="vector-input" [(ngModel)]="position.z" (ngModelChange)="onTransformChange('position')">
+          </div>
+        </div>
       </div>
-    </details>
-  
-    <!-- ... resto de las secciones adicionales ... -->
-    <details class="properties-section">
-      <summary class="section-header"><span class="arrow"></span>Relaciones</summary>
-      <div class="section-content placeholder">(Próximamente)</div>
-    </details>
-    <details class="properties-section">
-      <summary class="section-header"><span class="arrow"></span>Colecciones</summary>
-      <div class="section-content placeholder">(Próximamente)</div>
-    </details>
-    <details class="properties-section">
-      <summary class="section-header"><span class="arrow"></span>Instanciado</summary>
-      <div class="section-content placeholder">(Próximamente)</div>
-    </details>
-    <details class="properties-section">
-      <summary class="section-header"><span class="arrow"></span>Trayectorias de movimiento</summary>
-      <div class="section-content placeholder">(Próximamente)</div>
-    </details>
-    <details class="properties-section">
-      <summary class="section-header"><span class="arrow"></span>Visibilidad</summary>
-      <div class="section-content placeholder">(Próximamente)</div>
-    </details>
-    <details class="properties-section">
-      <summary class="section-header"><span class="arrow"></span>Propiedades personalizadas</summary>
-      <!-- ✅ CORRECCIÓN: Se cambió "class." por "class=" -->
-      <div class="section-content placeholder">(Próximamente)</div>
-    </details>
-  </div>
+
+      <!-- Rotación -->
+      <div class="property-row vector-row">
+        <div class="vector-label">Rotación</div>
+        <div class="vector-inputs">
+          <div class="input-wrapper x-label" (mousedown)="startDrag($event, 'rotation', 'x')">
+            <div class="input-label">X</div>
+            <input type="number" step="1" class="vector-input" [(ngModel)]="rotation.x" (ngModelChange)="onTransformChange('rotation')">
+          </div>
+          <div class="input-wrapper y-label" (mousedown)="startDrag($event, 'rotation', 'y')">
+            <div class="input-label">Y</div>
+            <input type="number" step="1" class="vector-input" [(ngModel)]="rotation.y" (ngModelChange)="onTransformChange('rotation')">
+          </div>
+          <div class="input-wrapper z-label" (mousedown)="startDrag($event, 'rotation', 'z')">
+            <div class="input-label">Z</div>
+            <input type="number" step="1" class="vector-input" [(ngModel)]="rotation.z" (ngModelChange)="onTransformChange('rotation')">
+          </div>
+        </div>
+      </div>
+
+      <!-- Escala -->
+      <div class="property-row vector-row">
+        <div class="vector-label">Escala</div>
+        <div class="vector-inputs">
+          <div class="input-wrapper x-label" (mousedown)="startDrag($event, 'scale', 'x')">
+            <div class="input-label">X</div>
+            <input type="number" step="0.1" class="vector-input" [(ngModel)]="scale.x" (ngModelChange)="onTransformChange('scale')">
+          </div>
+          <div class="input-wrapper y-label" (mousedown)="startDrag($event, 'scale', 'y')">
+            <div class="input-label">Y</div>
+            <input type="number" step="0.1" class="vector-input" [(ngModel)]="scale.y" (ngModelChange)="onTransformChange('scale')">
+          </div>
+          <div class="input-wrapper z-label" (mousedown)="startDrag($event, 'scale', 'z')">
+            <div class="input-label">Z</div>
+            <input type="number" step="0.1" class="vector-input" [(ngModel)]="scale.z" (ngModelChange)="onTransformChange('scale')">
+          </div>
+        </div>
+      </div>
+      
+    </div>
+  </details>
+
+  <!-- Otras secciones (sin cambios) -->
 
 </div>

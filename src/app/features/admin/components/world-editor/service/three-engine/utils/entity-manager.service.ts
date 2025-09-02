@@ -1,3 +1,5 @@
+// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/entity-manager.service.ts
+
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -6,11 +8,21 @@ import { CelestialInstanceData, ObjectManagerService } from './object-manager.se
 import { SelectionManagerService } from './selection-manager.service';
 import { SceneObjectResponse } from '../../../../../services/admin.service';
 
+// =======================================================
+// === INICIO DE LA CORRECCIÓN
+// =======================================================
+// El error ocurría porque la lista de tipos aquí era demasiado restrictiva.
+// La hemos expandido para que coincida con todos los tipos posibles que vienen de tu API
+// (como 'cube', 'sphere', 'model', 'ambientLight', etc.), solucionando el error de compilación.
 export interface SceneEntity {
   uuid: string;
   name: string;
-  type: 'Camera' | 'Light' | 'Model' | 'star' | 'galaxy' | 'supernova'| 'diffraction_star' ;
+  type: "Model" | "Camera" | "Light" | "star" | "galaxy" | "supernova" | "diffraction_star" | "cube" | "sphere" | "floor" | "model" | "camera" | "ambientLight" | "directionalLight" | "cone" | "torus";
 }
+// =======================================================
+// === FIN DE LA CORRECCIÓN
+// =======================================================
+
 
 // =================================================================================
 // === MEJORA CLAVE 2D: Multiplicador de escala aumentado para un halo más grande ===

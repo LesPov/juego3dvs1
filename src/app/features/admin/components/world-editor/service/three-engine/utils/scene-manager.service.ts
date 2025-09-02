@@ -34,7 +34,7 @@ export class SceneManagerService {
     this.renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: 'high-performance' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.05;
+    this.renderer.toneMappingExposure = 0.15;
 
     const normalPixelRatio = Math.min(window.devicePixelRatio, 2);
     this.renderer.setPixelRatio(normalPixelRatio);
