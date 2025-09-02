@@ -25,6 +25,7 @@ export interface EntityGroup {
   visibleEntities: SceneEntity[];
   isExpanded: boolean;
   totalCount: number;
+  isGroupVisible: boolean;
 }
 
 @Component({
@@ -58,6 +59,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   public totalFilteredEntityCount = 0;
   
   private groupExpansionState = new Map<string, boolean>();
+  private groupVisibilityState = new Map<string, boolean>();
   private groupDisplayCountState = new Map<string, number>();
   private readonly listIncrement = 50;
   
@@ -106,9 +108,14 @@ export class WorldViewComponent implements OnInit, OnDestroy {
         return Object.keys(groups).sort().map(type => {
             const allGroupEntities = groups[type];
             const totalCount = allGroupEntities.length;
+            
             if (this.groupExpansionState.get(type) === undefined) {
               this.groupExpansionState.set(type, false);
             }
+            if (this.groupVisibilityState.get(type) === undefined) {
+              this.groupVisibilityState.set(type, true);
+            }
+
             const isExpanded = this.groupExpansionState.get(type)!;
             const displayCount = this.groupDisplayCountState.get(type) || this.listIncrement;
             const visibleEntities = allGroupEntities.slice(0, displayCount);
@@ -117,7 +124,8 @@ export class WorldViewComponent implements OnInit, OnDestroy {
               type: type,
               visibleEntities: visibleEntities,
               isExpanded: isExpanded,
-              totalCount: totalCount
+              totalCount: totalCount,
+              isGroupVisible: this.groupVisibilityState.get(type)!,
             };
         });
       })
@@ -142,7 +150,6 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     this.adminService.getEpisodeForEditor(id).subscribe({
       next: (data) => {
         this.episodeTitle = data.title;
-        // Guardamos los datos originales con el 'type' correcto
         this.sceneObjects = data.sceneObjects || []; 
         this.analysisSummary = data.analysisSummary || null;
         this.isLoadingData = false;
@@ -154,9 +161,6 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     });
   }
 
-  // =======================================================
-  // === INICIO DE LA CORRECCIÓN DEFINITIVA
-  // =======================================================
   private setupSubscriptions(): void {
     const transformSub = this.engineService.onTransformEnd$.subscribe(() => this.handleTransformEnd());
     
@@ -165,53 +169,58 @@ export class WorldViewComponent implements OnInit, OnDestroy {
       switchMap(update => this.handlePropertySave(update))
     ).subscribe({ error: err => console.error("[WorldView] Error al guardar propiedad:", err) });
 
-    // ESTA ES LA PARTE CLAVE. Ahora corregimos los datos que vienen del motor.
     const entitiesSub = this.engineService.getSceneEntities().pipe(
       map(engineEntities => {
-        // Creamos un mapa de búsqueda para ser eficientes. La clave es el ID (convertido a string), 
-        // y el valor es el objeto original con todos sus datos.
         const sceneObjectMap = new Map<string, SceneObjectResponse>();
         this.sceneObjects.forEach(obj => sceneObjectMap.set(obj.id.toString(), obj));
 
-        // Ahora, recorremos las entidades que nos da el motor...
         return engineEntities.map(entity => {
           const originalObject = sceneObjectMap.get(entity.uuid);
-          
-          // ...y creamos una nueva entidad combinada, asegurándonos de que
-          // el 'type' sea el correcto (el que vino de la API).
           return {
-            ...entity, // Mantenemos las propiedades del motor (uuid, name)
-            // ¡CORRECCIÓN! Sobrescribimos el 'type' con el valor correcto.
+            ...entity,
             type: originalObject ? originalObject.type : entity.type 
           };
         });
       })
     ).subscribe(correctedEntities => {
-      // Esta es la lista ya corregida, con los tipos correctos.
       this.allEntities = correctedEntities;
-      this.allEntities$.next(correctedEntities); // Notificamos al observable de los grupos para que se actualice.
+      this.allEntities$.next(correctedEntities);
     });
 
     this.subscriptions.add(transformSub);
     this.subscriptions.add(propertyUpdateSub);
-    this.subscriptions.add(entitiesSub); // Añadimos nuestra nueva suscripción corregida
+    this.subscriptions.add(entitiesSub);
   }
-  // =======================================================
-  // === FIN DE LA CORRECCIÓN DEFINITIVA
-  // =======================================================
 
+  public toggleGroupVisibility(group: EntityGroup, event: MouseEvent): void {
+    event.stopPropagation();
+
+    const currentState = this.groupVisibilityState.get(group.type) ?? true;
+    const newState = !currentState;
+    this.groupVisibilityState.set(group.type, newState);
+
+    const entityUuidsInGroup = this.allEntities
+      .filter(entity => entity.type === group.type)
+      .map(entity => entity.uuid);
+    
+    if (entityUuidsInGroup.length > 0) {
+      this.engineService.setGroupVisibility(entityUuidsInGroup, newState);
+    }
+    
+    this.allEntities$.next([...this.allEntities]);
+  }
 
   public toggleGroup(group: EntityGroup): void {
     const newState = !group.isExpanded;
     this.groupExpansionState.set(group.type, newState);
-    this.allEntities$.next(this.allEntities);
+    this.allEntities$.next([...this.allEntities]);
   }
 
   public showMoreInGroup(group: EntityGroup): void {
     const currentCount = this.groupDisplayCountState.get(group.type) || this.listIncrement;
     const newCount = currentCount + this.listIncrement;
     this.groupDisplayCountState.set(group.type, newCount);
-    this.allEntities$.next(this.allEntities);
+    this.allEntities$.next([...this.allEntities]);
   }
 
   onDrop(event: CdkDragDrop<SceneEntity[]>): void {
@@ -227,7 +236,6 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   
   trackByEntity(index: number, entity: SceneEntity): string { return entity.uuid; }
   
-  //... El resto del archivo permanece sin cambios ...
   handleObjectUpdate(update: PropertyUpdate): void {
     if (!this.selectedObject) return;
 

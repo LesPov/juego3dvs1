@@ -1,3 +1,5 @@
+<!-- world-view.component.html -->
+
 <!-- Carga API -->
 <div *ngIf="isLoadingData" class="preloader-overlay">
   <div class="preloader-content">
@@ -66,26 +68,36 @@
           aria-label="Buscar objeto en la escena">
       </div>
 
-      <!-- ======================================================= -->
-      <!-- === INICIO DE LA MEJORA: Estructura con Carga Progresiva por Grupo -->
-      <!-- ======================================================= -->
       <div #sceneListContent class="panel-content scrollable" cdkDropListGroup>
         
         <ng-container *ngIf="displayGroups$ | async as groups">
           <div *ngIf="groups.length > 0; else noResults">
-            <!-- Bucle principal para cada GRUPO (carpeta) -->
             <div *ngFor="let group of groups; trackBy: trackByGroupType" class="object-group">
               
-              <!-- La cabecera de la carpeta, que es clickeable para expandir/colapsar -->
-              <div class="group-header" (click)="toggleGroup(group)">
+              <!-- ======================================================= -->
+              <!-- === INICIO DE LA MEJORA: Botón de visibilidad añadido
+              <!-- ======================================================= -->
+              <div class="group-header" 
+                   (click)="toggleGroup(group)"
+                   [class.group-hidden]="!group.isGroupVisible">
                 <span class="group-toggle-icon">{{ group.isExpanded ? '▼' : '▶' }}</span>
                 <span class="group-name">{{ group.type }}</span>
                 <span class="group-count">({{ group.totalCount }})</span>
+                
+                <!-- El nuevo botón de visibilidad (ojo) -->
+                <button class="group-visibility-toggle" 
+                        (click)="toggleGroupVisibility(group, $event)" 
+                        [title]="group.isGroupVisible ? 'Ocultar grupo' : 'Mostrar grupo'">
+                  <!-- Muestra un icono u otro dependiendo del estado -->
+                  <span *ngIf="group.isGroupVisible" class="icon-eye-open"></span>
+                  <span *ngIf="!group.isGroupVisible" class="icon-eye-closed"></span>
+                </button>
               </div>
+              <!-- ======================================================= -->
+              <!-- === FIN DE LA MEJORA -->
+              <!-- ======================================================= -->
 
-              <!-- Contenido de la carpeta, solo se muestra si está expandida -->
               <ng-container *ngIf="group.isExpanded">
-                <!-- La lista de objetos DENTRO de la carpeta -->
                 <ul class="scene-object-list" 
                     cdkDropList
                     [cdkDropListData]="group.visibleEntities"
@@ -102,7 +114,6 @@
                   </li>
                 </ul>
                 
-                <!-- Botón "Cargar Más" que solo aparece si hay más objetos por mostrar EN ESTE GRUPO -->
                 <div class="list-loader" *ngIf="group.visibleEntities.length < group.totalCount">
                   <button (click)="showMoreInGroup(group)" class="show-more-button">
                     Cargar Más ({{ group.visibleEntities.length }} / {{ group.totalCount }})
@@ -113,7 +124,6 @@
             </div>
           </div>
           
-          <!-- Template para cuando no hay resultados -->
           <ng-template #noResults>
             <div *ngIf="totalFilteredEntityCount === 0 && searchFilter" class="empty-state">
               No se encontraron objetos con ese nombre.
@@ -125,7 +135,6 @@
 
         </ng-container>
 
-        <!-- Elemento para añadir nuevos objetos (fuera de los grupos) -->
         <ul class="scene-object-list" *ngIf="!searchFilter">
           <li *ngFor="let e of placeholderEntities" 
               class="scene-object-item placeholder-item"
@@ -164,9 +173,6 @@
               <div class="object-tab-content">
                 <ng-container [ngSwitch]="activeObjectTab">
                   
-                  <!-- ======================================================= -->
-                  <!-- === INICIO DE LA MEJORA: Se añade la clase .tab-pane ==== -->
-                  <!-- ======================================================= -->
                   <div *ngSwitchCase="'transform'" class="tab-pane">
                     <app-properties-panel [selectedObject]="selectedObject" (objectUpdate)="handleObjectUpdate($event)"></app-properties-panel>
                   </div>
@@ -194,9 +200,6 @@
                        </ul>
                     </div>
                   </div>
-                  <!-- ======================================================= -->
-                  <!-- === FIN DE LA MEJORA                                 ==== -->
-                  <!-- ======================================================= -->
 
                 </ng-container>
               </div>

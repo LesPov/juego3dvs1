@@ -1,4 +1,4 @@
-// src/app/features/admin/components/world-editor/service/three-engine/utils/object-manager.service.ts
+// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/object-manager.service.ts
 
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
@@ -6,7 +6,6 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { environment } from '../../../../../../../../environments/environment';
 import { SceneObjectResponse } from '../../../../../services/admin.service';
 
-// ESTA INTERFAZ ES NECESARIA Y DEBE ESTAR AQUÍ
 export interface CelestialInstanceData {
   originalColor: THREE.Color;
   emissiveIntensity: number;
@@ -19,6 +18,14 @@ export interface CelestialInstanceData {
   isDominant: boolean;
   luminosity: number;
   type: string;
+  // =======================================================
+  // === INICIO DE LA CORRECCIÓN: Bandera de visibilidad
+  // =======================================================
+  // Añadimos esta propiedad para rastrear si el usuario ha ocultado manualmente el objeto.
+  isManuallyHidden: boolean;
+  // =======================================================
+  // === FIN DE LA CORRECCIÓN
+  // =======================================================
 }
 
 function sanitizeHexColor(color: any, defaultColor: string = '#ffffff'): string {
@@ -29,7 +36,7 @@ function sanitizeHexColor(color: any, defaultColor: string = '#ffffff'): string 
 }
 
 @Injectable({ providedIn: 'root' })
-export class ObjectManagerService { // LA CLASE DEBE LLAMARSE ASÍ
+export class ObjectManagerService {
   private readonly backendUrl = environment.endpoint.endsWith('/')
     ? environment.endpoint.slice(0, -1)
     : environment.endpoint;
@@ -97,7 +104,27 @@ export class ObjectManagerService { // LA CLASE DEBE LLAMARSE ASÍ
       const dominantBoost = isDominant ? DOMINANT_LUMINOSITY_MULTIPLIER : 1.0;
       const finalLuminosity = scaleLuminosity * dominantBoost;
 
-      celestialData.push({ originalColor: visualColor.clone(), emissiveIntensity: emissiveIntensity, position: position.clone(), scale: scale.clone(), originalMatrix: matrix.clone(), originalUuid: objData.id.toString(), originalName: objData.name, isVisible: false, isDominant: isDominant, luminosity: finalLuminosity, type: objData.type });
+      // =======================================================
+      // === INICIO DE LA CORRECCIÓN: Inicializar la bandera
+      // =======================================================
+      // Cuando creamos el objeto, por defecto NO está oculto manualmente.
+      celestialData.push({ 
+          originalColor: visualColor.clone(), 
+          emissiveIntensity: emissiveIntensity, 
+          position: position.clone(), 
+          scale: scale.clone(), 
+          originalMatrix: matrix.clone(), 
+          originalUuid: objData.id.toString(), 
+          originalName: objData.name, 
+          isVisible: false, 
+          isDominant: isDominant, 
+          luminosity: finalLuminosity, 
+          type: objData.type,
+          isManuallyHidden: false // <-- ¡AQUÍ!
+      });
+      // =======================================================
+      // === FIN DE LA CORRECCIÓN
+      // =======================================================
     }
     instancedMesh.instanceMatrix.needsUpdate = true;
     if (instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
@@ -107,20 +134,7 @@ export class ObjectManagerService { // LA CLASE DEBE LLAMARSE ASÍ
   private _createGlowTexture(): THREE.CanvasTexture { if (this.glowTexture) return this.glowTexture; const canvas = document.createElement('canvas'); const size = 256; canvas.width = size; canvas.height = size; const context = canvas.getContext('2d')!; const gradient = context.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2); gradient.addColorStop(0, 'rgba(255, 255, 255, 1)'); gradient.addColorStop(0.2, 'rgba(255, 255, 255, 0.8)'); gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.2)'); gradient.addColorStop(1, 'rgba(0, 0, 0, 0)'); context.fillStyle = gradient; context.fillRect(0, 0, size, size); this.glowTexture = new THREE.CanvasTexture(canvas); this.glowTexture.needsUpdate = true; return this.glowTexture; }
   public createObjectFromData(scene: THREE.Scene, objData: SceneObjectResponse, loader: GLTFLoader): THREE.Object3D | null { let createdObject: THREE.Object3D | null = null; switch (objData.type) { case 'model': if (objData.properties?.['is_black_hole']) { createdObject = this.createBlackHolePrimitive(scene, objData); } else { this.loadGltfModel(scene, objData, loader); } break; case 'star': case 'galaxy': case 'supernova': case 'diffraction_star': console.warn(`[ObjectManager] La creación individual de '${objData.type}' se maneja por InstancedMesh.`); break; case 'cube': case 'sphere': case 'cone': case 'torus': case 'floor': createdObject = this.createStandardPrimitive(scene, objData); break; default: console.warn(`[ObjectManager] Tipo '${objData.type}' no manejado y será ignorado.`); break; } return createdObject; }
 
-  public createSelectionProxy(): THREE.Mesh {
-    const proxyGeometry = new THREE.SphereGeometry(1.1, 16, 8);
-    const proxyMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffff00,
-        transparent: true,
-        opacity: 0,
-        depthWrite: true,
-        depthTest: true
-    });
-    const proxyMesh = new THREE.Mesh(proxyGeometry, proxyMaterial);
-    proxyMesh.name = 'SelectionProxy';
-    return proxyMesh;
-  }
-
+  public createSelectionProxy(): THREE.Mesh { const proxyGeometry = new THREE.SphereGeometry(1.1, 16, 8); const proxyMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0, depthWrite: true, depthTest: true }); const proxyMesh = new THREE.Mesh(proxyGeometry, proxyMaterial); proxyMesh.name = 'SelectionProxy'; return proxyMesh; }
   private createBlackHolePrimitive(scene: THREE.Scene, objData: SceneObjectResponse): THREE.Mesh { const geometry = new THREE.SphereGeometry(0.5, 32, 16); const material = new THREE.MeshBasicMaterial({ color: 0x000000 }); const mesh = new THREE.Mesh(geometry, material); this.applyTransformations(mesh, objData); scene.add(mesh); return mesh; }
   private createStandardPrimitive(scene: THREE.Scene, objData: SceneObjectResponse): THREE.Mesh { const properties = objData.properties || {}; const color = new THREE.Color(sanitizeHexColor(properties['color'])); let geometry: THREE.BufferGeometry; switch (objData.type) { case 'cube': geometry = new THREE.BoxGeometry(1, 1, 1); break; case 'cone': geometry = new THREE.ConeGeometry(0.5, 1, 32); break; case 'floor': geometry = new THREE.PlaneGeometry(1, 1); break; default: geometry = new THREE.SphereGeometry(0.5, 32, 16); } const material = new THREE.MeshStandardMaterial({ color }); if (objData.type === 'floor') { (material as THREE.MeshStandardMaterial).side = THREE.DoubleSide; } const mesh = new THREE.Mesh(geometry, material); this.applyTransformations(mesh, objData); scene.add(mesh); return mesh; }
   private loadGltfModel(scene: THREE.Scene, objData: SceneObjectResponse, loader: GLTFLoader): void { if (!objData.asset?.path) return; const modelUrl = `${this.backendUrl}${objData.asset.path}`; loader.load(modelUrl, (gltf) => { const model = gltf.scene; this.applyTransformations(model, objData); scene.add(model); }); }

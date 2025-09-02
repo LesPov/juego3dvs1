@@ -8,26 +8,12 @@ import { CelestialInstanceData, ObjectManagerService } from './object-manager.se
 import { SelectionManagerService } from './selection-manager.service';
 import { SceneObjectResponse } from '../../../../../services/admin.service';
 
-// =======================================================
-// === INICIO DE LA CORRECCIÓN
-// =======================================================
-// El error ocurría porque la lista de tipos aquí era demasiado restrictiva.
-// La hemos expandido para que coincida con todos los tipos posibles que vienen de tu API
-// (como 'cube', 'sphere', 'model', 'ambientLight', etc.), solucionando el error de compilación.
 export interface SceneEntity {
   uuid: string;
   name: string;
   type: "Model" | "Camera" | "Light" | "star" | "galaxy" | "supernova" | "diffraction_star" | "cube" | "sphere" | "floor" | "model" | "camera" | "ambientLight" | "directionalLight" | "cone" | "torus";
 }
-// =======================================================
-// === FIN DE LA CORRECCIÓN
-// =======================================================
 
-
-// =================================================================================
-// === MEJORA CLAVE 2D: Multiplicador de escala aumentado para un halo más grande ===
-// =================================================================================
-// Un valor mayor crea un halo de selección más expansivo y visible.
 const PROXY_SCALE_MULTIPLIER = 7.0;
 
 @Injectable({
@@ -39,6 +25,7 @@ export class EntityManagerService {
   private sceneEntities = new BehaviorSubject<SceneEntity[]>([]);
   private unselectableNames = ['Cámara del Editor', 'Luz Ambiental', 'FocusPivot', 'EditorGrid', 'SelectionProxy'];
   private instancedObjectNames = ['CelestialObjectsInstanced'];
+  private zeroMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
 
   constructor(
     public objectManager: ObjectManagerService,
@@ -50,7 +37,50 @@ export class EntityManagerService {
     const loadingManager = new THREE.LoadingManager();
     this.gltfLoader = new GLTFLoader(loadingManager);
   }
-  
+
+  public setGroupVisibility(uuids: string[], visible: boolean): void {
+    if (!this.scene) return;
+    
+    const celestialInstancedMesh = this.scene.getObjectByName('CelestialObjectsInstanced') as THREE.InstancedMesh | undefined;
+    const allInstanceData = celestialInstancedMesh?.userData["celestialData"] as CelestialInstanceData[] | undefined;
+    
+    const instanceMap = new Map<string, { data: CelestialInstanceData, index: number }>();
+    if (allInstanceData) {
+      allInstanceData.forEach((data, index) => instanceMap.set(data.originalUuid, { data, index }));
+    }
+
+    let instanceMatrixNeedsUpdate = false;
+
+    uuids.forEach(uuid => {
+      const standardObject = this.scene.getObjectByProperty('uuid', uuid);
+      if (standardObject) {
+        standardObject.visible = visible;
+        return;
+      }
+
+      if (celestialInstancedMesh && instanceMap.has(uuid)) {
+        const { data, index } = instanceMap.get(uuid)!;
+        
+        // =======================================================
+        // === INICIO DE LA CORRECCIÓN: Actualizar la bandera
+        // =======================================================
+        // Aquí le decimos al objeto que su estado manual ha cambiado.
+        data.isManuallyHidden = !visible;
+        // =======================================================
+        // === FIN DE LA CORRECCIÓN
+        // =======================================================
+
+        const matrixToApply = visible ? data.originalMatrix : this.zeroMatrix;
+        celestialInstancedMesh.setMatrixAt(index, matrixToApply);
+        instanceMatrixNeedsUpdate = true;
+      }
+    });
+
+    if (instanceMatrixNeedsUpdate) {
+      celestialInstancedMesh!.instanceMatrix.needsUpdate = true;
+    }
+  }
+
   public selectObjectByUuid(uuid: string | null, focusPivot: THREE.Object3D): void {
     const existingProxy = this.scene.getObjectByName('SelectionProxy');
     if (existingProxy) {
@@ -95,7 +125,6 @@ export class EntityManagerService {
     this.selectionManager.selectObjects([]);
   }
 
-  // --- El resto del servicio permanece sin cambios ---
   public clearScene(): void { if (!this.scene) return; for (let i = this.scene.children.length - 1; i >= 0; i--) { const object = this.scene.children[i]; if (this.unselectableNames.includes(object.name)) continue; this.scene.remove(object); if ((object as THREE.Mesh).isMesh || (object as THREE.InstancedMesh).isInstancedMesh) { const mesh = object as THREE.Mesh | THREE.InstancedMesh; mesh.geometry?.dispose(); if (Array.isArray(mesh.material)) { mesh.material.forEach(m => m.dispose()); } else { (mesh.material as THREE.Material)?.dispose(); } } } this.publishSceneEntities(); }
   public getLoadingManager(): THREE.LoadingManager { return this.gltfLoader.manager; }
   public getSceneEntities(): Observable<SceneEntity[]> { return this.sceneEntities.asObservable(); }

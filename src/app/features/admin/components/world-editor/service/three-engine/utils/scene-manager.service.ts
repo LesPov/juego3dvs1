@@ -1,3 +1,5 @@
+// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/scene-manager.service.ts
+
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
@@ -34,7 +36,7 @@ export class SceneManagerService {
     this.renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: 'high-performance' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.15;
+    this.renderer.toneMappingExposure = 0.85;
 
     const normalPixelRatio = Math.min(window.devicePixelRatio, 2);
     this.renderer.setPixelRatio(normalPixelRatio);
@@ -56,16 +58,9 @@ export class SceneManagerService {
     
     this.composer = new EffectComposer(this.renderer);
     
-    // ========================================================================================
-    // === MEJORA CLAVE 2D: Orden de pases modificado para que el CONTORNO BRILLE          ===
-    // ========================================================================================
-    // 1. Renderizar la escena base.
     this.composer.addPass(renderPass);
-    // 2. AÑADIR EL CONTORNO. Ahora el contorno amarillo es parte de la imagen a procesar.
     this.composer.addPass(outlinePass);
-    // 3. APLICAR EL BLOOM. El efecto de brillo ahora afectará a los objetos Y al contorno.
     this.composer.addPass(bloomPass);
-    // 4. Renderizar el resultado final.
     this.composer.addPass(outputPass);
   }
 
