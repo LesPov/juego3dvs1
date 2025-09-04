@@ -1,4 +1,6 @@
 // src/app/features/admin/views/world-editor/world-view/service/three-engine/engine.service.ts
+// ... (Tu código existente de engine.service.ts va aquí, no necesita cambios) ...
+// (Lo incluyo completo por si acaso, pero no hay cambios lógicos que hacer aquí)
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
@@ -231,22 +233,12 @@ export class EngineService implements OnDestroy {
         data.originalMatrix.compose(data.position, tempQuaternion, tempScale);
         instancedMesh.setMatrixAt(instanceIndex, data.originalMatrix);
         instancedMesh.instanceMatrix.needsUpdate = true;
-
-        // =======================================================
-        // === INICIO DE LA CORRECCIÓN                               ===
-        // =======================================================
-        // Mover Y ESCALAR también el proxy de selección si existe, para que el halo siga al objeto
         const selectionProxy = this.sceneManager.scene.getObjectByName('SelectionProxy');
         if (selectionProxy && selectionProxy.uuid === uuid) {
             selectionProxy.position.copy(data.position);
-            
-            // ✅ CORRECCIÓN: Aplicar la nueva escala al proxy para que el halo se redimensione.
-            const PROXY_SCALE_MULTIPLIER = 7.0; // Mantenemos consistencia con EntityManagerService
+            const PROXY_SCALE_MULTIPLIER = 7.0;
             selectionProxy.scale.copy(data.scale).multiplyScalar(PROXY_SCALE_MULTIPLIER);
         }
-        // =======================================================
-        // === FIN DE LA CORRECCIÓN                                  ===
-        // =======================================================
     }
   };
 }

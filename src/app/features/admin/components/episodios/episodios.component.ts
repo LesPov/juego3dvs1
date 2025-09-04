@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormGroup, FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
-import { AdminService, EpisodeResponse } from '../../services/admin.service';
+import { AdminService, CreateEpisodeResponse, EpisodeResponse } from '../../services/admin.service';
 import { HttpErrorResponse } from '@angular/common/http';
 import { finalize } from 'rxjs/operators';
 import { environment } from '../../../../../environments/environment';
@@ -45,7 +45,8 @@ export class EpisodiosComponent implements OnInit {
     this.createEpisodeForm = this.fb.group({
       title: ['', [Validators.required, Validators.minLength(3)]],
       description: [''],
-      thumbnailFile: [null]
+      // El nombre del campo del formulario no tiene que coincidir con el de FormData
+      thumbnail: [null, Validators.required] 
     });
   }
 
@@ -117,21 +118,27 @@ export class EpisodiosComponent implements OnInit {
   }
 
   onSubmit(): void {
-    if (this.createEpisodeForm.invalid) return;
+    if (this.createEpisodeForm.invalid) {
+      // Marcar todos los campos como "tocados" para mostrar los mensajes de error
+      this.createEpisodeForm.markAllAsTouched();
+      return;
+    }
 
     const formData = new FormData();
     formData.append('title', this.createEpisodeForm.get('title')?.value);
     formData.append('description', this.createEpisodeForm.get('description')?.value);
     if (this.selectedFile) {
-      formData.append('thumbnailFile', this.selectedFile, this.selectedFile.name);
+      // El nombre 'thumbnail' debe coincidir con el que espera el backend (Multer)
+      formData.append('thumbnail', this.selectedFile, this.selectedFile.name);
     }
 
     this.adminService.createEpisode(formData).subscribe({
-      next: (newEpisode: EpisodeResponse) => {
-        console.log('Episodio creado exitosamente:', newEpisode);
+      // --- ¡CORRECCIÓN CLAVE! ---
+      // La respuesta es de tipo `CreateEpisodeResponse`
+      next: (response: CreateEpisodeResponse) => {
+        console.log('Respuesta de creación:', response.message);
         this.closeModal();
-        // La mejor práctica: volver a cargar la lista desde el servidor
-        // para asegurar que el orden y los datos son correctos.
+        // Volvemos a cargar la lista para obtener los datos más recientes del servidor.
         this.loadEpisodes();
       },
       error: (err: HttpErrorResponse) => {
@@ -141,6 +148,7 @@ export class EpisodiosComponent implements OnInit {
     });
   }
 
+ 
   editEpisode(): void {
     if (this.episodes.length > 0) {
       const selectedId = this.episodes[this.activeIndex].id;
