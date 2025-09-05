@@ -44,30 +44,22 @@
     <div class="panel scene-list-panel">
       <div class="panel-header">Lista de Objetos</div>
       <div class="search-bar-container">
-        <input 
-          type="text" 
-          class="search-input"
-          placeholder=" Buscar por nombre..." 
-          [ngModel]="searchFilter"
-          (ngModelChange)="onSearchChange($event)"
-          aria-label="Buscar objeto en la escena">
+        <input type="text" class="search-input" placeholder=" Buscar por nombre..." [ngModel]="searchFilter"
+          (ngModelChange)="onSearchChange($event)" aria-label="Buscar objeto en la escena">
       </div>
 
       <div #sceneListContent class="panel-content scrollable" cdkDropListGroup>
         <ng-container *ngIf="displayGroups$ | async as groups">
           <div *ngIf="groups.length > 0; else noResults">
             <div *ngFor="let group of groups; trackBy: trackByGroupType" class="object-group">
-              
-              <div class="group-header" 
-                   (click)="toggleGroup(group)"
-                   [class.group-hidden]="!group.isGroupVisible">
+
+              <div class="group-header" (click)="toggleGroup(group)" [class.group-hidden]="!group.isGroupVisible">
                 <span class="group-toggle-icon">{{ group.isExpanded ? '▼' : '▶' }}</span>
                 <span class="group-name">{{ group.type }}</span>
                 <span class="group-count">({{ group.totalCount }})</span>
-                
-                <button class="group-visibility-toggle" 
-                        (click)="toggleGroupVisibility(group, $event)" 
-                        [title]="group.isGroupVisible ? 'Ocultar grupo' : 'Mostrar grupo'">
+
+                <button class="group-visibility-toggle" (click)="toggleGroupVisibility(group, $event)"
+                  [title]="group.isGroupVisible ? 'Ocultar grupo' : 'Mostrar grupo'">
                   <span *ngIf="group.isGroupVisible" class="icon-eye-open"></span>
                   <span *ngIf="!group.isGroupVisible" class="icon-eye-closed"></span>
                 </button>
@@ -75,45 +67,34 @@
 
               <ng-container *ngIf="group.isExpanded">
                 <div class="group-controls">
-                   <span class="brightness-icon" title="Brillo / Opacidad del Grupo"></span>
-                   <input 
-                      type="range" 
-                      class="brightness-slider"
-                      min="0" 
-                      max="1" 
-                      step="0.01"
-                      [value]="group.brightness"
-                      (input)="onGroupBrightnessChange(group, $event)"
-                      (click)="$event.stopPropagation()"
-                      title="Brillo / Opacidad: {{ group.brightness * 100 | number:'1.0-0' }}%">
+                  <span class="brightness-icon" title="Brillo / Opacidad del Grupo"></span>
+                  <input type="range" class="brightness-slider" min="0" max="1" step="0.01" [value]="group.brightness"
+                    (input)="onGroupBrightnessChange(group, $event)" (click)="$event.stopPropagation()"
+                    title="Brillo / Opacidad: {{ group.brightness * 100 | number:'1.0-0' }}%">
                 </div>
 
-                <ul class="scene-object-list" 
-                    cdkDropList
-                    [cdkDropListData]="group.visibleEntities"
-                    (cdkDropListDropped)="onDrop($event)">
-                  
-                  <li *ngFor="let e of group.visibleEntities; trackBy: trackByEntity" 
-                      cdkDrag 
-                      class="scene-object-item"
-                      [class.selected]="e.uuid === selectedEntityUuid" 
-                      [ngClass]="getColorClassForEntity(e)"
-                      (click)="onEntitySelect(e)">
-                    <span class="object-icon">{{ e.type === 'Camera' ? '📷' : e.type==='Light'?'💡': (e.type === 'Model' ? '📦' : '●') }}</span>
+                <ul class="scene-object-list" cdkDropList [cdkDropListData]="group.visibleEntities"
+                  (cdkDropListDropped)="onDrop($event)">
+
+                  <li *ngFor="let e of group.visibleEntities; trackBy: trackByEntity" cdkDrag class="scene-object-item"
+                    [class.selected]="e.uuid === selectedEntityUuid" [ngClass]="getColorClassForEntity(e)"
+                    (click)="onEntitySelect(e)">
+                    <span class="object-icon">{{ e.type === 'Camera' ? '📷' : e.type==='Light'?'💡': (e.type === 'Model'
+                      ? '📦' : '●') }}</span>
                     <span class="object-name">{{ e.name }}</span>
                   </li>
                 </ul>
-                
+
                 <div class="list-loader" *ngIf="group.visibleEntities.length < group.totalCount">
                   <button (click)="showMoreInGroup(group)" class="show-more-button">
                     Cargar Más ({{ group.visibleEntities.length }} / {{ group.totalCount }})
                   </button>
                 </div>
               </ng-container>
-              
+
             </div>
           </div>
-          
+
           <ng-template #noResults>
             <div *ngIf="totalFilteredEntityCount === 0 && searchFilter" class="empty-state">
               No se encontraron objetos con ese nombre.
@@ -126,9 +107,8 @@
         </ng-container>
 
         <ul class="scene-object-list" *ngIf="!searchFilter">
-          <li *ngFor="let e of placeholderEntities" 
-              class="scene-object-item placeholder-item"
-              (click)="onEntitySelect(e)">
+          <li *ngFor="let e of placeholderEntities" class="scene-object-item placeholder-item"
+            (click)="onEntitySelect(e)">
             {{ e.name }}
           </li>
         </ul>
@@ -136,12 +116,12 @@
     </div>
   </aside>
 
- 
+
   <!-- ✅ MEJORA: VIEWPORT CENTRAL REESTRUCTURADO             -->
   <!-- ======================================================= -->
   <main class="main-viewport">
-    <!-- Encabezado del contenedor de escena (Título y Pestañas) -->
-    <div class="scene-container-header">
+  <div class="scene-container-header">
+      <!-- Contenedor para las pestañas (lado izquierdo) -->
       <div class="scene-tabs-container">
         <button 
           *ngFor="let scene of sceneTabs" 
@@ -152,11 +132,14 @@
         </button>
         <button class="scene-tab-button add-scene" (click)="addScene()" title="Añadir nueva escena">+</button>
       </div>
+
+      <!-- ✅ MEJORA: Toolbar movido aquí para estar en el lado derecho -->
+      <app-toolbar></app-toolbar>
     </div>
     
+
     <!-- Área de renderizado 3D -->
     <div class="scene-render-area">
-      <app-toolbar></app-toolbar>
       <div *ngIf="(axisLock$ | async) as lockedAxis" class="axis-lock-indicator" [ngClass]="'lock-' + lockedAxis">
         Moviendo en Eje: <b>{{ lockedAxis | uppercase }}</b>
       </div>
@@ -180,7 +163,7 @@
   <!-- ======================================================= -->
   <!-- BARRA DERECHA (NUEVA)                                   -->
   <!-- ======================================================= -->
- <aside class="right-sidebar">
+  <aside class="right-sidebar">
     <!-- Contenedor para los 2 paneles superiores que crecen -->
     <div class="right-sidebar-top-group">
       <div class="panel episode-image-panel">
@@ -207,7 +190,7 @@
     <div class="panel fps-panel">
       <div class="panel-header">Rendimiento</div>
       <div class="panel-content">
-         <div class="placeholder-panel">
+        <div class="placeholder-panel">
           <p>Stats (FPS, Mem, etc).</p>
         </div>
       </div>
@@ -220,42 +203,36 @@
   <footer class="bottom-properties">
     <!-- Pestañas de propiedades (adaptadas a horizontal) -->
     <div class="bottom-tabs-header">
-       <button class="bottom-tab-button" 
-               [class.active]="activePropertiesTab==='object'"
-               (click)="selectPropertiesTab('object')"
-               [disabled]="!selectedObject">Transformación</button>
-       <button class="bottom-tab-button"
-               [class.active]="activePropertiesTab==='scene'"
-               (click)="selectPropertiesTab('scene')">Redender</button>
-       <button class="bottom-tab-button"
-               [class.active]="activePropertiesTab==='world'"
-               (click)="selectPropertiesTab('world')">Ajustes</button>
+      <button class="bottom-tab-button" [class.active]="activePropertiesTab==='object'"
+        (click)="selectPropertiesTab('object')" [disabled]="!selectedObject">Transformación</button>
+      <button class="bottom-tab-button" [class.active]="activePropertiesTab==='scene'"
+        (click)="selectPropertiesTab('scene')">Redender</button>
+      <button class="bottom-tab-button" [class.active]="activePropertiesTab==='world'"
+        (click)="selectPropertiesTab('world')">Ajustes</button>
     </div>
-    
+
     <!-- Contenido de las pestañas -->
     <div class="bottom-tabs-content">
-       <ng-container [ngSwitch]="activePropertiesTab">
-          <ng-container *ngSwitchCase="'object'">
-            <app-properties-panel 
-              [selectedObject]="selectedObject" 
-              (objectUpdate)="handleObjectUpdate($event)">
-            </app-properties-panel>
-            
-            <div *ngIf="!selectedObject" class="placeholder-panel">
-               <h2>Propiedades del Objeto</h2>
-               <p>Selecciona un objeto para ver sus transformaciones y propiedades.</p>
-            </div>
-          </ng-container>
-          
-          <ng-container *ngSwitchCase="'scene'">
-            <app-scene-settings-panel></app-scene-settings-panel>
-          </ng-container>
+      <ng-container [ngSwitch]="activePropertiesTab">
+        <ng-container *ngSwitchCase="'object'">
+          <app-properties-panel [selectedObject]="selectedObject" (objectUpdate)="handleObjectUpdate($event)">
+          </app-properties-panel>
 
-          <div *ngSwitchDefault class="placeholder-panel">
-            <h2>{{ activePropertiesTab | titlecase }}</h2>
-            <p>Contenido de la pestaña {{ activePropertiesTab }}.</p>
+          <div *ngIf="!selectedObject" class="placeholder-panel">
+            <h2>Propiedades del Objeto</h2>
+            <p>Selecciona un objeto para ver sus transformaciones y propiedades.</p>
           </div>
         </ng-container>
+
+        <ng-container *ngSwitchCase="'scene'">
+          <app-scene-settings-panel></app-scene-settings-panel>
+        </ng-container>
+
+        <div *ngSwitchDefault class="placeholder-panel">
+          <h2>{{ activePropertiesTab | titlecase }}</h2>
+          <p>Contenido de la pestaña {{ activePropertiesTab }}.</p>
+        </div>
+      </ng-container>
     </div>
   </footer>
 
@@ -263,20 +240,20 @@
   <!-- PANEL DE DESCRIPCIÓN (NUEVO)                           -->
   <!-- ======================================================= -->
   <div class="bottom-description">
-     <div class="panel">
-       <div class="panel-header">Descripción del Objeto</div>
-       <div class="panel-content">
-          <div *ngIf="selectedObject; else noObjectSelectedForDescription" class="description-editor">
-             <!-- AQUÍ IRÍA UN EDITOR DE TEXTO ENRIQUECIDO -->
-             <textarea placeholder="Añade una descripción para {{selectedObject.name}}..."></textarea>
+    <div class="panel">
+      <div class="panel-header">Descripción del Objeto</div>
+      <div class="panel-content">
+        <div *ngIf="selectedObject; else noObjectSelectedForDescription" class="description-editor">
+          <!-- AQUÍ IRÍA UN EDITOR DE TEXTO ENRIQUECIDO -->
+          <textarea placeholder="Añade una descripción para {{selectedObject.name}}..."></textarea>
+        </div>
+        <ng-template #noObjectSelectedForDescription>
+          <div class="placeholder-panel">
+            <p>Selecciona un objeto para ver o editar su descripción.</p>
           </div>
-          <ng-template #noObjectSelectedForDescription>
-            <div class="placeholder-panel">
-              <p>Selecciona un objeto para ver o editar su descripción.</p>
-            </div>
-          </ng-template>
-       </div>
-     </div>
+        </ng-template>
+      </div>
+    </div>
   </div>
 
 </div>

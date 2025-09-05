@@ -1,7 +1,7 @@
 <!-- src/app/features/admin/components/world-editor/toolbar/toolbar.component.html -->
 <div class="toolbar-container">
   
-  <!-- 1. Botón de Selección (Sin cambios) -->
+  <!-- Herramientas de Transformación -->
   <button class="tool-button" 
           [class.active]="activeTool === 'select'" 
           (click)="setTool('select')"
@@ -9,22 +9,13 @@
     <svg viewBox="0 0 24 24"><path d="M13.5,22.2c-0.3,0-0.6-0.1-0.8-0.3l-5-5c-0.4-0.4-0.4-1,0-1.4s1-0.4,1.4,0l4.3,4.3l8.3-8.3c0.4-0.4,1-0.4,1.4,0s0.4,1,0,1.4l-9,9C14.1,22.1,13.8,22.2,13.5,22.2z"/></svg>
   </button>
 
-  <!-- ✅ CAMBIO: 2. Botón de Mover -->
-  <!-- Ahora usa el modo 'move' y tiene el icono y título correctos. -->
-  <!-- La lógica que antes estaba en 'helper' ahora se activará con 'move'. -->
   <button class="tool-button" 
           [class.active]="activeTool === 'move'" 
           (click)="setTool('move')"
           title="Mover (G)">
-    <!-- Icono de mover (el que estaba en el botón de translate) -->
     <svg viewBox="0 0 24 24"><path d="M12,2l-2,4h4L12,2z M2,12l4-2v4L2,12z M22,12l-4,2v-4L22,12z M12,22l2-4h-4L12,22z M12,8c-2.2,0-4,1.8-4,4s1.8,4,4,4s4-1.8,4-4S14.2,8,12,8z"/></svg>
   </button>
 
- 
-
-  <!-- ✅ CAMBIO: El botón de 'translate' ha sido ELIMINADO para evitar duplicados. -->
-
-  <!-- 4. Botón de Rotar (Sin cambios) -->
   <button class="tool-button" 
           [class.active]="activeTool === 'rotate'" 
           (click)="setTool('rotate')"
@@ -32,12 +23,37 @@
     <svg viewBox="0 0 24 24"><path d="M17.65,6.35C16.2,4.9,14.21,4,12,4c-4.42,0-7.99,3.58-7.99,8s3.57,8,7.99,8c3.73,0,6.84-2.55,7.73-6h-2.08c-0.82,2.33-3.04,4-5.65,4c-3.31,0-6-2.69-6-6s2.69-6,6-6c1.66,0,3.14,0.69,4.22,1.78L13,11h7V4L17.65,6.35z"/></svg>
   </button>
 
-  <!-- 5. Botón de Escalar (Sin cambios) -->
   <button class="tool-button" 
           [class.active]="activeTool === 'scale'" 
           (click)="setTool('scale')"
           title="Escalar (S)">
     <svg viewBox="0 0 24 24"><path d="M20,6h-4V2h-2v4h-4V2H8v4H4C2.9,6,2,6.9,2,8v12c0,1.1,0.9,2,2,2h16c1.1,0,2-0.9,2-2V8C22,6.9,21.1,6,20,6z M20,20H4V8h16V20z M6,10h2v2H6V10z"/></svg>
+  </button>
+
+  <!-- ✅ MEJORA: Separador visual -->
+  <div class="toolbar-separator"></div>
+
+  <!-- ✅ MEJORA: Herramientas de Vista -->
+  <button class="tool-button" 
+          (click)="toggleCamera()"
+          title="Cambiar Vista (Perspectiva/Ortográfica)">
+    <svg viewBox="0 0 24 24"><path d="M12 5.5c-4.97 0-9 2.03-9 4.5s4.03 4.5 9 4.5 9-2.03 9-4.5-4.03-4.5-9-4.5zm0 7c-2.76 0-5-1.12-5-2.5S9.24 7.5 12 7.5s5 1.12 5 2.5-2.24 2.5-5 2.5z"/></svg>
+  </button>
+
+  <button class="tool-button" 
+          (click)="frameAll()"
+          title="Encuadrar Escena">
+    <svg viewBox="0 0 24 24"><path d="M3 15h2v2H3v-2zm0-4h2v2H3v-2zm0-4h2v2H3V7zm4 8h10v2H7v-2zm0-4h10v2H7v-2zm0-4h10v2H7V7zm12 4h2v2h-2v-2zm0-4h2v2h-2V7zm0 8h2v2h-2v-2z"/></svg>
+  </button>
+
+  <!-- ✅ MEJORA: Botón de Maximizar con lógica de cambio de icono -->
+  <button class="tool-button" 
+          (click)="toggleMaximize()"
+          [title]="isMaximized ? 'Restaurar Vista' : 'Maximizar Vista'">
+    <!-- Icono para Maximizar -->
+    <svg *ngIf="!isMaximized" viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+    <!-- Icono para Minimizar/Restaurar -->
+    <svg *ngIf="isMaximized" viewBox="0 0 24 24"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>
   </button>
 
 </div>
