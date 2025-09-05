@@ -27,37 +27,22 @@
 <div *ngIf="!isLoadingData && !errorMessage && episodeId" class="editor-layout"
   [style.visibility]="isRenderingScene ? 'hidden' : 'visible'">
 
-  <header class="editor-header">
-    <span>Editor - {{ episodeTitle }}</span>
+  <!-- ======================================================= -->
+  <!-- BARRA SUPERIOR (NUEVA)                                  -->
+  <!-- ======================================================= -->
+  <header class="editor-top-bar">
+    <div class="episode-title">
+      Editor - {{ episodeTitle }}
+    </div>
   </header>
 
-  <main class="viewport">
-    <app-toolbar></app-toolbar>
-    <div *ngIf="(axisLock$ | async) as lockedAxis" class="axis-lock-indicator" [ngClass]="'lock-' + lockedAxis">
-      Moviendo en Eje: <b>{{ lockedAxis | uppercase }}</b>
-    </div>
-    
-    <div class="camera-position-display" *ngIf="engineService.cameraPosition$ | async as pos">
-      <b>Posición Cámara:</b><br>
-      X: {{ pos.x | number:'1.2-2' }}<br>
-      Y: {{ pos.y | number:'1.2-2' }}<br>
-      Z: {{ pos.z | number:'1.2-2' }}
-    </div>
-
-    <div *ngIf="isFlyModeActive$ | async" class="fly-mode-crosshair">
-      <div class="crosshair-line horizontal"></div>
-      <div class="crosshair-line vertical"></div>
-    </div>
-    <app-scene [initialObjects]="sceneObjects" (loadingProgress)="handleLoadingProgress($event)"
-      (loadingComplete)="handleLoadingComplete()">
-    </app-scene>
-    <app-brujula></app-brujula>
-  </main>
-
-   <aside class="sidebar" [class.visible-mobile]="isMobileSidebarVisible">
-    <!-- Lista Objetos -->
+  <!-- ======================================================= -->
+  <!-- BARRA IZQUIERDA (MOVIDA) - LISTA DE OBJETOS             -->
+  <!-- ======================================================= -->
+  <aside class="left-sidebar">
+    <!-- Lista Objetos (Panel movido aquí) -->
     <div class="panel scene-list-panel">
-      <div class="panel-header">Elementos en la Escena</div>
+      <div class="panel-header">Lista de Objetos</div>
       <div class="search-bar-container">
         <input 
           type="text" 
@@ -69,7 +54,6 @@
       </div>
 
       <div #sceneListContent class="panel-content scrollable" cdkDropListGroup>
-        
         <ng-container *ngIf="displayGroups$ | async as groups">
           <div *ngIf="groups.length > 0; else noResults">
             <div *ngFor="let group of groups; trackBy: trackByGroupType" class="object-group">
@@ -148,64 +132,147 @@
             {{ e.name }}
           </li>
         </ul>
-
       </div>
-   
     </div>
+  </aside>
 
-    <!-- Contenedor de Propiedades Simplificado -->
-    <div class="properties-container">
-      <div class="properties-tabs" [class.object-selected]="selectedObject">
-        <button class="tab-button" title="Render" [class.active]="activePropertiesTab==='render'"
-          (click)="selectPropertiesTab('render')">📷</button>
-        <button class="tab-button" title="Scene" [class.active]="activePropertiesTab==='scene'"
-          (click)="selectPropertiesTab('scene')">🏞️</button>
-        <button class="tab-button" title="World" [class.active]="activePropertiesTab==='world'"
-          (click)="selectPropertiesTab('world')">🌍</button>
-        
-        <div class="tabs-separator object-tab-item"></div>
-        <button class="tab-button object-tab-item" title="Object" [class.active]="activePropertiesTab==='object'"
-          (click)="selectPropertiesTab('object')">🧊</button>
+ 
+  <!-- ✅ MEJORA: VIEWPORT CENTRAL REESTRUCTURADO             -->
+  <!-- ======================================================= -->
+  <main class="main-viewport">
+    <!-- Encabezado del contenedor de escena (Título y Pestañas) -->
+    <div class="scene-container-header">
+      <div class="scene-tabs-container">
+        <button 
+          *ngFor="let scene of sceneTabs" 
+          class="scene-tab-button" 
+          [class.active]="scene.isActive"
+          (click)="selectScene(scene.id)">
+            <span>{{ scene.name }}</span>
+        </button>
+        <button class="scene-tab-button add-scene" (click)="addScene()" title="Añadir nueva escena">+</button>
       </div>
+    </div>
+    
+    <!-- Área de renderizado 3D -->
+    <div class="scene-render-area">
+      <app-toolbar></app-toolbar>
+      <div *ngIf="(axisLock$ | async) as lockedAxis" class="axis-lock-indicator" [ngClass]="'lock-' + lockedAxis">
+        Moviendo en Eje: <b>{{ lockedAxis | uppercase }}</b>
+      </div>
+      <div class="camera-position-display" *ngIf="engineService.cameraPosition$ | async as pos">
+        <b>Posición Cámara:</b><br>
+        X: {{ pos.x | number:'1.2-2' }}<br>
+        Y: {{ pos.y | number:'1.2-2' }}<br>
+        Z: {{ pos.z | number:'1.2-2' }}
+      </div>
+      <div *ngIf="isFlyModeActive$ | async" class="fly-mode-crosshair">
+        <div class="crosshair-line horizontal"></div>
+        <div class="crosshair-line vertical"></div>
+      </div>
+      <app-scene [initialObjects]="sceneObjects" (loadingProgress)="handleLoadingProgress($event)"
+        (loadingComplete)="handleLoadingComplete()">
+      </app-scene>
+      <app-brujula></app-brujula>
+    </div>
+  </main>
 
-      <div class="properties-content">
-        <ng-container [ngSwitch]="activePropertiesTab">
+  <!-- ======================================================= -->
+  <!-- BARRA DERECHA (NUEVA)                                   -->
+  <!-- ======================================================= -->
+  <aside class="right-sidebar">
+    <div class="panel episode-image-panel">
+      <div class="panel-header">Imagen del Episodio</div>
+      <div class="panel-content">
+        <!-- AQUÍ IRÍA EL COMPONENTE DE IMAGEN -->
+        <div class="placeholder-panel">
+          <p>Componente de imagen del episodio.</p>
+        </div>
+      </div>
+    </div>
+    <div class="panel fps-panel">
+      <div class="panel-header">Rendimiento</div>
+      <div class="panel-content">
+        <!-- AQUÍ IRÍA EL COMPONENTE DE FPS -->
+         <div class="placeholder-panel">
+          <p>Stats (FPS, Mem, etc).</p>
+        </div>
+      </div>
+    </div>
+  </aside>
 
-          <!-- Pestaña de Objeto: Muestra el panel de propiedades unificado -->
+  <!-- ======================================================= -->
+  <!-- PANEL INFERIOR (MOVIDO Y ADAPTADO)                      -->
+  <!-- ======================================================= -->
+  <footer class="bottom-properties">
+    <!-- Pestañas de propiedades (adaptadas a horizontal) -->
+    <div class="bottom-tabs-header">
+       <button class="bottom-tab-button" 
+               [class.active]="activePropertiesTab==='object'"
+               (click)="selectPropertiesTab('object')"
+               [disabled]="!selectedObject">Transformación</button>
+       <button class="bottom-tab-button"
+               [class.active]="activePropertiesTab==='scene'"
+               (click)="selectPropertiesTab('scene')">Propiedades</button>
+       <button class="bottom-tab-button"
+               [class.active]="activePropertiesTab==='world'"
+               (click)="selectPropertiesTab('world')">Metadatos</button>
+    </div>
+    
+    <!-- Contenido de las pestañas -->
+    <div class="bottom-tabs-content">
+       <ng-container [ngSwitch]="activePropertiesTab">
           <ng-container *ngSwitchCase="'object'">
             <app-properties-panel 
               [selectedObject]="selectedObject" 
               (objectUpdate)="handleObjectUpdate($event)">
             </app-properties-panel>
             
-            <!-- Mensaje si no hay objeto seleccionado -->
             <div *ngIf="!selectedObject" class="placeholder-panel">
                <h2>Propiedades del Objeto</h2>
-               <p>Selecciona un objeto en la lista para ver y editar sus propiedades.</p>
+               <p>Selecciona un objeto para ver sus transformaciones y propiedades.</p>
             </div>
           </ng-container>
           
-          <!-- Pestaña de Escena -->
           <ng-container *ngSwitchCase="'scene'">
             <app-scene-settings-panel></app-scene-settings-panel>
           </ng-container>
 
-          <!-- Paneles por defecto para otras pestañas -->
           <div *ngSwitchDefault class="placeholder-panel">
             <h2>{{ activePropertiesTab | titlecase }}</h2>
-            <p>Selecciona una pestaña para ver sus propiedades.</p>
+            <p>Contenido de la pestaña {{ activePropertiesTab }}.</p>
           </div>
-
         </ng-container>
-      </div>
     </div>
-  </aside>
+  </footer>
 
-  <button class="mobile-sidebar-toggle" (click)="toggleMobileSidebar()" title="Mostrar/Ocular Paneles">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
-    </svg>
-  </button>
+  <!-- ======================================================= -->
+  <!-- PANEL DE DESCRIPCIÓN (NUEVO)                           -->
+  <!-- ======================================================= -->
+  <div class="bottom-description">
+     <div class="panel">
+       <div class="panel-header">Descripción del Objeto</div>
+       <div class="panel-content">
+          <div *ngIf="selectedObject; else noObjectSelectedForDescription" class="description-editor">
+             <!-- AQUÍ IRÍA UN EDITOR DE TEXTO ENRIQUECIDO -->
+             <textarea placeholder="Añade una descripción para {{selectedObject.name}}..."></textarea>
+          </div>
+          <ng-template #noObjectSelectedForDescription>
+            <div class="placeholder-panel">
+              <p>Selecciona un objeto para ver o editar su descripción.</p>
+            </div>
+          </ng-template>
+       </div>
+     </div>
+  </div>
+
 </div>
+
+<!-- Este botón ya no es necesario con el nuevo layout, pero se puede re-adaptar si se necesita para responsive -->
+<!-- 
+<button class="mobile-sidebar-toggle" (click)="toggleMobileSidebar()" title="Mostrar/Ocular Paneles">
+  ...
+</button>
+-->
 
 <div *ngIf="errorMessage" class="error-state">{{ errorMessage }}</div>
