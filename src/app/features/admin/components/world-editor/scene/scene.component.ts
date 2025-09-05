@@ -1,67 +1,75 @@
-import { AfterViewInit, Component, ElementRef, Input, Output, EventEmitter, OnDestroy, ViewChild, OnChanges, SimpleChanges } from '@angular/core';
-import { SceneObjectResponse } from '../../../services/admin.service';
+// RUTA: src/app/features/admin/views/world-editor/world-editor/scene/scene.component.ts
+
+import { AfterViewInit, Component, ElementRef, Input, Output, EventEmitter, OnDestroy, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { SceneObjectResponse } from '../../../services/admin.service';
 import { EngineService } from '../service/three-engine/engine.service';
 
 @Component({
   selector: 'app-scene',
   standalone: true,
   imports: [CommonModule],
-  template: '<canvas #sceneCanvas class="scene-canvas"></canvas>',
+  templateUrl: './scene.component.html',
   styleUrls: ['./scene.component.css']
 })
-export class SceneComponent implements AfterViewInit, OnDestroy, OnChanges {
-  @ViewChild('sceneCanvas', { static: true }) private canvasRef!: ElementRef<HTMLCanvasElement>;
-
-  @Input() initialObjects: SceneObjectResponse[] | null = []; // Acepta null del async pipe
+export class SceneComponent implements AfterViewInit, OnDestroy {
+  @ViewChild('sceneCanvas') private canvasRef!: ElementRef<HTMLCanvasElement>;
+  
+  @Input() initialObjects: SceneObjectResponse[] = [];
   @Output() loadingProgress = new EventEmitter<number>();
   @Output() loadingComplete = new EventEmitter<void>();
 
-  private isEngineInitialized = false;
+  // ✅ NUEVO: Declaramos el ResizeObserver
+  private resizeObserver!: ResizeObserver;
 
-  constructor(
-    private engineService: EngineService
-  ) { }
+  constructor(private engineService: EngineService) {}
 
   ngAfterViewInit(): void {
     if (!this.canvasRef) {
       console.error("[SceneComponent] No se pudo obtener la referencia al canvas.");
       return;
     }
-    
-    // 1. Inicializamos el motor 3D con la escena vacía.
+
     this.engineService.init(this.canvasRef);
-    this.isEngineInitialized = true;
     console.log('[SceneComponent] El motor 3D ha sido inicializado.');
-    
-    // 2. Si los datos llegaron antes de que la vista se creara, los poblamos ahora.
+
+    // ✅ NUEVO: Configuramos el ResizeObserver después de inicializar el motor
+    this.setupResizeObserver();
+
     if (this.initialObjects && this.initialObjects.length > 0) {
       this.engineService.populateScene(
         this.initialObjects,
-        (progress) => this.loadingProgress.emit(progress),
+        (progress: number) => this.loadingProgress.emit(progress),
         () => this.loadingComplete.emit()
       );
+    } else {
+      this.loadingComplete.emit();
     }
   }
+  
+  // ✅ NUEVO: Método para configurar el observador
+  private setupResizeObserver(): void {
+    const container = this.canvasRef.nativeElement.parentElement;
+    if (!container) return;
 
-  // 3. Este hook reacciona cuando los datos llegan DESPUÉS de que la vista se creó.
-  ngOnChanges(changes: SimpleChanges): void {
-    if (changes['initialObjects'] && this.isEngineInitialized) {
-      const newObjects = changes['initialObjects'].currentValue;
+    this.resizeObserver = new ResizeObserver(() => {
+      // Cada vez que el contenedor cambie de tamaño, llamamos al redimensionador del motor.
+      // ¡Esto es lo que hace la transición suave!
+      this.engineService.onWindowResize();
+    });
 
-      if (newObjects && Array.isArray(newObjects) && newObjects.length > 0) {
-        console.log(`[SceneComponent] ngOnChanges detectó ${newObjects.length} objetos. Repoblando la escena...`);
-        this.engineService.populateScene(
-          newObjects,
-          (progress) => this.loadingProgress.emit(progress),
-          () => this.loadingComplete.emit()
-        );
-      }
-    }
+    // Empezamos a observar el contenedor del canvas.
+    this.resizeObserver.observe(container);
   }
 
   ngOnDestroy(): void {
     console.log('[SceneComponent] Destruyendo la instancia del motor 3D.');
+    
+    // ✅ NUEVO: Es muy importante desconectar el observador para evitar fugas de memoria.
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+    }
+
     this.engineService.ngOnDestroy();
   }
 }

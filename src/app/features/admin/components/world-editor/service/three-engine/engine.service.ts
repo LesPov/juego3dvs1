@@ -56,7 +56,7 @@ export class EngineService implements OnDestroy {
   private frustum = new THREE.Frustum();
   private projScreenMatrix = new THREE.Matrix4();
   private boundingSphere = new THREE.Sphere();
-  private updateIndexCounter = 0; // Este es global y no se usa directamente
+  private updateIndexCounter = 0;
   private tempScale = new THREE.Vector3();
 
   constructor(
@@ -67,11 +67,17 @@ export class EngineService implements OnDestroy {
     private statsManager: StatsManagerService,
     private interactionHelperManager: InteractionHelperManagerService,
     private dragInteractionManager: DragInteractionManagerService
-  ) {
+ ) {
     this.onTransformEnd$ = this.transformEndSubject.asObservable().pipe(debounceTime(500));
     this.isFlyModeActive$ = this.controlsManager.isFlyModeActive$;
   }
 
+  // ✅ LÓGICA CORREGIDA: Cambiado de 'private' a 'public' para permitir la llamada desde el componente.
+   public onWindowResize = () => {
+    this.sceneManager.onWindowResize();
+    this.interactionHelperManager.updateScale();
+  };
+  
   private animate = () => {
     this.animationFrameId = requestAnimationFrame(this.animate);
     this.statsManager.begin();
@@ -105,7 +111,6 @@ export class EngineService implements OnDestroy {
     const allData: CelestialInstanceData[] = instancedMesh.userData['celestialData'];
     if (!allData || allData.length === 0) return;
     
-    // Solo actualizamos el frustum una vez por frame
     if (this.updateIndexCounter === 0) {
         this.updateCameraFrustum();
     }
@@ -125,7 +130,6 @@ export class EngineService implements OnDestroy {
     }
 
     const totalInstances = allData.length;
-    // --- CORRECCIÓN 1: Acceso a userData con corchetes ---
     const startIndex = instancedMesh.userData['updateIndexCounter'] || 0;
     const checkCount = Math.min(totalInstances, Math.ceil(INSTANCES_TO_CHECK_PER_FRAME / 5));
 
@@ -171,36 +175,26 @@ export class EngineService implements OnDestroy {
         }
     }
     
-    // --- CORRECCIÓN 2: Acceso a userData con corchetes ---
     instancedMesh.userData['updateIndexCounter'] = (startIndex + checkCount) % totalInstances;
 
     if (needsColorUpdate && instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
     if (needsMatrixUpdate) instancedMesh.instanceMatrix.needsUpdate = true;
   }
   
-  // --- CORRECCIÓN 3: Método handleTransformEnd ---
   private handleTransformEnd = () => {
     if (!this.selectedObject) return;
     
     if (this.selectedObject.name === 'SelectionProxy') {
       this.sceneManager.scene.children.forEach(obj => {
-        // --- CORRECCIÓN 4: Añadimos una comprobación de seguridad ---
         if (!this.selectedObject) return;
-
         if (obj.name.startsWith(CELESTIAL_MESH_PREFIX)) {
           const instancedMesh = obj as THREE.InstancedMesh;
           const allData: CelestialInstanceData[] = instancedMesh.userData["celestialData"];
-          
-          // La exclamación (!) le dice a TS que confiamos en que selectedObject no es null aquí.
           const instanceIndex = allData.findIndex(d => d.originalUuid === this.selectedObject!.uuid);
           
           if (instanceIndex > -1) {
             const data = allData[instanceIndex];
-            data.originalMatrix.compose(
-              this.selectedObject.position,
-              this.selectedObject.quaternion,
-              this.selectedObject.scale
-            );
+            data.originalMatrix.compose( this.selectedObject.position, this.selectedObject.quaternion, this.selectedObject.scale );
             data.position.copy(this.selectedObject.position);
             instancedMesh.setMatrixAt(instanceIndex, data.originalMatrix);
             instancedMesh.instanceMatrix.needsUpdate = true;
@@ -211,7 +205,6 @@ export class EngineService implements OnDestroy {
     this.transformEndSubject.next();
   }
 
-  // ... (El resto de métodos no necesitan cambios y se mantienen igual) ...
   public setGroupVisibility(uuids: string[], visible: boolean): void { this.entityManager.setGroupVisibility(uuids, visible); }
   public setGroupBrightness(uuids: string[], brightness: number): void { this.entityManager.setGroupBrightness(uuids, brightness); }
   public init(canvasRef: ElementRef<HTMLCanvasElement>): void { const canvas = canvasRef.nativeElement; this.sceneManager.setupBasicScene(canvas); this.entityManager.init(this.sceneManager.scene); this.statsManager.init(); this.controlsManager.init(this.sceneManager.editorCamera, canvas, this.sceneManager.scene, this.sceneManager.focusPivot); this.sceneManager.setControls(this.controlsManager.getControls()); this.interactionHelperManager.init(this.sceneManager.scene, this.sceneManager.editorCamera); this.dragInteractionManager.init(this.sceneManager.editorCamera, canvas, this.controlsManager); this.controlsManager.enableNavigation(); this.addEventListeners(); if (this.sceneManager.editorCamera) { this.originalProjectionMatrix.copy(this.sceneManager.editorCamera.projectionMatrix); } this.animate(); }
@@ -231,7 +224,6 @@ export class EngineService implements OnDestroy {
   public frameScene = (width: number, height: number) => this.sceneManager.frameScene(width, height);
   public getGizmoAttachedObject = (): THREE.Object3D | undefined => this.selectedObject;
   public getSceneEntities = (): Observable<SceneEntity[]> => this.entityManager.getSceneEntities();
-  private onWindowResize = () => { this.sceneManager.onWindowResize(); this.interactionHelperManager.updateScale(); };
   public addObjectToScene = (objData: SceneObjectResponse) => this.entityManager.createObjectFromData(objData);
   public updateObjectName = (uuid: string, newName: string) => this.entityManager.updateObjectName(uuid, newName);
   public updateObjectTransform = (uuid: string, path: 'position' | 'rotation' | 'scale', value: { x: number; y: number; z: number; }) => { const standardObject = this.entityManager.getObjectByUuid(uuid); if (standardObject && standardObject.name !== 'SelectionProxy') { standardObject[path].set(value.x, value.y, value.z); if (path === 'position') { this.interactionHelperManager.updateHelperPositions(standardObject); } return; } const instanceInfo = this.entityManager['_findCelestialInstance'](uuid); if (instanceInfo) { const { mesh, instanceIndex, data } = instanceInfo; const tempQuaternion = new THREE.Quaternion(); const tempScale = new THREE.Vector3(); data.originalMatrix.decompose(new THREE.Vector3(), tempQuaternion, tempScale); switch (path) { case 'position': data.position.set(value.x, value.y, value.z); break; case 'rotation': tempQuaternion.setFromEuler(new THREE.Euler(value.x, value.y, value.z)); break; case 'scale': data.scale.set(value.x, value.y, value.z); tempScale.copy(data.scale); break; } data.originalMatrix.compose(data.position, tempQuaternion, tempScale); mesh.setMatrixAt(instanceIndex, data.originalMatrix); mesh.instanceMatrix.needsUpdate = true; const selectionProxy = this.sceneManager.scene.getObjectByName('SelectionProxy'); if (selectionProxy && selectionProxy.uuid === uuid) { selectionProxy.position.copy(data.position); const PROXY_SCALE_MULTIPLIER = 7.0; selectionProxy.scale.copy(data.scale).multiplyScalar(PROXY_SCALE_MULTIPLIER); } } };

@@ -1,4 +1,4 @@
-// src/app/features/admin/views/world-editor/world-view/world-view.component.ts
+// RUTA: src/app/features/admin/views/world-editor/world-view/world-view.component.ts
 
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -18,7 +18,6 @@ import { SceneObjectResponse, AdminService, PaginatedEpisodeResponse } from '../
 import { BrujulaComponent } from '../world-editor/brujula/brujula.component';
 import { EngineService } from '../world-editor/service/three-engine/engine.service';
 
-// Interfaz para el grupo de entidades en la lista
 export interface EntityGroup {
   type: string;
   visibleEntities: SceneEntity[];
@@ -28,7 +27,6 @@ export interface EntityGroup {
   brightness: number;
 }
 
-// ✅ MEJORA: Interfaz para las pestañas de escena
 export interface SceneTab {
   id: number;
   name: string;
@@ -63,11 +61,16 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   public placeholderEntities: SceneEntity[] = [{ uuid: 'placeholder-1', name: 'Añadir objeto nuevo...', type: 'Model' }];
   public searchFilter: string = '';
   public totalFilteredEntityCount = 0;
-
-  // ✅ MEJORA: Lógica para manejar pestañas de escenas
   public sceneTabs: SceneTab[] = [];
   public activeSceneId: number = 1;
-  private nextSceneId: number = 2; // Para generar IDs únicos para nuevas escenas
+  private nextSceneId: number = 2;
+
+  public layoutState = {
+    isMaximized: false,
+    leftVisible: true,
+    rightVisible: true,
+    bottomVisible: true
+  };
 
   private groupExpansionState = new Map<string, boolean>();
   private groupVisibilityState = new Map<string, boolean>();
@@ -75,13 +78,8 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   private brightnessUpdate$ = new Subject<{ groupType: string, brightness: number }>();
   private groupDisplayCountState = new Map<string, number>();
   private readonly listIncrement = 50;
-
   private searchFilter$ = new BehaviorSubject<string>('');
-  private readonly typeColorMap: { [key: string]: string } = {
-    'Camera': 'color-camera', 'Light': 'color-light', 'Model': 'color-model',
-    'star': 'color-star', 'galaxy': 'color-galaxy', 'supernova': 'color-supernova', 'diffraction_star': 'color-diffraction-star',
-    'default': 'color-default'
-  };
+  private readonly typeColorMap: { [key: string]: string } = { 'Camera': 'color-camera', 'Light': 'color-light', 'Model': 'color-model', 'star': 'color-star', 'galaxy': 'color-galaxy', 'supernova': 'color-supernova', 'diffraction_star': 'color-diffraction-star', 'default': 'color-default' };
   private propertyUpdate$ = new Subject<PropertyUpdate>();
   private subscriptions = new Subscription();
   private allEntities$ = new BehaviorSubject<SceneEntity[]>([]);
@@ -100,9 +98,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    // Inicializamos con una escena por defecto
     this.sceneTabs.push({ id: 1, name: 'Escena Principal', isActive: true });
-
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       this.episodeId = +id;
@@ -118,52 +114,39 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     this.brightnessUpdate$.complete();
   }
 
-  // ✅ MEJORA: Método para seleccionar una escena
-  selectScene(sceneId: number): void {
-    if (this.activeSceneId === sceneId) return;
-    this.activeSceneId = sceneId;
-    this.sceneTabs.forEach(tab => tab.isActive = tab.id === sceneId);
-    // Aquí iría la lógica para cargar los datos de la nueva escena
-    console.log(`Cambiando a escena ID: ${sceneId}`);
+  onMaximizeToggle(): void {
+    this.layoutState.isMaximized = !this.layoutState.isMaximized;
+    const shouldBeVisible = !this.layoutState.isMaximized;
+    this.layoutState.leftVisible = shouldBeVisible;
+    this.layoutState.rightVisible = shouldBeVisible;
+    this.layoutState.bottomVisible = shouldBeVisible;
+    // ❌ ELIMINADO: Ya no se necesita llamar a `triggerEngineResize`. El `ResizeObserver` lo hace automáticamente.
   }
 
-  // ✅ MEJORA: Método para añadir una nueva escena
-  addScene(): void {
-    const newScene: SceneTab = {
-      id: this.nextSceneId,
-      name: `Escena ${this.nextSceneId}`,
-      isActive: false
-    };
-    this.sceneTabs.push(newScene);
-    this.nextSceneId++;
-    this.selectScene(newScene.id);
+  togglePanelVisibility(panel: 'left' | 'right' | 'bottom'): void {
+    if (panel === 'left') this.layoutState.leftVisible = !this.layoutState.leftVisible;
+    if (panel === 'right') this.layoutState.rightVisible = !this.layoutState.rightVisible;
+    if (panel === 'bottom') this.layoutState.bottomVisible = !this.layoutState.bottomVisible;
+    
+    if (this.layoutState.leftVisible && this.layoutState.rightVisible && this.layoutState.bottomVisible) {
+      this.layoutState.isMaximized = false;
+    }
+    // ❌ ELIMINADO: Ya no se necesita llamar a `triggerEngineResize`.
   }
-
-  loadEpisodeData(id: number): void {
-    this.isLoadingData = true;
-    this.adminService.getEpisodeForEditor(id).subscribe({
-      next: (response: PaginatedEpisodeResponse) => {
-        this.episodeTitle = response.episode.title;
-        this.sceneObjects = response.sceneObjects || [];
-        this.isLoadingData = false;
-        this.isRenderingScene = true;
-        if (!this.sceneObjects.some(o => o.type === 'model' && o.asset?.path)) {
-          this.simulateLoadingProgress();
-        }
-      },
-      error: (err) => { this.errorMessage = "Error al cargar los datos del episodio."; this.isLoadingData = false; console.error(err); }
-    });
+  
+  // ❌ ELIMINADO: Este método ya no es necesario gracias al `ResizeObserver`.
+  /*
+  private triggerEngineResize(): void {
+    setTimeout(() => {
+      this.engineService.onWindowResize();
+    }, 350);
   }
+  */
 
-  private setupSubscriptions(): void {
-    const transformSub = this.engineService.onTransformEnd$.subscribe(() => this.handleTransformEnd());
-    const propertyUpdateSub = this.propertyUpdate$.pipe(debounceTime(500), switchMap(update => this.handlePropertySave(update))).subscribe({ error: err => console.error("[WorldView] Error al guardar propiedad:", err) });
-    const entitiesSub = this.engineService.getSceneEntities().pipe(map(engineEntities => { const sceneObjectMap = new Map<string, SceneObjectResponse>(); this.sceneObjects.forEach(obj => sceneObjectMap.set(obj.id.toString(), obj)); return engineEntities.map(entity => { const originalObject = sceneObjectMap.get(entity.uuid); return { ...entity, type: originalObject ? originalObject.type : entity.type }; }); })).subscribe((correctedEntities: SceneEntity[]) => { this.allEntities = correctedEntities; this.allEntities$.next(correctedEntities); });
-    const brightnessSub = this.brightnessUpdate$.pipe(debounceTime(150)).subscribe(({ groupType, brightness }) => { const entityUuidsInGroup = this.allEntities.filter(entity => entity.type === groupType).map(entity => entity.uuid); if (entityUuidsInGroup.length > 0) { this.engineService.setGroupBrightness(entityUuidsInGroup, brightness); } });
-    const cameraModeSub = this.engineService.cameraMode$.subscribe(mode => { if (mode === 'perspective') { let stateChanged = false; for (const key of this.groupBrightnessState.keys()) { if (this.groupBrightnessState.get(key) !== 1.0) { this.groupBrightnessState.set(key, 1.0); stateChanged = true; } } if (stateChanged) { this.allEntities$.next([...this.allEntities]); } } });
-    this.subscriptions.add(transformSub); this.subscriptions.add(propertyUpdateSub); this.subscriptions.add(entitiesSub); this.subscriptions.add(brightnessSub); this.subscriptions.add(cameraModeSub);
-  }
-
+  selectScene(sceneId: number): void { if (this.activeSceneId === sceneId) return; this.activeSceneId = sceneId; this.sceneTabs.forEach(tab => tab.isActive = tab.id === sceneId); console.log(`Cambiando a escena ID: ${sceneId}`); }
+  addScene(): void { const newScene: SceneTab = { id: this.nextSceneId, name: `Escena ${this.nextSceneId}`, isActive: false }; this.sceneTabs.push(newScene); this.nextSceneId++; this.selectScene(newScene.id); }
+  loadEpisodeData(id: number): void { this.isLoadingData = true; this.adminService.getEpisodeForEditor(id).subscribe({ next: (response: PaginatedEpisodeResponse) => { this.episodeTitle = response.episode.title; this.sceneObjects = response.sceneObjects || []; this.isLoadingData = false; this.isRenderingScene = true; if (!this.sceneObjects.some(o => o.type === 'model' && o.asset?.path)) { this.simulateLoadingProgress(); } }, error: (err) => { this.errorMessage = "Error al cargar los datos del episodio."; this.isLoadingData = false; console.error(err); } }); }
+  private setupSubscriptions(): void { const transformSub = this.engineService.onTransformEnd$.subscribe(() => this.handleTransformEnd()); const propertyUpdateSub = this.propertyUpdate$.pipe(debounceTime(500), switchMap(update => this.handlePropertySave(update))).subscribe({ error: err => console.error("[WorldView] Error al guardar propiedad:", err) }); const entitiesSub = this.engineService.getSceneEntities().pipe(map(engineEntities => { const sceneObjectMap = new Map<string, SceneObjectResponse>(); this.sceneObjects.forEach(obj => sceneObjectMap.set(obj.id.toString(), obj)); return engineEntities.map(entity => { const originalObject = sceneObjectMap.get(entity.uuid); return { ...entity, type: originalObject ? originalObject.type : entity.type }; }); })).subscribe((correctedEntities: SceneEntity[]) => { this.allEntities = correctedEntities; this.allEntities$.next(correctedEntities); }); const brightnessSub = this.brightnessUpdate$.pipe(debounceTime(150)).subscribe(({ groupType, brightness }) => { const entityUuidsInGroup = this.allEntities.filter(entity => entity.type === groupType).map(entity => entity.uuid); if (entityUuidsInGroup.length > 0) { this.engineService.setGroupBrightness(entityUuidsInGroup, brightness); } }); const cameraModeSub = this.engineService.cameraMode$.subscribe(mode => { if (mode === 'perspective') { let stateChanged = false; for (const key of this.groupBrightnessState.keys()) { if (this.groupBrightnessState.get(key) !== 1.0) { this.groupBrightnessState.set(key, 1.0); stateChanged = true; } } if (stateChanged) { this.allEntities$.next([...this.allEntities]); } } }); this.subscriptions.add(transformSub); this.subscriptions.add(propertyUpdateSub); this.subscriptions.add(entitiesSub); this.subscriptions.add(brightnessSub); this.subscriptions.add(cameraModeSub); }
   public onGroupBrightnessChange(group: EntityGroup, event: Event): void { const slider = event.target as HTMLInputElement; const brightness = parseFloat(slider.value); this.groupBrightnessState.set(group.type, brightness); this.brightnessUpdate$.next({ groupType: group.type, brightness }); }
   public toggleGroupVisibility(group: EntityGroup, event: MouseEvent): void { event.stopPropagation(); const currentState = this.groupVisibilityState.get(group.type) ?? true; const newState = !currentState; this.groupVisibilityState.set(group.type, newState); const entityUuidsInGroup = this.allEntities.filter(entity => entity.type === group.type).map(entity => entity.uuid); if (entityUuidsInGroup.length > 0) { this.engineService.setGroupVisibility(entityUuidsInGroup, newState); } this.allEntities$.next([...this.allEntities]); }
   public toggleGroup(group: EntityGroup): void { const newState = !group.isExpanded; this.groupExpansionState.set(group.type, newState); this.allEntities$.next([...this.allEntities]); }

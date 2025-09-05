@@ -1,81 +1,92 @@
-// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/scene-manager.service.ts
+// RUTA: src/app/features/admin/views/world-editor/service/three-engine/utils/scene-manager.service.ts
 
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { SelectionManagerService } from './selection-manager.service';
 
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class SceneManagerService {
   public scene!: THREE.Scene;
-  public renderer!: THREE.WebGLRenderer;
   public editorCamera!: THREE.PerspectiveCamera;
-  public focusPivot!: THREE.Object3D;
+  public renderer!: THREE.WebGLRenderer;
   public composer!: EffectComposer;
-  private controls!: OrbitControls | undefined;
+  public focusPivot!: THREE.Object3D;
+  private canvas!: HTMLCanvasElement;
+  private controls!: OrbitControls;
 
-  constructor(private selectionManager: SelectionManagerService) { }
+  constructor() { }
 
   public setupBasicScene(canvas: HTMLCanvasElement): void {
+    this.canvas = canvas;
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x000000);
-    const fieldOfView = 45;
-    const cameraFarPlane = 1e16;
-    const cameraNearPlane = 1000.0;
-    this.editorCamera = new THREE.PerspectiveCamera( fieldOfView, canvas.clientWidth / canvas.clientHeight, cameraNearPlane, cameraFarPlane );
-    this.editorCamera.name = 'Cámara del Editor';
-    this.editorCamera.position.set(0, 0, 90_000_000);
-    this.scene.add(this.editorCamera);
+    this.scene.background = new THREE.Color(0x000000); // Fondo negro
 
-    this.renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: 'high-performance' });
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.85;
+    const container = this.canvas.parentElement;
+    if (!container) {
+      console.error("El canvas debe estar dentro de un contenedor para medir las dimensiones.");
+      return;
+    }
 
-    const normalPixelRatio = Math.min(window.devicePixelRatio, 2);
-    this.renderer.setPixelRatio(normalPixelRatio);
-    this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+    const width = container.clientWidth;
+    const height = container.clientHeight;
 
-    this.selectionManager.init(this.scene, this.editorCamera);
-    this.setupPostProcessing(canvas);
+    this.editorCamera = new THREE.PerspectiveCamera(50, width / height, 0.1, 500000000000);
+    this.editorCamera.position.set(0, 50, 150);
+    this.editorCamera.lookAt(0, 0, 0);
 
     this.focusPivot = new THREE.Object3D();
-    this.focusPivot.name = "FocusPivot";
     this.scene.add(this.focusPivot);
+
+    this.renderer = new THREE.WebGLRenderer({
+      canvas: this.canvas,
+      antialias: true,
+      powerPreference: 'high-performance'
+    });
+    this.renderer.setSize(width, height);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    const renderPass = new RenderPass(this.scene, this.editorCamera);
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(renderPass);
   }
 
-  private setupPostProcessing(canvas: HTMLCanvasElement): void {
-    const renderPass = new RenderPass(this.scene, this.editorCamera);
-    const bloomPass = new UnrealBloomPass(new THREE.Vector2(canvas.clientWidth, canvas.clientHeight), 0.1, 0.1, 0.1);
-    const outlinePass = this.selectionManager.getPass();
-    const outputPass = new OutputPass();
-    
-    this.composer = new EffectComposer(this.renderer);
-    
-    this.composer.addPass(renderPass);
-    this.composer.addPass(outlinePass);
-    this.composer.addPass(bloomPass);
-    this.composer.addPass(outputPass);
+  public setControls(controls: OrbitControls): void {
+    this.controls = controls;
   }
 
   public onWindowResize(): void {
-    const canvas = this.renderer.domElement;
-    const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
-    if (canvas.width !== width || canvas.height !== height) {
-      this.editorCamera.aspect = width / height;
+    if (!this.canvas || !this.renderer || !this.editorCamera) return;
+    const container = this.canvas.parentElement;
+    if (!container) return;
+
+    const newWidth = container.clientWidth;
+    const newHeight = container.clientHeight;
+
+    if (this.canvas.width !== newWidth || this.canvas.height !== newHeight) {
+      this.editorCamera.aspect = newWidth / newHeight;
       this.editorCamera.updateProjectionMatrix();
-      this.renderer.setSize(width, height, false);
-      this.composer.setSize(width, height);
+      this.renderer.setSize(newWidth, newHeight);
+      this.composer.setSize(newWidth, newHeight);
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     }
   }
 
-  public setControls(controls: OrbitControls) { this.controls = controls; }
-  public frameScene(sceneWidth: number, sceneHeight: number): void { if (!this.editorCamera || !this.controls) return; const fovRad = THREE.MathUtils.degToRad(this.editorCamera.fov); const effectiveHeight = Math.max(sceneHeight, sceneWidth / this.editorCamera.aspect); const distance = (effectiveHeight / 2) / Math.tan(fovRad / 2); const finalZ = distance * 1.2; this.editorCamera.position.set(0, 0, finalZ); this.editorCamera.lookAt(0, 0, 0); this.controls.target.set(0, 0, 0); this.controls.update(); }
+  // ✅ CORRECCIÓN: Añadido el método 'frameScene' que faltaba para evitar el error de compilación.
+  public frameScene(sceneWidth: number, sceneHeight: number): void {
+    if (!this.editorCamera || !this.controls) return;
+
+    const fovRad = THREE.MathUtils.degToRad(this.editorCamera.fov);
+    const effectiveHeight = Math.max(sceneHeight, sceneWidth / this.editorCamera.aspect);
+    const distance = (effectiveHeight / 2) / Math.tan(fovRad / 2);
+    const finalZ = distance * 1.2; // Un pequeño margen
+
+    this.editorCamera.position.set(0, 0, finalZ);
+    this.editorCamera.lookAt(0, 0, 0);
+    this.controls.target.set(0, 0, 0);
+    this.controls.update();
+  }
 }
