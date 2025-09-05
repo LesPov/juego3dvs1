@@ -1,6 +1,5 @@
 // src/app/features/admin/views/world-editor/world-view/service/three-engine/engine.service.ts
-// ... (Tu código existente de engine.service.ts va aquí, no necesita cambios) ...
-// (Lo incluyo completo por si acaso, pero no hay cambios lógicos que hacer aquí)
+
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
@@ -25,6 +24,7 @@ const ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR = 4.0;
 const BRIGHTNESS_MULTIPLIER = 3.5;
 const MAX_INTENSITY = 10.0;
 const BRIGHTNESS_FALLOFF_START_DISTANCE = 50_000_000;
+const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
 
 export type CameraMode = 'perspective' | 'orthographic';
 
@@ -56,7 +56,7 @@ export class EngineService implements OnDestroy {
   private frustum = new THREE.Frustum();
   private projScreenMatrix = new THREE.Matrix4();
   private boundingSphere = new THREE.Sphere();
-  private updateIndexCounter = 0;
+  private updateIndexCounter = 0; // Este es global y no se usa directamente
   private tempScale = new THREE.Vector3();
 
   constructor(
@@ -71,10 +71,6 @@ export class EngineService implements OnDestroy {
     this.onTransformEnd$ = this.transformEndSubject.asObservable().pipe(debounceTime(500));
     this.isFlyModeActive$ = this.controlsManager.isFlyModeActive$;
   }
-
-  public setGroupVisibility(uuids: string[], visible: boolean): void { this.entityManager.setGroupVisibility(uuids, visible); }
-  public setGroupBrightness(uuids: string[], brightness: number): void { this.entityManager.setGroupBrightness(uuids, brightness); }
-  public init(canvasRef: ElementRef<HTMLCanvasElement>): void { const canvas = canvasRef.nativeElement; this.sceneManager.setupBasicScene(canvas); this.entityManager.init(this.sceneManager.scene); this.statsManager.init(); this.controlsManager.init(this.sceneManager.editorCamera, canvas, this.sceneManager.scene, this.sceneManager.focusPivot); this.sceneManager.setControls(this.controlsManager.getControls()); this.interactionHelperManager.init(this.sceneManager.scene, this.sceneManager.editorCamera); this.dragInteractionManager.init(this.sceneManager.editorCamera, canvas, this.controlsManager); this.controlsManager.enableNavigation(); this.addEventListeners(); if (this.sceneManager.editorCamera) { this.originalProjectionMatrix.copy(this.sceneManager.editorCamera.projectionMatrix); } this.animate(); }
 
   private animate = () => {
     this.animationFrameId = requestAnimationFrame(this.animate);
@@ -93,17 +89,27 @@ export class EngineService implements OnDestroy {
     if (selectionProxy) {
         selectionProxy.quaternion.copy(this.sceneManager.editorCamera.quaternion);
     }
-    this.updateVisibleCelestialInstances();
+    
+    this.sceneManager.scene.children.forEach(object => {
+      if (object.name.startsWith(CELESTIAL_MESH_PREFIX)) {
+        this.updateVisibleCelestialInstances(object as THREE.InstancedMesh);
+      }
+    });
+
     this.sceneManager.composer.render();
     this.statsManager.end();
   };
 
-  private updateVisibleCelestialInstances(): void {
-    const instancedMesh = this.sceneManager.scene.getObjectByName('CelestialObjectsInstanced') as THREE.InstancedMesh;
+  private updateVisibleCelestialInstances(instancedMesh: THREE.InstancedMesh): void {
     if (!instancedMesh) return;
     const allData: CelestialInstanceData[] = instancedMesh.userData['celestialData'];
     if (!allData || allData.length === 0) return;
-    this.updateCameraFrustum();
+    
+    // Solo actualizamos el frustum una vez por frame
+    if (this.updateIndexCounter === 0) {
+        this.updateCameraFrustum();
+    }
+    
     let needsColorUpdate = false;
     let needsMatrixUpdate = false;
     const camera = this.sceneManager.editorCamera;
@@ -117,24 +123,28 @@ export class EngineService implements OnDestroy {
       visibilityFactor = Math.max(0.1, visibilityFactor);
       bloomDampeningFactor = Math.min(1.0, ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR / zoomRatio);
     }
-    const startIndex = this.updateIndexCounter;
-    const endIndex = Math.min(startIndex + INSTANCES_TO_CHECK_PER_FRAME, allData.length);
-    for (let i = startIndex; i < endIndex; i++) {
-        const data = allData[i];
-        if (data.isManuallyHidden) {
-            continue;
-        }
+
+    const totalInstances = allData.length;
+    // --- CORRECCIÓN 1: Acceso a userData con corchetes ---
+    const startIndex = instancedMesh.userData['updateIndexCounter'] || 0;
+    const checkCount = Math.min(totalInstances, Math.ceil(INSTANCES_TO_CHECK_PER_FRAME / 5));
+
+    for (let i = 0; i < checkCount; i++) {
+        const currentIndex = (startIndex + i) % totalInstances;
+        const data = allData[currentIndex];
+        
+        if (data.isManuallyHidden) { continue; }
         this.boundingSphere.center.copy(data.position);
         this.boundingSphere.radius = Math.max(data.scale.x, data.scale.y, data.scale.z) * DEEP_SPACE_SCALE_BOOST;
         if (!this.frustum.intersectsSphere(this.boundingSphere)) {
-            if (data.isVisible) { this.tempColor.setScalar(0); instancedMesh.setColorAt(i, this.tempColor); needsColorUpdate = true; data.isVisible = false; }
+            if (data.isVisible) { this.tempColor.setScalar(0); instancedMesh.setColorAt(currentIndex, this.tempColor); needsColorUpdate = true; data.isVisible = false; }
             continue;
         }
         const distance = data.position.distanceTo(camera.position);
         let personalVisibilityDistance = Math.min(BASE_VISIBILITY_DISTANCE * data.luminosity, MAX_PERCEPTUAL_DISTANCE);
         const effectiveVisibilityDistance = personalVisibilityDistance * visibilityFactor;
         if (distance > effectiveVisibilityDistance) {
-            if (data.isVisible) { this.tempColor.setScalar(0); instancedMesh.setColorAt(i, this.tempColor); needsColorUpdate = true; data.isVisible = false; }
+            if (data.isVisible) { this.tempColor.setScalar(0); instancedMesh.setColorAt(currentIndex, this.tempColor); needsColorUpdate = true; data.isVisible = false; }
             continue;
         }
         const visibilityFalloff = 1.0 - THREE.MathUtils.smoothstep(distance, 0, effectiveVisibilityDistance);
@@ -148,41 +158,73 @@ export class EngineService implements OnDestroy {
         if (finalIntensity > 0.01) {
             if (!data.isVisible) data.isVisible = true;
             this.tempMatrix.compose(data.position, camera.quaternion, this.tempScale);
-            instancedMesh.setMatrixAt(i, this.tempMatrix);
+            instancedMesh.setMatrixAt(currentIndex, this.tempMatrix);
             needsMatrixUpdate = true;
             this.tempColor.copy(data.originalColor).multiplyScalar(finalIntensity);
-            instancedMesh.setColorAt(i, this.tempColor);
+            instancedMesh.setColorAt(currentIndex, this.tempColor);
             needsColorUpdate = true;
         } else if (data.isVisible) {
             this.tempColor.setScalar(0);
-            instancedMesh.setColorAt(i, this.tempColor);
+            instancedMesh.setColorAt(currentIndex, this.tempColor);
             needsColorUpdate = true;
             data.isVisible = false;
         }
     }
-    this.updateIndexCounter = endIndex >= allData.length ? 0 : endIndex;
+    
+    // --- CORRECCIÓN 2: Acceso a userData con corchetes ---
+    instancedMesh.userData['updateIndexCounter'] = (startIndex + checkCount) % totalInstances;
+
     if (needsColorUpdate && instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
     if (needsMatrixUpdate) instancedMesh.instanceMatrix.needsUpdate = true;
   }
   
+  // --- CORRECCIÓN 3: Método handleTransformEnd ---
+  private handleTransformEnd = () => {
+    if (!this.selectedObject) return;
+    
+    if (this.selectedObject.name === 'SelectionProxy') {
+      this.sceneManager.scene.children.forEach(obj => {
+        // --- CORRECCIÓN 4: Añadimos una comprobación de seguridad ---
+        if (!this.selectedObject) return;
+
+        if (obj.name.startsWith(CELESTIAL_MESH_PREFIX)) {
+          const instancedMesh = obj as THREE.InstancedMesh;
+          const allData: CelestialInstanceData[] = instancedMesh.userData["celestialData"];
+          
+          // La exclamación (!) le dice a TS que confiamos en que selectedObject no es null aquí.
+          const instanceIndex = allData.findIndex(d => d.originalUuid === this.selectedObject!.uuid);
+          
+          if (instanceIndex > -1) {
+            const data = allData[instanceIndex];
+            data.originalMatrix.compose(
+              this.selectedObject.position,
+              this.selectedObject.quaternion,
+              this.selectedObject.scale
+            );
+            data.position.copy(this.selectedObject.position);
+            instancedMesh.setMatrixAt(instanceIndex, data.originalMatrix);
+            instancedMesh.instanceMatrix.needsUpdate = true;
+          }
+        }
+      });
+    }
+    this.transformEndSubject.next();
+  }
+
+  // ... (El resto de métodos no necesitan cambios y se mantienen igual) ...
+  public setGroupVisibility(uuids: string[], visible: boolean): void { this.entityManager.setGroupVisibility(uuids, visible); }
+  public setGroupBrightness(uuids: string[], brightness: number): void { this.entityManager.setGroupBrightness(uuids, brightness); }
+  public init(canvasRef: ElementRef<HTMLCanvasElement>): void { const canvas = canvasRef.nativeElement; this.sceneManager.setupBasicScene(canvas); this.entityManager.init(this.sceneManager.scene); this.statsManager.init(); this.controlsManager.init(this.sceneManager.editorCamera, canvas, this.sceneManager.scene, this.sceneManager.focusPivot); this.sceneManager.setControls(this.controlsManager.getControls()); this.interactionHelperManager.init(this.sceneManager.scene, this.sceneManager.editorCamera); this.dragInteractionManager.init(this.sceneManager.editorCamera, canvas, this.controlsManager); this.controlsManager.enableNavigation(); this.addEventListeners(); if (this.sceneManager.editorCamera) { this.originalProjectionMatrix.copy(this.sceneManager.editorCamera.projectionMatrix); } this.animate(); }
   public selectObjectByUuid(uuid: string | null): void { this.interactionHelperManager.cleanupHelpers(this.selectedObject); this.dragInteractionManager.stopListening(); this.controlsManager.detach(); this.axisLock = null; this.dragInteractionManager.setAxisConstraint(null); this.axisLockStateSubject.next(null); this.selectedObject = undefined; this.entityManager.selectObjectByUuid(uuid, this.sceneManager.focusPivot); if (uuid) { this.selectedObject = this.entityManager.getObjectByUuid(uuid); if (this.selectedObject) { this.setToolMode(this.controlsManager.getCurrentToolMode()); } } }
   ngOnDestroy = () => { this.removeEventListeners(); this.interactionHelperManager.cleanupHelpers(this.selectedObject); this.dragInteractionManager.stopListening(); if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId); this.statsManager.destroy(); this.controlsManager.ngOnDestroy(); if (this.sceneManager.renderer) this.sceneManager.renderer.dispose(); };
   public toggleCameraMode = () => { if (this.cameraModeSubject.getValue() === 'perspective') { if (this.lastOrthographicState) { this.setCameraView(null, this.lastOrthographicState); } else { this.setCameraView('axis-y-neg'); } } else { this.switchToPerspectiveView(); } }
   public setCameraView = (axisName: string | null, state?: { position: THREE.Vector3, target: THREE.Vector3 }) => { const controls = this.controlsManager.getControls(); const camera = this.sceneManager.editorCamera as THREE.PerspectiveCamera; if (!controls || !camera?.isPerspectiveCamera) return; const target = this.sceneManager.focusPivot.position.clone(); const currentDistance = camera.position.distanceTo(target); const distance = Math.max(currentDistance, 5); if (axisName) { const newPosition = new THREE.Vector3(); switch (axisName) { case 'axis-x': newPosition.set(distance, 0, 0); break; case 'axis-x-neg': newPosition.set(-distance, 0, 0); break; case 'axis-y': newPosition.set(0, distance, 0); break; case 'axis-y-neg': newPosition.set(0, -distance, 0.0001); break; case 'axis-z': newPosition.set(0, 0, distance); break; case 'axis-z-neg': newPosition.set(0, 0, -distance); break; default: return; } camera.position.copy(target).add(newPosition); camera.lookAt(target); this.lastOrthographicState = { position: camera.position.clone(), target: target.clone() }; } else if (state) { camera.position.copy(state.position); camera.lookAt(state.target); } const vFOV = (camera.fov * Math.PI) / 180; const frustumHeight = 2 * Math.tan(vFOV / 2) * distance; const aspect = this.sceneManager.renderer.domElement.clientWidth / this.sceneManager.renderer.domElement.clientHeight; const frustumWidth = frustumHeight * aspect; const orthoMatrix = new THREE.Matrix4(); orthoMatrix.makeOrthographic( frustumWidth / -2, frustumWidth / 2, frustumHeight / 2, frustumHeight / -2, camera.near, camera.far ); camera.projectionMatrix.copy(orthoMatrix); camera.projectionMatrixInverse.copy(orthoMatrix).invert(); this.baseOrthoMatrixElement = camera.projectionMatrix.elements[0]; this.controlsManager.exitFlyMode(); this.controlsManager.isFlyEnabled = false; controls.enabled = true; controls.enableRotate = false; controls.target.copy(target); controls.update(); this.selectionManager.updateOutlineParameters('orthographic'); this.cameraModeSubject.next('orthographic'); };
-
-  public switchToPerspectiveView = () => {
-    this.entityManager.resetAllGroupsBrightness();
-    const camera = this.sceneManager.editorCamera; const controls = this.controlsManager.getControls(); camera.projectionMatrix.copy(this.originalProjectionMatrix); camera.projectionMatrixInverse.copy(this.originalProjectionMatrix).invert(); this.controlsManager.isFlyEnabled = true; if (controls) { controls.enabled = false; controls.enableRotate = true; controls.update(); }
-    this.selectionManager.updateOutlineParameters('perspective');
-    this.cameraModeSubject.next('perspective');
-  }
-
+  public switchToPerspectiveView = () => { this.entityManager.resetAllGroupsBrightness(); const camera = this.sceneManager.editorCamera; const controls = this.controlsManager.getControls(); camera.projectionMatrix.copy(this.originalProjectionMatrix); camera.projectionMatrixInverse.copy(this.originalProjectionMatrix).invert(); this.controlsManager.isFlyEnabled = true; if (controls) { controls.enabled = false; controls.enableRotate = true; controls.update(); } this.selectionManager.updateOutlineParameters('perspective'); this.cameraModeSubject.next('perspective'); }
   private addEventListeners = () => { const controls = this.controlsManager.getControls(); controls.addEventListener('end', this.handleTransformEnd); controls.addEventListener('change', this.onControlsChange); window.addEventListener('resize', this.onWindowResize); window.addEventListener('keydown', this.onKeyDown); window.addEventListener('keyup', this.onKeyUp); this.controlsSubscription = this.dragInteractionManager.onDragEnd$.subscribe(() => { this.handleTransformEnd(); if (this.selectedObject) this.interactionHelperManager.updateHelperPositions(this.selectedObject); }); };
   private removeEventListeners = (): void => { const controls = this.controlsManager.getControls(); controls?.removeEventListener('end', this.handleTransformEnd); controls?.removeEventListener('change', this.onControlsChange); window.removeEventListener('resize', this.onWindowResize); window.removeEventListener('keydown', this.onKeyDown); window.removeEventListener('keyup', this.onKeyUp); this.controlsSubscription?.unsubscribe(); };
   public populateScene(objects: SceneObjectResponse[], onProgress: (p: number) => void, onLoaded: () => void): void { if (!this.sceneManager.scene) return; this.entityManager.clearScene(); const celestialTypes = ['star', 'galaxy', 'meteor', 'supernova', 'diffraction_star']; const celestialObjectsData = objects.filter(o => celestialTypes.includes(o.type)); const standardObjectsData = objects.filter(o => !celestialTypes.includes(o.type)); this.entityManager.objectManager.createCelestialObjectsInstanced(this.sceneManager.scene, celestialObjectsData); const loadingManager = this.entityManager.getLoadingManager(); loadingManager.onProgress = (_, loaded, total) => onProgress((loaded / total) * 100); loadingManager.onLoad = () => { onLoaded(); this.entityManager.publishSceneEntities(); }; standardObjectsData.forEach(o => this.entityManager.createObjectFromData(o)); if (!standardObjectsData.some(o => o.type === 'model' && o.asset?.path)) { setTimeout(() => { if (loadingManager.onLoad) loadingManager.onLoad(); }, 0); } }
   private updateCameraFrustum(): void { const camera = this.sceneManager.editorCamera; camera.updateMatrixWorld(); this.projScreenMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); this.frustum.setFromProjectionMatrix(this.projScreenMatrix); }
   public setToolMode(mode: ToolMode): void { this.controlsManager.setTransformMode(mode); this.interactionHelperManager.cleanupHelpers(this.selectedObject); this.dragInteractionManager.stopListening(); this.controlsManager.detach(); this.axisLock = null; this.dragInteractionManager.setAxisConstraint(null); this.axisLockStateSubject.next(null); if (this.selectedObject) { switch (mode) { case 'move': this.interactionHelperManager.createHelpers(this.selectedObject); this.dragInteractionManager.startListening(this.selectedObject, this.interactionHelperManager); break; case 'rotate': case 'scale': this.controlsManager.attach(this.selectedObject); break; } } }
-  private handleTransformEnd = () => { if (!this.selectedObject) return; if (this.selectedObject.name === 'SelectionProxy') { const instancedMesh = this.sceneManager.scene.getObjectByName('CelestialObjectsInstanced') as THREE.InstancedMesh; if (!instancedMesh) return; const allData: CelestialInstanceData[] = instancedMesh.userData["celestialData"]; const instanceIndex = allData.findIndex(d => d.originalUuid === this.selectedObject!.uuid); if (instanceIndex > -1) { const data = allData[instanceIndex]; data.originalMatrix.compose(this.selectedObject.position, this.selectedObject.quaternion, this.selectedObject.scale); data.position.copy(this.selectedObject.position); instancedMesh.setMatrixAt(instanceIndex, data.originalMatrix); instancedMesh.instanceMatrix.needsUpdate = true; } } this.transformEndSubject.next(); }
   private onControlsChange = () => { this.interactionHelperManager.updateScale(); };
   private onKeyDown = (e: KeyboardEvent) => { const key = e.key.toLowerCase(); if (key === 'escape') { this.controlsManager.exitFlyMode(); return; } this.keyMap.set(key, true); if (this.controlsManager.getCurrentToolMode() === 'move' && ['x', 'y', 'z'].includes(key)) { this.axisLock = this.axisLock === key ? null : (key as 'x' | 'y' | 'z'); this.dragInteractionManager.setAxisConstraint(this.axisLock); this.axisLockStateSubject.next(this.axisLock); } };
   private onKeyUp = (e: KeyboardEvent) => this.keyMap.set(e.key.toLowerCase(), false);
@@ -192,53 +234,5 @@ export class EngineService implements OnDestroy {
   private onWindowResize = () => { this.sceneManager.onWindowResize(); this.interactionHelperManager.updateScale(); };
   public addObjectToScene = (objData: SceneObjectResponse) => this.entityManager.createObjectFromData(objData);
   public updateObjectName = (uuid: string, newName: string) => this.entityManager.updateObjectName(uuid, newName);
-
-  public updateObjectTransform = (uuid: string, path: 'position' | 'rotation' | 'scale', value: { x: number; y: number; z: number; }) => {
-    const standardObject = this.entityManager.getObjectByUuid(uuid);
-
-    if (standardObject && standardObject.name !== 'SelectionProxy') {
-        standardObject[path].set(value.x, value.y, value.z);
-        if (path === 'position') {
-            this.interactionHelperManager.updateHelperPositions(standardObject);
-        }
-        return;
-    }
-
-    const instancedMesh = this.sceneManager.scene.getObjectByName('CelestialObjectsInstanced') as THREE.InstancedMesh;
-    if (!instancedMesh) return;
-
-    const allData: CelestialInstanceData[] = instancedMesh.userData["celestialData"];
-    const instanceIndex = allData.findIndex(d => d.originalUuid === uuid);
-
-    if (instanceIndex > -1) {
-        const data = allData[instanceIndex];
-        const tempQuaternion = new THREE.Quaternion();
-        const tempScale = new THREE.Vector3();
-
-        data.originalMatrix.decompose(new THREE.Vector3(), tempQuaternion, tempScale);
-
-        switch (path) {
-            case 'position':
-                data.position.set(value.x, value.y, value.z);
-                break;
-            case 'rotation':
-                tempQuaternion.setFromEuler(new THREE.Euler(value.x, value.y, value.z));
-                break;
-            case 'scale':
-                data.scale.set(value.x, value.y, value.z);
-                tempScale.copy(data.scale);
-                break;
-        }
-        
-        data.originalMatrix.compose(data.position, tempQuaternion, tempScale);
-        instancedMesh.setMatrixAt(instanceIndex, data.originalMatrix);
-        instancedMesh.instanceMatrix.needsUpdate = true;
-        const selectionProxy = this.sceneManager.scene.getObjectByName('SelectionProxy');
-        if (selectionProxy && selectionProxy.uuid === uuid) {
-            selectionProxy.position.copy(data.position);
-            const PROXY_SCALE_MULTIPLIER = 7.0;
-            selectionProxy.scale.copy(data.scale).multiplyScalar(PROXY_SCALE_MULTIPLIER);
-        }
-    }
-  };
+  public updateObjectTransform = (uuid: string, path: 'position' | 'rotation' | 'scale', value: { x: number; y: number; z: number; }) => { const standardObject = this.entityManager.getObjectByUuid(uuid); if (standardObject && standardObject.name !== 'SelectionProxy') { standardObject[path].set(value.x, value.y, value.z); if (path === 'position') { this.interactionHelperManager.updateHelperPositions(standardObject); } return; } const instanceInfo = this.entityManager['_findCelestialInstance'](uuid); if (instanceInfo) { const { mesh, instanceIndex, data } = instanceInfo; const tempQuaternion = new THREE.Quaternion(); const tempScale = new THREE.Vector3(); data.originalMatrix.decompose(new THREE.Vector3(), tempQuaternion, tempScale); switch (path) { case 'position': data.position.set(value.x, value.y, value.z); break; case 'rotation': tempQuaternion.setFromEuler(new THREE.Euler(value.x, value.y, value.z)); break; case 'scale': data.scale.set(value.x, value.y, value.z); tempScale.copy(data.scale); break; } data.originalMatrix.compose(data.position, tempQuaternion, tempScale); mesh.setMatrixAt(instanceIndex, data.originalMatrix); mesh.instanceMatrix.needsUpdate = true; const selectionProxy = this.sceneManager.scene.getObjectByName('SelectionProxy'); if (selectionProxy && selectionProxy.uuid === uuid) { selectionProxy.position.copy(data.position); const PROXY_SCALE_MULTIPLIER = 7.0; selectionProxy.scale.copy(data.scale).multiplyScalar(PROXY_SCALE_MULTIPLIER); } } };
 }

@@ -35,25 +35,98 @@ export class ObjectManagerService {
     ? environment.endpoint.slice(0, -1)
     : environment.endpoint;
 
+  private textureLoader = new THREE.TextureLoader();
+  private textureCache = new Map<string, THREE.Texture>();
   private glowTexture: THREE.CanvasTexture | null = null;
 
+  // --- ¡MÉTODO PRINCIPAL REFACTORIZADO! ---
   public createCelestialObjectsInstanced(scene: THREE.Scene, objectsData: SceneObjectResponse[]): void {
     if (!objectsData.length) return;
-    const count = objectsData.length;
 
-    const geometry = new THREE.CircleGeometry(1.5, 32);
-    const material = new THREE.MeshBasicMaterial({
-      map: this._createGlowTexture(),
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
+    // 1. Agrupar objetos: uno para el 'default' (sin textura) y uno por cada ruta de asset.
+    const groupedObjects = new Map<string, SceneObjectResponse[]>();
+    groupedObjects.set('__DEFAULT__', []); // Grupo para objetos sin asset de textura
+
+    for (const obj of objectsData) {
+      // Usamos assets de textura png o jpg. Otros assets (como mp3) no aplican aquí.
+      const assetPath = (obj.asset?.type === 'texture_png' || obj.asset?.type === 'texture_jpg') 
+        ? obj.asset.path 
+        : null;
+
+      if (assetPath) {
+        if (!groupedObjects.has(assetPath)) {
+          groupedObjects.set(assetPath, []);
+        }
+        groupedObjects.get(assetPath)!.push(obj);
+      } else {
+        groupedObjects.get('__DEFAULT__')!.push(obj);
+      }
+    }
+
+    // 2. Crear un InstancedMesh para cada grupo
+    groupedObjects.forEach((groupData, key) => {
+      if (groupData.length === 0) return;
+
+      if (key === '__DEFAULT__') {
+        this._createDefaultGlowInstancedMesh(scene, groupData);
+      } else {
+        // La clave es la ruta del asset
+        this._createTexturedInstancedMesh(scene, groupData, key);
+      }
     });
+  }
 
-    material.onBeforeCompile = (shader) => { /* ... tu shader sigue igual ... */ };
+  // --- NUEVO MÉTODO para objetos con textura ---
+  private _createTexturedInstancedMesh(scene: THREE.Scene, objectsData: SceneObjectResponse[], texturePath: string): void {
+      const textureUrl = `${this.backendUrl}${texturePath}`;
+      let texture = this.textureCache.get(textureUrl);
+      if (!texture) {
+        texture = this.textureLoader.load(textureUrl);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        this.textureCache.set(textureUrl, texture);
+      }
 
-    const instancedMesh = new THREE.InstancedMesh(geometry, material, count);
-    instancedMesh.name = 'CelestialObjectsInstanced';
-    instancedMesh.frustumCulled = false;
+      // Usamos una geometría plana para mostrar la textura como un sprite
+      const geometry = new THREE.PlaneGeometry(1, 1);
+      const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      });
+      material.onBeforeCompile = (shader) => { /* shader sigue igual */ };
+
+      const instancedMesh = new THREE.InstancedMesh(geometry, material, objectsData.length);
+      const sanitizedName = texturePath.replace(/[^a-zA-Z0-9]/g, '_');
+      instancedMesh.name = `CelestialObjects_Texture_${sanitizedName}`; // Nombre único
+      instancedMesh.frustumCulled = false;
+
+      this._populateInstanceData(instancedMesh, objectsData);
+      scene.add(instancedMesh);
+  }
+
+  // --- NUEVO MÉTODO para objetos sin textura (lógica original) ---
+  private _createDefaultGlowInstancedMesh(scene: THREE.Scene, objectsData: SceneObjectResponse[]): void {
+      const geometry = new THREE.CircleGeometry(5.5, 32);
+      const material = new THREE.MeshBasicMaterial({
+        map: this._createGlowTexture(),
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      material.onBeforeCompile = (shader) => { /* shader sigue igual */ };
+
+      const instancedMesh = new THREE.InstancedMesh(geometry, material, objectsData.length);
+      instancedMesh.name = 'CelestialObjects_Default'; // Nombre específico
+      instancedMesh.frustumCulled = false;
+      
+      this._populateInstanceData(instancedMesh, objectsData);
+      scene.add(instancedMesh);
+  }
+  
+  // --- NUEVO MÉTODO para poblar datos (lógica compartida) ---
+  private _populateInstanceData(instancedMesh: THREE.InstancedMesh, objectsData: SceneObjectResponse[]): void {
     const celestialData: CelestialInstanceData[] = [];
     instancedMesh.userData['celestialData'] = celestialData;
 
@@ -65,10 +138,8 @@ export class ObjectManagerService {
     const BASE_SCALE = 600.0;
     const DOMINANT_LUMINOSITY_MULTIPLIER = 5.0;
 
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < objectsData.length; i++) {
       const objData = objectsData[i];
-      
-      // <-- ¡CAMBIO CLAVE! Leemos los datos visuales directamente del objeto, no de 'properties'.
       const visualColor = new THREE.Color(sanitizeHexColor(objData.emissiveColor));
       const emissiveIntensity = objData.emissiveIntensity;
       const isDominant = objData.isDominant ?? false;
@@ -102,11 +173,9 @@ export class ObjectManagerService {
     }
     instancedMesh.instanceMatrix.needsUpdate = true;
     if (instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
-    scene.add(instancedMesh);
   }
 
-  // El resto de los métodos (createGlowTexture, createObjectFromData, etc.) permanecen igual.
-  // ... (Pega aquí el resto de tus métodos de este archivo sin cambios) ...
+  // ... El resto de tus métodos permanecen igual ...
   private _createGlowTexture(): THREE.CanvasTexture { if (this.glowTexture) return this.glowTexture; const canvas = document.createElement('canvas'); const size = 256; canvas.width = size; canvas.height = size; const context = canvas.getContext('2d')!; const gradient = context.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2); gradient.addColorStop(0, 'rgba(255, 255, 255, 1)'); gradient.addColorStop(0.2, 'rgba(255, 255, 255, 0.8)'); gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.2)'); gradient.addColorStop(1, 'rgba(0, 0, 0, 0)'); context.fillStyle = gradient; context.fillRect(0, 0, size, size); this.glowTexture = new THREE.CanvasTexture(canvas); this.glowTexture.needsUpdate = true; return this.glowTexture; }
   public createObjectFromData(scene: THREE.Scene, objData: SceneObjectResponse, loader: GLTFLoader): THREE.Object3D | null { let createdObject: THREE.Object3D | null = null; switch (objData.type) { case 'model': if (objData.properties?.['is_black_hole']) { createdObject = this.createBlackHolePrimitive(scene, objData); } else { this.loadGltfModel(scene, objData, loader); } break; case 'star': case 'galaxy': case 'supernova': case 'diffraction_star': console.warn(`[ObjectManager] La creación individual de '${objData.type}' se maneja por InstancedMesh.`); break; case 'cube': case 'sphere': case 'cone': case 'torus': case 'floor': createdObject = this.createStandardPrimitive(scene, objData); break; default: console.warn(`[ObjectManager] Tipo '${objData.type}' no manejado y será ignorado.`); break; } return createdObject; }
   public createSelectionProxy(): THREE.Mesh { const proxyGeometry = new THREE.SphereGeometry(1.1, 16, 8); const proxyMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0, depthWrite: true, depthTest: true }); const proxyMesh = new THREE.Mesh(proxyGeometry, proxyMaterial); proxyMesh.name = 'SelectionProxy'; return proxyMesh; }
