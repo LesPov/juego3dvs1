@@ -55,6 +55,8 @@
 .panel-content {
   overflow-y: auto;
   flex-grow: 1;
+    scrollbar-width: none;
+
 }
 
 .properties-section {

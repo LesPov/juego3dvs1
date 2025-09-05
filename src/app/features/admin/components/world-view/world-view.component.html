@@ -180,20 +180,33 @@
   <!-- ======================================================= -->
   <!-- BARRA DERECHA (NUEVA)                                   -->
   <!-- ======================================================= -->
-  <aside class="right-sidebar">
-    <div class="panel episode-image-panel">
-      <div class="panel-header">Imagen del Episodio</div>
-      <div class="panel-content">
-        <!-- AQUÍ IRÍA EL COMPONENTE DE IMAGEN -->
-        <div class="placeholder-panel">
-          <p>Componente de imagen del episodio.</p>
+ <aside class="right-sidebar">
+    <!-- Contenedor para los 2 paneles superiores que crecen -->
+    <div class="right-sidebar-top-group">
+      <div class="panel episode-image-panel">
+        <div class="panel-header">Imagen del Episodio</div>
+        <div class="panel-content">
+          <div class="placeholder-panel">
+            <p>Componente de imagen.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- NUEVO PANEL -->
+      <div class="panel episode-objects-panel">
+        <div class="panel-header">Objetos del Episodio</div>
+        <div class="panel-content">
+          <div class="placeholder-panel">
+            <p>Lista de objetos/assets disponibles.</p>
+          </div>
         </div>
       </div>
     </div>
+
+    <!-- Panel inferior de tamaño fijo -->
     <div class="panel fps-panel">
       <div class="panel-header">Rendimiento</div>
       <div class="panel-content">
-        <!-- AQUÍ IRÍA EL COMPONENTE DE FPS -->
          <div class="placeholder-panel">
           <p>Stats (FPS, Mem, etc).</p>
         </div>
@@ -213,10 +226,10 @@
                [disabled]="!selectedObject">Transformación</button>
        <button class="bottom-tab-button"
                [class.active]="activePropertiesTab==='scene'"
-               (click)="selectPropertiesTab('scene')">Propiedades</button>
+               (click)="selectPropertiesTab('scene')">Redender</button>
        <button class="bottom-tab-button"
                [class.active]="activePropertiesTab==='world'"
-               (click)="selectPropertiesTab('world')">Metadatos</button>
+               (click)="selectPropertiesTab('world')">Ajustes</button>
     </div>
     
     <!-- Contenido de las pestañas -->
