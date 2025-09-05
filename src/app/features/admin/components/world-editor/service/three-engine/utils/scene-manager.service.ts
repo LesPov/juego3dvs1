@@ -1,8 +1,11 @@
+// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/scene-manager.service.ts
+
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { CelestialInstanceData } from './object-manager.service';
 
 const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
@@ -16,6 +19,7 @@ export class SceneManagerService {
   public composer!: EffectComposer;
   private canvas!: HTMLCanvasElement;
   private controls!: OrbitControls;
+  public bloomPass!: UnrealBloomPass;
 
   constructor() { }
 
@@ -46,10 +50,16 @@ export class SceneManagerService {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-
+    
     const renderPass = new RenderPass(this.scene, this.editorCamera);
+    
+    // Estos valores para el bloom son un buen punto de partida.
+    // strength=1.2, radius=0.6, threshold=0.1
+    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 1.2, 0.6, 0.1);
+
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(renderPass);
+    this.composer.addPass(this.bloomPass);
   }
 
   public setControls(controls: OrbitControls): void {
@@ -93,6 +103,9 @@ export class SceneManagerService {
       this.editorCamera.updateProjectionMatrix();
       this.renderer.setSize(newWidth, newHeight);
       this.composer.setSize(newWidth, newHeight);
+      if (this.bloomPass) {
+        this.bloomPass.setSize(newWidth, newHeight);
+      }
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     }
   }

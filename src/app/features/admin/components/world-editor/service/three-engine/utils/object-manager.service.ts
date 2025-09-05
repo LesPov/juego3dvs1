@@ -39,16 +39,13 @@ export class ObjectManagerService {
   private textureCache = new Map<string, THREE.Texture>();
   private glowTexture: THREE.CanvasTexture | null = null;
 
-  // --- ¡MÉTODO PRINCIPAL REFACTORIZADO! ---
   public createCelestialObjectsInstanced(scene: THREE.Scene, objectsData: SceneObjectResponse[]): void {
     if (!objectsData.length) return;
 
-    // 1. Agrupar objetos: uno para el 'default' (sin textura) y uno por cada ruta de asset.
     const groupedObjects = new Map<string, SceneObjectResponse[]>();
-    groupedObjects.set('__DEFAULT__', []); // Grupo para objetos sin asset de textura
+    groupedObjects.set('__DEFAULT__', []); 
 
     for (const obj of objectsData) {
-      // Usamos assets de textura png o jpg. Otros assets (como mp3) no aplican aquí.
       const assetPath = (obj.asset?.type === 'texture_png' || obj.asset?.type === 'texture_jpg') 
         ? obj.asset.path 
         : null;
@@ -63,20 +60,17 @@ export class ObjectManagerService {
       }
     }
 
-    // 2. Crear un InstancedMesh para cada grupo
     groupedObjects.forEach((groupData, key) => {
       if (groupData.length === 0) return;
 
       if (key === '__DEFAULT__') {
         this._createDefaultGlowInstancedMesh(scene, groupData);
       } else {
-        // La clave es la ruta del asset
         this._createTexturedInstancedMesh(scene, groupData, key);
       }
     });
   }
 
-  // --- NUEVO MÉTODO para objetos con textura ---
   private _createTexturedInstancedMesh(scene: THREE.Scene, objectsData: SceneObjectResponse[], texturePath: string): void {
       const textureUrl = `${this.backendUrl}${texturePath}`;
       let texture = this.textureCache.get(textureUrl);
@@ -86,7 +80,6 @@ export class ObjectManagerService {
         this.textureCache.set(textureUrl, texture);
       }
 
-      // Usamos una geometría plana para mostrar la textura como un sprite
       const geometry = new THREE.PlaneGeometry(1, 1);
       const material = new THREE.MeshBasicMaterial({
         map: texture,
@@ -99,16 +92,15 @@ export class ObjectManagerService {
 
       const instancedMesh = new THREE.InstancedMesh(geometry, material, objectsData.length);
       const sanitizedName = texturePath.replace(/[^a-zA-Z0-9]/g, '_');
-      instancedMesh.name = `CelestialObjects_Texture_${sanitizedName}`; // Nombre único
+      instancedMesh.name = `CelestialObjects_Texture_${sanitizedName}`;
       instancedMesh.frustumCulled = false;
 
       this._populateInstanceData(instancedMesh, objectsData);
       scene.add(instancedMesh);
   }
 
-  // --- NUEVO MÉTODO para objetos sin textura (lógica original) ---
   private _createDefaultGlowInstancedMesh(scene: THREE.Scene, objectsData: SceneObjectResponse[]): void {
-      const geometry = new THREE.CircleGeometry(5.5, 32);
+      const geometry = new THREE.CircleGeometry(4.0, 32); 
       const material = new THREE.MeshBasicMaterial({
         map: this._createGlowTexture(),
         transparent: true,
@@ -118,14 +110,13 @@ export class ObjectManagerService {
       material.onBeforeCompile = (shader) => { /* shader sigue igual */ };
 
       const instancedMesh = new THREE.InstancedMesh(geometry, material, objectsData.length);
-      instancedMesh.name = 'CelestialObjects_Default'; // Nombre específico
+      instancedMesh.name = 'CelestialObjects_Default';
       instancedMesh.frustumCulled = false;
       
       this._populateInstanceData(instancedMesh, objectsData);
       scene.add(instancedMesh);
   }
   
-  // --- NUEVO MÉTODO para poblar datos (lógica compartida) ---
   private _populateInstanceData(instancedMesh: THREE.InstancedMesh, objectsData: SceneObjectResponse[]): void {
     const celestialData: CelestialInstanceData[] = [];
     instancedMesh.userData['celestialData'] = celestialData;
