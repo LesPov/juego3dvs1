@@ -32,7 +32,7 @@ export class ControlsManagerService implements OnDestroy {
   public isFlyModeActive$ = this.isFlyModeActiveSubject.asObservable();
 
   private readonly MOVEMENT_SPEED = 100_000_000.0;
-  private readonly BOOST_MULTIPLIER = 100.0;
+  private readonly BOOST_MULTIPLIER = 150.0;
   
   // ✅ MEJORA: Factor de sensibilidad para suavizar el paneo ortográfico.
   private readonly ORTHO_PAN_SENSITIVITY = 0.5;

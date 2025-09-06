@@ -1,3 +1,5 @@
+// RUTA: .../service/three-engine/engine.service.ts
+
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
@@ -30,43 +32,29 @@ export type CameraMode = 'perspective' | 'orthographic';
 @Injectable()
 export class EngineService implements OnDestroy {
 
-  // ====================================================================
-  // SECTION: PROPIEDADES DE LA CLASE
-  // ====================================================================
-
-  // --- Observables Públicos ---
+  // ... (propiedades de la clase sin cambios) ...
   public onTransformEnd$: Observable<void>;
   public axisLockState$: Observable<'x' | 'y' | 'z' | null>;
   public cameraOrientation$: Observable<THREE.Quaternion>;
   public cameraPosition$: Observable<THREE.Vector3>;
   public isFlyModeActive$: Observable<boolean>;
   public cameraMode$: Observable<CameraMode>;
-  
-  // --- Estado del Motor y Ciclo Principal ---
   private clock = new THREE.Clock();
   private animationFrameId?: number;
   private keyMap = new Map<string, boolean>();
-  
-  // --- Estado de la Cámara y Vistas ---
   private cameraModeSubject = new BehaviorSubject<CameraMode>('perspective');
   private originalProjectionMatrix = new THREE.Matrix4();
   private lastPerspectiveState: { position: THREE.Vector3, target: THREE.Vector3 } | null = null;
   private lastOrthographicState: { position: THREE.Vector3, target: THREE.Vector3 } | null = null;
   private baseOrthoMatrixElement: number = 0;
-  
-  // --- Estado de Interacción y Selección ---
   private selectedObject?: THREE.Object3D;
   private focusPivot: THREE.Object3D;
   private axisLock: 'x' | 'y' | 'z' | null = null;
   private transformEndSubject = new Subject<void>();
   private axisLockStateSubject = new BehaviorSubject<'x' | 'y' | 'z' | null>(null);
-  
-  // --- Estado Interno y Subscripciones ---
   private controlsSubscription?: Subscription;
   private cameraOrientationSubject = new BehaviorSubject<THREE.Quaternion>(new THREE.Quaternion());
   private cameraPositionSubject = new BehaviorSubject<THREE.Vector3>(new THREE.Vector3());
-
-  // --- Helpers y Vectores Temporales (para evitar crear nuevos objetos en el loop) ---
   private tempColor = new THREE.Color();
   private tempQuaternion = new THREE.Quaternion();
   private tempMatrix = new THREE.Matrix4();
@@ -75,6 +63,7 @@ export class EngineService implements OnDestroy {
   private boundingSphere = new THREE.Sphere();
   private tempScale = new THREE.Vector3();
   private tempBoxSize = new THREE.Vector3();
+
 
   constructor(
     private sceneManager: SceneManagerService,
@@ -88,7 +77,6 @@ export class EngineService implements OnDestroy {
     this.focusPivot = new THREE.Object3D();
     this.focusPivot.name = 'FocusPivot';
     
-    // Inicialización de observables públicos
     this.onTransformEnd$ = this.transformEndSubject.asObservable().pipe(debounceTime(500));
     this.isFlyModeActive$ = this.controlsManager.isFlyModeActive$;
     this.axisLockState$ = this.axisLockStateSubject.asObservable();
@@ -97,14 +85,6 @@ export class EngineService implements OnDestroy {
     this.cameraMode$ = this.cameraModeSubject.asObservable();
   }
 
-  // ====================================================================
-  // SECTION: INICIALIZACIÓN Y CICLO DE VIDA DEL MOTOR
-  // ====================================================================
-
-  /**
-   * Inicializa todos los sistemas del motor de Three.js.
-   * @param canvasRef Referencia al elemento canvas del DOM donde se renderizará la escena.
-   */
   public init(canvasRef: ElementRef<HTMLCanvasElement>): void { 
     const canvas = canvasRef.nativeElement; 
     this.sceneManager.setupBasicScene(canvas); 
@@ -123,18 +103,13 @@ export class EngineService implements OnDestroy {
     this.animate(); 
   }
 
-  /**
-   * El bucle principal de animación. Se llama en cada frame.
-   */
   private animate = () => {
     this.animationFrameId = requestAnimationFrame(this.animate);
     this.statsManager.begin();
     const delta = this.clock.getDelta();
     
-    // Actualiza controles y cámara
     const cameraMoved = this.controlsManager.update(delta, this.keyMap);
     if (cameraMoved) {
-      this.interactionHelperManager.updateScale();
       this.cameraPositionSubject.next(this.sceneManager.editorCamera.position);
     }
     this.sceneManager.editorCamera.getWorldQuaternion(this.tempQuaternion);
@@ -142,30 +117,24 @@ export class EngineService implements OnDestroy {
       this.cameraOrientationSubject.next(this.tempQuaternion.clone());
     }
 
-    // Actualiza el proxy de selección para que siempre mire a la cámara
     const selectionProxy = this.sceneManager.scene.getObjectByName('SelectionProxy');
     if (selectionProxy) {
       selectionProxy.quaternion.copy(this.sceneManager.editorCamera.quaternion);
     }
 
-    // Lógica de visibilidad de objetos
     this.sceneManager.scene.children.forEach(object => {
       if (object.name.startsWith(CELESTIAL_MESH_PREFIX)) {
         this.updateVisibleCelestialInstances(object as THREE.InstancedMesh);
       }
     });
 
-    // Renderiza la escena
     this.sceneManager.composer.render();
     this.statsManager.end();
   };
 
-  /**
-   * Limpia todos los recursos y listeners al destruir el servicio.
-   */
   ngOnDestroy = () => {
     this.removeEventListeners(); 
-    this.interactionHelperManager.cleanupHelpers(this.selectedObject); 
+    this.interactionHelperManager.cleanupHelpers();
     this.dragInteractionManager.stopListening(); 
     if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId); 
     this.statsManager.destroy(); 
@@ -173,357 +142,27 @@ export class EngineService implements OnDestroy {
     if (this.sceneManager.renderer) this.sceneManager.renderer.dispose(); 
   };
 
-
-  // ====================================================================
-  // SECTION: GESTIÓN DE VISTAS DE CÁMARA (3D/2D)
-  // ====================================================================
-
-  /**
-   * Alterna entre la vista de perspectiva (3D) y la ortográfica (2D).
-   */
-  public toggleCameraMode = () => {
-    if (this.cameraModeSubject.getValue() === 'perspective') {
-      // Si tenemos un estado 2D guardado, lo restauramos, si no, vamos a una vista por defecto.
-      if (this.lastOrthographicState) {
-        this.setCameraView(null, this.lastOrthographicState);
-      } else {
-        this.setCameraView('axis-y-neg');
-      }
-    } else {
-      this.switchToPerspectiveView();
-    }
-  };
-
-  /**
-   * Configura la cámara para una vista ortográfica (2D) desde un eje específico.
-   * @param axisName El eje desde el cual mirar (ej. 'axis-x', 'axis-y-neg').
-   * @param state Un estado de cámara ortográfica preexistente para restaurar.
-   */
-  public setCameraView = (axisName: string | null, state?: { position: THREE.Vector3, target: THREE.Vector3 }) => {
-    const controls = this.controlsManager.getControls();
-    const camera = this.sceneManager.editorCamera as THREE.OrthographicCamera | THREE.PerspectiveCamera;
-    if (!controls) return;
-
-    // 1. Guardar el estado 3D actual ANTES de cambiar a 2D.
-    if (this.cameraModeSubject.getValue() === 'perspective') {
-      this.lastPerspectiveState = {
-        position: camera.position.clone(),
-        target: controls.target.clone()
-      };
-    }
-    
-    // 2. Calcular límites de la escena para encuadrarla correctamente.
-    const boundingBox = this.sceneManager.getSceneBoundingBox();
-    if (boundingBox.isEmpty()) return;
-    const target = boundingBox.getCenter(new THREE.Vector3());
-    const boxSize = boundingBox.getSize(this.tempBoxSize);
-    const distance = Math.max(boxSize.x, boxSize.y, boxSize.z) * 1.5;
-
-    // 3. Posicionar la cámara según el eje o el estado proporcionado.
-    if (axisName) {
-      const newPosition = new THREE.Vector3();
-      switch (axisName) {
-        case 'axis-x': newPosition.set(distance, 0, 0); break;
-        case 'axis-x-neg': newPosition.set(-distance, 0, 0); break;
-        case 'axis-y': newPosition.set(0, distance, 0); break;
-        case 'axis-y-neg': newPosition.set(0, -distance, 0.0001); break;
-        case 'axis-z': newPosition.set(0, 0, distance); break;
-        case 'axis-z-neg': newPosition.set(0, 0, -distance); break;
-        default: return;
-      }
-      camera.position.copy(target).add(newPosition);
-      camera.lookAt(target);
-      this.lastOrthographicState = { position: camera.position.clone(), target: target.clone() };
-    } else if (state) {
-      camera.position.copy(state.position);
-      camera.lookAt(state.target);
-      this.lastOrthographicState = { ...state };
-    }
-
-    // 4. Calcular y aplicar la matriz de proyección ortográfica.
-    const aspect = this.sceneManager.renderer.domElement.clientWidth / this.sceneManager.renderer.domElement.clientHeight;
-    const paddedWidth = boxSize.x * 1.2;
-    const paddedHeight = boxSize.y * 1.2;
-    let frustumWidth = paddedWidth / aspect > paddedHeight ? paddedWidth : paddedHeight * aspect;
-    let frustumHeight = paddedWidth / aspect > paddedHeight ? paddedWidth / aspect : paddedHeight;
-    
-    const sceneDepth = Math.max(boxSize.x, boxSize.y, boxSize.z);
-    const cameraToCenterDist = camera.position.distanceTo(target);
-    const farPlane = cameraToCenterDist + sceneDepth * 2;
-
-    const orthoMatrix = new THREE.Matrix4();
-    orthoMatrix.makeOrthographic(frustumWidth / -2, frustumWidth / 2, frustumHeight / 2, frustumHeight / -2, 0.1, farPlane);
-    
-    camera.projectionMatrix.copy(orthoMatrix);
-    camera.projectionMatrixInverse.copy(orthoMatrix).invert();
-    this.baseOrthoMatrixElement = camera.projectionMatrix.elements[0];
-    
-    // 5. Configurar los controles para el modo 2D (sin rotación, con paneo).
-    this.controlsManager.exitFlyMode();
-    this.controlsManager.isFlyEnabled = false;
-    controls.enabled = true;
-    controls.enableRotate = false;
-    controls.target.copy(target);
-    controls.update();
-    
-    // 6. Actualizar estado y efectos visuales.
-    this.selectionManager.updateOutlineParameters('orthographic');
-    this.cameraModeSubject.next('orthographic');
-  };
-
-  /**
-   * Cambia la cámara de vuelta a la vista de perspectiva (3D), restaurando su estado anterior.
-   */
-  public switchToPerspectiveView = () => {
-    this.entityManager.resetAllGroupsBrightness();
-    const camera = this.sceneManager.editorCamera as THREE.PerspectiveCamera;
-    const controls = this.controlsManager.getControls();
-    
-    // 1. Restaurar la matriz de proyección de perspectiva original.
-    camera.near = 0.1;
-    camera.far = 500_000_000_000;
-    camera.projectionMatrix.copy(this.originalProjectionMatrix);
-    camera.projectionMatrixInverse.copy(this.originalProjectionMatrix).invert();
-    
-    this.controlsManager.isFlyEnabled = true;
-
-    if (controls) {
-      // 2. RESTAURAR el estado guardado (posición y target) de la cámara 3D.
-      if (this.lastPerspectiveState) {
-        camera.position.copy(this.lastPerspectiveState.position);
-        controls.target.copy(this.lastPerspectiveState.target);
-      }
-      
-      // 3. Reconfigurar los controles para el modo 3D.
-      controls.enableRotate = true;
-      controls.update();
-    }
-    
-    // 4. Actualizar estado y efectos visuales.
-    this.selectionManager.updateOutlineParameters('perspective');
-    this.cameraModeSubject.next('perspective');
-  };
-
-  // ====================================================================
-  // SECTION: LÓGICA DE RENDERIZADO Y VISIBILIDAD DE OBJETOS
-  // ====================================================================
-
-  /**
-   * Optimiza y actualiza la visibilidad de los objetos celestes (InstancedMesh) en cada frame.
-   * Decide qué objetos mostrar, con qué brillo y cómo deben orientarse (billboarding).
-   * @param instancedMesh El conjunto de instancias a procesar.
-   */
-  private updateVisibleCelestialInstances(instancedMesh: THREE.InstancedMesh): void {
-    if (!instancedMesh || !instancedMesh.userData['celestialData']?.length) return;
-
-    const allData: CelestialInstanceData[] = instancedMesh.userData['celestialData'];
-    this.updateCameraFrustum();
-
-    let needsColorUpdate = false;
-    let needsMatrixUpdate = false;
-    const camera = this.sceneManager.editorCamera;
-    const isOrthographic = this.cameraModeSubject.getValue() === 'orthographic';
-
-    // Factores de visibilidad y brillo que cambian según la vista 2D/3D
-    let visibilityFactor = 1.0;
-    let bloomDampeningFactor = 1.0;
-    if (isOrthographic && this.baseOrthoMatrixElement > 0) {
-      const zoomRatio = this.baseOrthoMatrixElement / camera.projectionMatrix.elements[0];
-      visibilityFactor = Math.max(0.1, zoomRatio * ORTHO_ZOOM_VISIBILITY_MULTIPLIER);
-      bloomDampeningFactor = Math.min(1.0, ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR / zoomRatio);
-    }
-
-    const totalInstances = allData.length;
-    const startIndex = instancedMesh.userData['updateIndexCounter'] || 0;
-    const checkCount = Math.min(totalInstances, INSTANCES_TO_CHECK_PER_FRAME);
-
-    for (let i = 0; i < checkCount; i++) {
-        const currentIndex = (startIndex + i) % totalInstances;
-        const data = allData[currentIndex];
-
-        if (data.isManuallyHidden) continue;
-
-        // 1. Frustum Culling: Ocultar si está fuera de la pantalla.
-        this.boundingSphere.center.copy(data.position);
-        this.boundingSphere.radius = Math.max(data.scale.x, data.scale.y, data.scale.z) * DEEP_SPACE_SCALE_BOOST;
-        if (!this.frustum.intersectsSphere(this.boundingSphere)) {
-            if (data.isVisible) { this.tempColor.setScalar(0); instancedMesh.setColorAt(currentIndex, this.tempColor); needsColorUpdate = true; data.isVisible = false; }
-            continue;
-        }
-
-        // 2. Distance Culling: Ocultar si está demasiado lejos.
-        const distance = data.position.distanceTo(camera.position);
-        const personalVisibilityDistance = Math.min(BASE_VISIBILITY_DISTANCE * data.luminosity, MAX_PERCEPTUAL_DISTANCE);
-        const effectiveVisibilityDistance = personalVisibilityDistance * visibilityFactor;
-        if (distance > effectiveVisibilityDistance) {
-            if (data.isVisible) { this.tempColor.setScalar(0); instancedMesh.setColorAt(currentIndex, this.tempColor); needsColorUpdate = true; data.isVisible = false; }
-            continue;
-        }
-
-        // 3. Cálculo de Intensidad y Brillo (Falloff).
-        let visibilityFalloff = isOrthographic ? 1.0 : 1.0 - THREE.MathUtils.smoothstep(distance, effectiveVisibilityDistance * 0.8, effectiveVisibilityDistance);
-        const distanceFalloff = 1.0 - THREE.MathUtils.smoothstep(distance, BRIGHTNESS_FALLOFF_START_DISTANCE, effectiveVisibilityDistance);
-        const baseIntensity = data.emissiveIntensity * BRIGHTNESS_MULTIPLIER * visibilityFalloff * distanceFalloff;
-        const brightnessMultiplier = isOrthographic ? data.brightness : 1.0;
-        let finalIntensity = Math.min(baseIntensity, MAX_INTENSITY) * bloomDampeningFactor * brightnessMultiplier;
-
-        // 4. Aplicar transformaciones si el objeto es visible.
-        if (finalIntensity > 0.01) {
-            if (!data.isVisible) data.isVisible = true;
-            // Billboarding: Hacer que el objeto siempre mire a la cámara.
-            this.tempScale.copy(data.scale).multiplyScalar(DEEP_SPACE_SCALE_BOOST);
-            this.tempMatrix.compose(data.position, camera.quaternion, this.tempScale);
-            instancedMesh.setMatrixAt(currentIndex, this.tempMatrix);
-            needsMatrixUpdate = true;
-            // Aplicar color e intensidad.
-            this.tempColor.copy(data.originalColor).multiplyScalar(finalIntensity);
-            instancedMesh.setColorAt(currentIndex, this.tempColor);
-            needsColorUpdate = true;
-        } else if (data.isVisible) {
-            this.tempColor.setScalar(0);
-            instancedMesh.setColorAt(currentIndex, this.tempColor);
-            needsColorUpdate = true;
-            data.isVisible = false;
-        }
-    }
-
-    // Actualizar contadores y buffers de GPU si es necesario.
-    instancedMesh.userData['updateIndexCounter'] = (startIndex + checkCount) % totalInstances;
-    if (needsColorUpdate && instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
-    if (needsMatrixUpdate) instancedMesh.instanceMatrix.needsUpdate = true;
-  }
-  
-  /**
-   * Actualiza el objeto `frustum` de la cámara para el culling.
-   */
-  private updateCameraFrustum(): void {
-    const camera = this.sceneManager.editorCamera;
-    camera.updateMatrixWorld();
-    this.projScreenMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
-    this.frustum.setFromProjectionMatrix(this.projScreenMatrix);
-  }
-
-  // ====================================================================
-  // SECTION: INTERACCIÓN Y SELECCIÓN DE OBJETOS
-  // ====================================================================
-
-  public selectObjectByUuid(uuid: string | null): void {
-    this.interactionHelperManager.cleanupHelpers(this.selectedObject);
-    this.dragInteractionManager.stopListening();
-    this.controlsManager.detach();
-    this.axisLock = null;
-    this.dragInteractionManager.setAxisConstraint(null);
-    this.axisLockStateSubject.next(null);
-    this.selectedObject = undefined;
-
-    this.entityManager.selectObjectByUuid(uuid, this.focusPivot);
-    if (uuid) {
-      this.selectedObject = this.entityManager.getObjectByUuid(uuid);
-      if (this.selectedObject) {
-        this.setToolMode(this.controlsManager.getCurrentToolMode());
-      }
-    }
-  }
-
-  public setToolMode(mode: ToolMode): void {
-    this.controlsManager.setTransformMode(mode);
-    this.interactionHelperManager.cleanupHelpers(this.selectedObject);
-    this.dragInteractionManager.stopListening();
-    this.controlsManager.detach();
-    this.axisLock = null;
-    this.dragInteractionManager.setAxisConstraint(null);
-    this.axisLockStateSubject.next(null);
-
-    if (this.selectedObject) {
-      switch (mode) {
-        case 'move':
-          this.interactionHelperManager.createHelpers(this.selectedObject);
-          this.dragInteractionManager.startListening(this.selectedObject, this.interactionHelperManager);
-          break;
-        case 'rotate':
-        case 'scale':
-          this.controlsManager.attach(this.selectedObject);
-          break;
-      }
-    }
-  }
-
-  // --- Manejadores de Eventos de Interacción ---
-  private addEventListeners = () => {
-    const controls = this.controlsManager.getControls();
-    controls.addEventListener('end', this.handleTransformEnd);
-    controls.addEventListener('change', this.onControlsChange);
-    window.addEventListener('resize', this.onWindowResize);
-    window.addEventListener('keydown', this.onKeyDown);
-    window.addEventListener('keyup', this.onKeyUp);
-    this.controlsSubscription = this.dragInteractionManager.onDragEnd$.subscribe(() => {
-      this.handleTransformEnd();
-      if (this.selectedObject) this.interactionHelperManager.updateHelperPositions(this.selectedObject);
-    });
-  };
-
-  private removeEventListeners = (): void => {
-    const controls = this.controlsManager.getControls();
-    controls?.removeEventListener('end', this.handleTransformEnd);
-    controls?.removeEventListener('change', this.onControlsChange);
-    window.removeEventListener('resize', this.onWindowResize);
-    window.removeEventListener('keydown', this.onKeyDown);
-    window.removeEventListener('keyup', this.onKeyUp);
-    this.controlsSubscription?.unsubscribe();
-  };
-  
-  public onWindowResize = () => {
-    this.sceneManager.onWindowResize();
-    this.interactionHelperManager.updateScale();
-    if (this.cameraModeSubject.getValue() === 'orthographic' && this.lastOrthographicState) {
-      this.setCameraView(null, this.lastOrthographicState);
-    }
-  };
-
-  private onKeyDown = (e: KeyboardEvent) => {
-    const key = e.key.toLowerCase();
-    if (key === 'escape') {
-      this.controlsManager.exitFlyMode();
-      return;
-    }
-    this.keyMap.set(key, true);
-    if (this.controlsManager.getCurrentToolMode() === 'move' && ['x', 'y', 'z'].includes(key)) {
-      this.axisLock = this.axisLock === key ? null : (key as 'x' | 'y' | 'z');
-      this.dragInteractionManager.setAxisConstraint(this.axisLock);
-      this.axisLockStateSubject.next(this.axisLock);
-    }
-  };
-  
+  public toggleCameraMode = () => { if (this.cameraModeSubject.getValue()==='perspective') { if (this.lastOrthographicState) { this.setCameraView(null, this.lastOrthographicState); } else { this.setCameraView('axis-y-neg'); } } else { this.switchToPerspectiveView(); } };
+  public setCameraView = (axisName: string | null, state?: { position: THREE.Vector3, target: THREE.Vector3 }) => { const controls=this.controlsManager.getControls(); const camera=this.sceneManager.editorCamera as THREE.OrthographicCamera | THREE.PerspectiveCamera; if (!controls) return; if (this.cameraModeSubject.getValue()==='perspective') { this.lastPerspectiveState={ position: camera.position.clone(), target: controls.target.clone() }; } const boundingBox=this.sceneManager.getSceneBoundingBox(); if (boundingBox.isEmpty()) return; const target=boundingBox.getCenter(new THREE.Vector3()); const boxSize=boundingBox.getSize(this.tempBoxSize); const distance=Math.max(boxSize.x, boxSize.y, boxSize.z) * 1.5; if (axisName) { const newPosition=new THREE.Vector3(); switch (axisName) { case 'axis-x': newPosition.set(distance, 0, 0); break; case 'axis-x-neg': newPosition.set(-distance, 0, 0); break; case 'axis-y': newPosition.set(0, distance, 0); break; case 'axis-y-neg': newPosition.set(0, -distance, 0.0001); break; case 'axis-z': newPosition.set(0, 0, distance); break; case 'axis-z-neg': newPosition.set(0, 0, -distance); break; default: return; } camera.position.copy(target).add(newPosition); camera.lookAt(target); this.lastOrthographicState={ position: camera.position.clone(), target: target.clone() }; } else if (state) { camera.position.copy(state.position); camera.lookAt(state.target); this.lastOrthographicState={ ...state }; } const aspect=this.sceneManager.renderer.domElement.clientWidth / this.sceneManager.renderer.domElement.clientHeight; const paddedWidth=boxSize.x * 1.2; const paddedHeight=boxSize.y * 1.2; let frustumWidth=paddedWidth / aspect > paddedHeight ? paddedWidth : paddedHeight * aspect; let frustumHeight=paddedWidth / aspect > paddedHeight ? paddedWidth / aspect : paddedHeight; const sceneDepth=Math.max(boxSize.x, boxSize.y, boxSize.z); const cameraToCenterDist=camera.position.distanceTo(target); const farPlane=cameraToCenterDist + sceneDepth * 2; const orthoMatrix=new THREE.Matrix4(); orthoMatrix.makeOrthographic(frustumWidth / -2, frustumWidth / 2, frustumHeight / 2, frustumHeight / -2, 0.1, farPlane); camera.projectionMatrix.copy(orthoMatrix); camera.projectionMatrixInverse.copy(orthoMatrix).invert(); this.baseOrthoMatrixElement=camera.projectionMatrix.elements[0]; this.controlsManager.exitFlyMode(); this.controlsManager.isFlyEnabled=false; controls.enabled=true; controls.enableRotate=false; controls.target.copy(target); controls.update(); this.selectionManager.updateOutlineParameters('orthographic'); this.cameraModeSubject.next('orthographic'); };
+  public switchToPerspectiveView = () => { this.entityManager.resetAllGroupsBrightness(); const camera=this.sceneManager.editorCamera as THREE.PerspectiveCamera; const controls=this.controlsManager.getControls(); camera.near=0.1; camera.far=500_000_000_000; camera.projectionMatrix.copy(this.originalProjectionMatrix); camera.projectionMatrixInverse.copy(this.originalProjectionMatrix).invert(); this.controlsManager.isFlyEnabled=true; if (controls) { if (this.lastPerspectiveState) { camera.position.copy(this.lastPerspectiveState.position); controls.target.copy(this.lastPerspectiveState.target); } controls.enableRotate=true; controls.update(); } this.selectionManager.updateOutlineParameters('perspective'); this.cameraModeSubject.next('perspective'); };
+  private updateVisibleCelestialInstances(instancedMesh: THREE.InstancedMesh): void { if (!instancedMesh || !instancedMesh.userData['celestialData']?.length) return; const allData: CelestialInstanceData[]=instancedMesh.userData['celestialData']; this.updateCameraFrustum(); let needsColorUpdate=false; let needsMatrixUpdate=false; const camera=this.sceneManager.editorCamera; const isOrthographic=this.cameraModeSubject.getValue()==='orthographic'; let visibilityFactor=1.0; let bloomDampeningFactor=1.0; if (isOrthographic && this.baseOrthoMatrixElement > 0) { const zoomRatio=this.baseOrthoMatrixElement / camera.projectionMatrix.elements[0]; visibilityFactor=Math.max(0.1, zoomRatio * ORTHO_ZOOM_VISIBILITY_MULTIPLIER); bloomDampeningFactor=Math.min(1.0, ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR / zoomRatio); } const totalInstances=allData.length; const startIndex=instancedMesh.userData['updateIndexCounter'] || 0; const checkCount=Math.min(totalInstances, INSTANCES_TO_CHECK_PER_FRAME); for (let i=0; i < checkCount; i++) { const currentIndex=(startIndex + i) % totalInstances; const data=allData[currentIndex]; if (data.isManuallyHidden) continue; this.boundingSphere.center.copy(data.position); this.boundingSphere.radius=Math.max(data.scale.x, data.scale.y, data.scale.z) * DEEP_SPACE_SCALE_BOOST; if (!this.frustum.intersectsSphere(this.boundingSphere)) { if (data.isVisible) { this.tempColor.setScalar(0); instancedMesh.setColorAt(currentIndex, this.tempColor); needsColorUpdate=true; data.isVisible=false; } continue; } const distance=data.position.distanceTo(camera.position); const personalVisibilityDistance=Math.min(BASE_VISIBILITY_DISTANCE * data.luminosity, MAX_PERCEPTUAL_DISTANCE); const effectiveVisibilityDistance=personalVisibilityDistance * visibilityFactor; if (distance > effectiveVisibilityDistance) { if (data.isVisible) { this.tempColor.setScalar(0); instancedMesh.setColorAt(currentIndex, this.tempColor); needsColorUpdate=true; data.isVisible=false; } continue; } let visibilityFalloff=isOrthographic ? 1.0 : 1.0 - THREE.MathUtils.smoothstep(distance, effectiveVisibilityDistance * 0.8, effectiveVisibilityDistance); const distanceFalloff=1.0 - THREE.MathUtils.smoothstep(distance, BRIGHTNESS_FALLOFF_START_DISTANCE, effectiveVisibilityDistance); const baseIntensity=data.emissiveIntensity * BRIGHTNESS_MULTIPLIER * visibilityFalloff * distanceFalloff; const brightnessMultiplier=isOrthographic ? data.brightness : 1.0; let finalIntensity=Math.min(baseIntensity, MAX_INTENSITY) * bloomDampeningFactor * brightnessMultiplier; if (data.isDimmed) { finalIntensity *= 0.1; } if (finalIntensity > 0.01) { if (!data.isVisible) data.isVisible=true; this.tempScale.copy(data.scale).multiplyScalar(DEEP_SPACE_SCALE_BOOST); this.tempMatrix.compose(data.position, camera.quaternion, this.tempScale); instancedMesh.setMatrixAt(currentIndex, this.tempMatrix); needsMatrixUpdate=true; this.tempColor.copy(data.originalColor).multiplyScalar(finalIntensity); instancedMesh.setColorAt(currentIndex, this.tempColor); needsColorUpdate=true; } else if (data.isVisible) { this.tempColor.setScalar(0); instancedMesh.setColorAt(currentIndex, this.tempColor); needsColorUpdate=true; data.isVisible=false; } } instancedMesh.userData['updateIndexCounter']=(startIndex + checkCount) % totalInstances; if (needsColorUpdate && instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate=true; if (needsMatrixUpdate) instancedMesh.instanceMatrix.needsUpdate=true; }
+  private updateCameraFrustum(): void { const camera=this.sceneManager.editorCamera; camera.updateMatrixWorld(); this.projScreenMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); this.frustum.setFromProjectionMatrix(this.projScreenMatrix); }
+  public selectObjectByUuid(uuid: string | null): void { if (this.selectedObject) { this.entityManager.setObjectDimmed(this.selectedObject.uuid, false); } this.interactionHelperManager.cleanupHelpers(); this.dragInteractionManager.stopListening(); this.controlsManager.detach(); this.axisLock=null; this.dragInteractionManager.setAxisConstraint(null); this.axisLockStateSubject.next(null); this.selectedObject=undefined; this.entityManager.selectObjectByUuid(uuid, this.focusPivot); if (uuid) { this.selectedObject=this.entityManager.getObjectByUuid(uuid); if (this.selectedObject) { this.entityManager.setObjectDimmed(this.selectedObject.uuid, true); this.setToolMode(this.controlsManager.getCurrentToolMode()); } } }
+  public setToolMode(mode: ToolMode): void { this.controlsManager.setTransformMode(mode); this.interactionHelperManager.cleanupHelpers(); this.dragInteractionManager.stopListening(); this.controlsManager.detach(); this.axisLock=null; this.dragInteractionManager.setAxisConstraint(null); this.axisLockStateSubject.next(null); if (this.selectedObject) { switch (mode) { case 'move': this.interactionHelperManager.createHelpers(this.selectedObject); this.dragInteractionManager.startListening(this.selectedObject, this.interactionHelperManager); break; case 'rotate': case 'scale': this.controlsManager.attach(this.selectedObject); break; } } }
+  private addEventListeners = () => { const controls=this.controlsManager.getControls(); controls.addEventListener('end', this.handleTransformEnd); controls.addEventListener('change', this.onControlsChange); window.addEventListener('resize', this.onWindowResize); window.addEventListener('keydown', this.onKeyDown); window.addEventListener('keyup', this.onKeyUp); this.controlsSubscription=this.dragInteractionManager.onDragEnd$.subscribe(() => { this.handleTransformEnd(); if (this.selectedObject) this.interactionHelperManager.updateHelperPositions(this.selectedObject); }); };
+  private removeEventListeners = (): void => { const controls=this.controlsManager.getControls(); controls?.removeEventListener('end', this.handleTransformEnd); controls?.removeEventListener('change', this.onControlsChange); window.removeEventListener('resize', this.onWindowResize); window.removeEventListener('keydown', this.onKeyDown); window.removeEventListener('keyup', this.onKeyUp); this.controlsSubscription?.unsubscribe(); };
+  public onWindowResize = () => { this.sceneManager.onWindowResize(); if (this.cameraModeSubject.getValue() === 'orthographic' && this.lastOrthographicState) { this.setCameraView(null, this.lastOrthographicState); } };
+  private onKeyDown = (e: KeyboardEvent) => { const key=e.key.toLowerCase(); if (key==='escape') { this.controlsManager.exitFlyMode(); return; } this.keyMap.set(key, true); if (this.controlsManager.getCurrentToolMode()==='move' && ['x', 'y', 'z'].includes(key)) { this.axisLock=this.axisLock===key ? null : (key as 'x' | 'y' | 'z'); this.dragInteractionManager.setAxisConstraint(this.axisLock); this.axisLockStateSubject.next(this.axisLock); } };
   private onKeyUp = (e: KeyboardEvent) => this.keyMap.set(e.key.toLowerCase(), false);
-  private onControlsChange = () => this.interactionHelperManager.updateScale();
-  private handleTransformEnd = () => { if (!this.selectedObject) return; if (this.selectedObject.name === 'SelectionProxy') { this.sceneManager.scene.children.forEach(obj => { if (!this.selectedObject) return; if (obj.name.startsWith(CELESTIAL_MESH_PREFIX)) { const instancedMesh = obj as THREE.InstancedMesh; const allData: CelestialInstanceData[] = instancedMesh.userData["celestialData"]; const instanceIndex = allData.findIndex(d => d.originalUuid === this.selectedObject!.uuid); if (instanceIndex > -1) { const data = allData[instanceIndex]; data.originalMatrix.compose(this.selectedObject.position, this.selectedObject.quaternion, this.selectedObject.scale); data.position.copy(this.selectedObject.position); instancedMesh.setMatrixAt(instanceIndex, data.originalMatrix); instancedMesh.instanceMatrix.needsUpdate = true; } } }); } this.transformEndSubject.next(); };
+  private onControlsChange = () => {};
+  private handleTransformEnd = () => { if (!this.selectedObject) return; if (this.selectedObject.name==='SelectionProxy') { this.sceneManager.scene.children.forEach(obj => { if (!this.selectedObject) return; if (obj.name.startsWith(CELESTIAL_MESH_PREFIX)) { const instancedMesh=obj as THREE.InstancedMesh; const allData: CelestialInstanceData[]=instancedMesh.userData["celestialData"]; const instanceIndex=allData.findIndex(d => d.originalUuid===this.selectedObject!.uuid); if (instanceIndex > -1) { const data=allData[instanceIndex]; data.originalMatrix.compose(this.selectedObject.position, this.selectedObject.quaternion, this.selectedObject.scale); data.position.copy(this.selectedObject.position); instancedMesh.setMatrixAt(instanceIndex, data.originalMatrix); instancedMesh.instanceMatrix.needsUpdate=true; } } }); } this.transformEndSubject.next(); };
   public getGizmoAttachedObject = (): THREE.Object3D | undefined => this.selectedObject;
-
-  // ====================================================================
-  // SECTION: API PÚBLICA DE GESTIÓN DE ESCENA
-  // ====================================================================
-
-  public populateScene(objects: SceneObjectResponse[], onProgress: (p: number) => void, onLoaded: () => void): void {
-    if (!this.sceneManager.scene) return;
-    this.entityManager.clearScene();
-    const celestialTypes = ['star', 'galaxy', 'meteor', 'supernova', 'diffraction_star'];
-    const celestialObjectsData = objects.filter(o => celestialTypes.includes(o.type));
-    const standardObjectsData = objects.filter(o => !celestialTypes.includes(o.type));
-    this.entityManager.objectManager.createCelestialObjectsInstanced(this.sceneManager.scene, celestialObjectsData);
-    const loadingManager = this.entityManager.getLoadingManager();
-    loadingManager.onProgress = (_, loaded, total) => onProgress((loaded / total) * 100);
-    loadingManager.onLoad = () => { onLoaded(); this.entityManager.publishSceneEntities(); };
-    standardObjectsData.forEach(o => this.entityManager.createObjectFromData(o));
-    if (!standardObjectsData.some(o => o.type === 'model' && o.asset?.path)) {
-      setTimeout(() => { if (loadingManager.onLoad) loadingManager.onLoad(); }, 0);
-    }
-  }
-
+  public populateScene(objects: SceneObjectResponse[], onProgress: (p: number) => void, onLoaded: () => void): void { if (!this.sceneManager.scene) return; this.entityManager.clearScene(); const celestialTypes=['star', 'galaxy', 'meteor', 'supernova', 'diffraction_star']; const celestialObjectsData=objects.filter(o => celestialTypes.includes(o.type)); const standardObjectsData=objects.filter(o => !celestialTypes.includes(o.type)); this.entityManager.objectManager.createCelestialObjectsInstanced(this.sceneManager.scene, celestialObjectsData); const loadingManager=this.entityManager.getLoadingManager(); loadingManager.onProgress=(_, loaded, total) => onProgress((loaded / total) * 100); loadingManager.onLoad=() => { onLoaded(); this.entityManager.publishSceneEntities(); }; standardObjectsData.forEach(o => this.entityManager.createObjectFromData(o)); if (!standardObjectsData.some(o => o.type==='model' && o.asset?.path)) { setTimeout(() => { if (loadingManager.onLoad) loadingManager.onLoad(); }, 0); } }
   public setGroupVisibility(uuids: string[], visible: boolean): void { this.entityManager.setGroupVisibility(uuids, visible); }
   public setGroupBrightness(uuids: string[], brightness: number): void { this.entityManager.setGroupBrightness(uuids, brightness); }
   public frameScene = (width: number, height: number) => this.sceneManager.frameScene(width, height);
   public getSceneEntities = (): Observable<SceneEntity[]> => this.entityManager.getSceneEntities();
   public addObjectToScene = (objData: SceneObjectResponse) => this.entityManager.createObjectFromData(objData);
   public updateObjectName = (uuid: string, newName: string) => this.entityManager.updateObjectName(uuid, newName);
-  public updateObjectTransform = (uuid: string, path: 'position' | 'rotation' | 'scale', value: { x: number; y: number; z: number; }) => { const standardObject = this.entityManager.getObjectByUuid(uuid); if (standardObject && standardObject.name !== 'SelectionProxy') { standardObject[path].set(value.x, value.y, value.z); if (path === 'position') { this.interactionHelperManager.updateHelperPositions(standardObject); } return; } const instanceInfo = this.entityManager['_findCelestialInstance'](uuid); if (instanceInfo) { const { mesh, instanceIndex, data } = instanceInfo; const tempQuaternion = new THREE.Quaternion(); const tempScale = new THREE.Vector3(); data.originalMatrix.decompose(new THREE.Vector3(), tempQuaternion, tempScale); switch (path) { case 'position': data.position.set(value.x, value.y, value.z); break; case 'rotation': tempQuaternion.setFromEuler(new THREE.Euler(value.x, value.y, value.z)); break; case 'scale': data.scale.set(value.x, value.y, value.z); tempScale.copy(data.scale); break; } data.originalMatrix.compose(data.position, tempQuaternion, tempScale); mesh.setMatrixAt(instanceIndex, data.originalMatrix); mesh.instanceMatrix.needsUpdate = true; const selectionProxy = this.sceneManager.scene.getObjectByName('SelectionProxy'); if (selectionProxy && selectionProxy.uuid === uuid) { selectionProxy.position.copy(data.position); const PROXY_SCALE_MULTIPLIER = 7.0; selectionProxy.scale.copy(data.scale).multiplyScalar(PROXY_SCALE_MULTIPLIER); } } };
+  public updateObjectTransform = (uuid: string, path: 'position' | 'rotation' | 'scale', value: { x: number; y: number; z: number; }) => { const standardObject=this.entityManager.getObjectByUuid(uuid); if (standardObject && standardObject.name !=='SelectionProxy') { standardObject[path].set(value.x, value.y, value.z); if (path==='position') { this.interactionHelperManager.updateHelperPositions(standardObject); } return; } const instanceInfo=this.entityManager['_findCelestialInstance'](uuid); if (instanceInfo) { const { mesh, instanceIndex, data }=instanceInfo; const tempQuaternion=new THREE.Quaternion(); const tempScale=new THREE.Vector3(); data.originalMatrix.decompose(new THREE.Vector3(), tempQuaternion, tempScale); switch (path) { case 'position': data.position.set(value.x, value.y, value.z); break; case 'rotation': tempQuaternion.setFromEuler(new THREE.Euler(value.x, value.y, value.z)); break; case 'scale': data.scale.set(value.x, value.y, value.z); tempScale.copy(data.scale); break; } data.originalMatrix.compose(data.position, tempQuaternion, tempScale); mesh.setMatrixAt(instanceIndex, data.originalMatrix); mesh.instanceMatrix.needsUpdate=true; const selectionProxy=this.sceneManager.scene.getObjectByName('SelectionProxy'); if (selectionProxy && selectionProxy.uuid===uuid) { selectionProxy.position.copy(data.position); const PROXY_SCALE_MULTIPLIER=7.0; selectionProxy.scale.copy(data.scale).multiplyScalar(PROXY_SCALE_MULTIPLIER); } } };
 }

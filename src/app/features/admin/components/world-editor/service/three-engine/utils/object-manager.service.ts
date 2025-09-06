@@ -20,6 +20,8 @@ export interface CelestialInstanceData {
   type: string;
   isManuallyHidden: boolean;
   brightness: number;
+  isDimmed: boolean; // ⭐️ MEJORA CLAVE: Nueva propiedad para controlar el brillo en selección.
+
 }
 
 function sanitizeHexColor(color: any, defaultColor: string = '#ffffff'): string {
@@ -43,11 +45,11 @@ export class ObjectManagerService {
     if (!objectsData.length) return;
 
     const groupedObjects = new Map<string, SceneObjectResponse[]>();
-    groupedObjects.set('__DEFAULT__', []); 
+    groupedObjects.set('__DEFAULT__', []);
 
     for (const obj of objectsData) {
-      const assetPath = (obj.asset?.type === 'texture_png' || obj.asset?.type === 'texture_jpg') 
-        ? obj.asset.path 
+      const assetPath = (obj.asset?.type === 'texture_png' || obj.asset?.type === 'texture_jpg')
+        ? obj.asset.path
         : null;
 
       if (assetPath) {
@@ -72,49 +74,49 @@ export class ObjectManagerService {
   }
 
   private _createTexturedInstancedMesh(scene: THREE.Scene, objectsData: SceneObjectResponse[], texturePath: string): void {
-      const textureUrl = `${this.backendUrl}${texturePath}`;
-      let texture = this.textureCache.get(textureUrl);
-      if (!texture) {
-        texture = this.textureLoader.load(textureUrl);
-        texture.colorSpace = THREE.SRGBColorSpace;
-        this.textureCache.set(textureUrl, texture);
-      }
+    const textureUrl = `${this.backendUrl}${texturePath}`;
+    let texture = this.textureCache.get(textureUrl);
+    if (!texture) {
+      texture = this.textureLoader.load(textureUrl);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      this.textureCache.set(textureUrl, texture);
+    }
 
-      const geometry = new THREE.PlaneGeometry(1, 1);
-      const material = new THREE.MeshBasicMaterial({
-        map: texture,
-        transparent: true,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        side: THREE.DoubleSide
-      });
+    const geometry = new THREE.PlaneGeometry(1, 1);
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
 
-      const instancedMesh = new THREE.InstancedMesh(geometry, material, objectsData.length);
-      const sanitizedName = texturePath.replace(/[^a-zA-Z0-9]/g, '_');
-      instancedMesh.name = `CelestialObjects_Texture_${sanitizedName}`;
-      instancedMesh.frustumCulled = false;
+    const instancedMesh = new THREE.InstancedMesh(geometry, material, objectsData.length);
+    const sanitizedName = texturePath.replace(/[^a-zA-Z0-9]/g, '_');
+    instancedMesh.name = `CelestialObjects_Texture_${sanitizedName}`;
+    instancedMesh.frustumCulled = false;
 
-      this._populateInstanceData(instancedMesh, objectsData);
-      scene.add(instancedMesh);
+    this._populateInstanceData(instancedMesh, objectsData);
+    scene.add(instancedMesh);
   }
 
   private _createDefaultGlowInstancedMesh(scene: THREE.Scene, objectsData: SceneObjectResponse[]): void {
-      const geometry = new THREE.CircleGeometry(4.0, 32); 
-      const material = new THREE.MeshBasicMaterial({
-        map: this._createGlowTexture(),
-        transparent: true,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      });
+    const geometry = new THREE.CircleGeometry(4.0, 32);
+    const material = new THREE.MeshBasicMaterial({
+      map: this._createGlowTexture(),
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
 
-      const instancedMesh = new THREE.InstancedMesh(geometry, material, objectsData.length);
-      instancedMesh.name = 'CelestialObjects_Default';
-      instancedMesh.frustumCulled = false;
-      
-      this._populateInstanceData(instancedMesh, objectsData);
-      scene.add(instancedMesh);
+    const instancedMesh = new THREE.InstancedMesh(geometry, material, objectsData.length);
+    instancedMesh.name = 'CelestialObjects_Default';
+    instancedMesh.frustumCulled = false;
+
+    this._populateInstanceData(instancedMesh, objectsData);
+    scene.add(instancedMesh);
   }
-  
+
   private _populateInstanceData(instancedMesh: THREE.InstancedMesh, objectsData: SceneObjectResponse[]): void {
     const celestialData: CelestialInstanceData[] = [];
     instancedMesh.userData['celestialData'] = celestialData;
@@ -132,32 +134,35 @@ export class ObjectManagerService {
       const visualColor = new THREE.Color(sanitizeHexColor(objData.emissiveColor));
       const emissiveIntensity = objData.emissiveIntensity;
       const isDominant = objData.isDominant ?? false;
-      
+
       position.set(objData.position.x, objData.position.y, objData.position.z);
       quaternion.identity();
       scale.set(objData.scale.x, objData.scale.y, objData.scale.z);
       matrix.compose(position, quaternion, scale);
       instancedMesh.setMatrixAt(i, matrix);
       instancedMesh.setColorAt(i, new THREE.Color(0x000000));
-      
+
       const scaleLuminosity = Math.max(1.0, objData.scale.x / BASE_SCALE);
       const dominantBoost = isDominant ? DOMINANT_LUMINOSITY_MULTIPLIER : 1.0;
       const finalLuminosity = scaleLuminosity * dominantBoost;
 
+
       celestialData.push({
-          originalColor: visualColor.clone(),
-          emissiveIntensity: emissiveIntensity,
-          position: position.clone(),
-          scale: scale.clone(),
-          originalMatrix: matrix.clone(),
-          originalUuid: objData.id.toString(),
-          originalName: objData.name,
-          isVisible: false,
-          isDominant: isDominant,
-          luminosity: finalLuminosity,
-          type: objData.type,
-          isManuallyHidden: false,
-          brightness: 1.0
+        // ... (todas las propiedades anteriores)
+        originalColor: visualColor.clone(),
+        emissiveIntensity: emissiveIntensity,
+        position: position.clone(),
+        scale: scale.clone(),
+        originalMatrix: matrix.clone(),
+        originalUuid: objData.id.toString(),
+        originalName: objData.name,
+        isVisible: false,
+        isDominant: isDominant,
+        luminosity: finalLuminosity,
+        type: objData.type,
+        isManuallyHidden: false,
+        brightness: 1.0,
+        isDimmed: false // ⭐️ MEJORA CLAVE: Inicializamos la propiedad en false.
       });
     }
     instancedMesh.instanceMatrix.needsUpdate = true;
@@ -175,7 +180,7 @@ export class ObjectManagerService {
 
     const context = canvas.getContext('2d')!;
     const gradient = context.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    
+
     // Ajustamos el degradado para una caída más suave y natural
     gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
     gradient.addColorStop(0.25, 'rgba(255, 255, 255, 0.7)');
