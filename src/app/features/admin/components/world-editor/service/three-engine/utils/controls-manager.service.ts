@@ -1,5 +1,3 @@
-// RUTA: src/app/features/admin/views/world-editor/world-editor/service/three-engine/utils/controls-manager.service.ts
-
 import { Injectable, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -31,10 +29,11 @@ export class ControlsManagerService implements OnDestroy {
   private isFlyModeActiveSubject = new BehaviorSubject<boolean>(false);
   public isFlyModeActive$ = this.isFlyModeActiveSubject.asObservable();
 
-  private readonly MOVEMENT_SPEED = 100_000_000.0;
-  private readonly BOOST_MULTIPLIER = 150.0;
+  private readonly MOVEMENT_SPEED = 100000000.0;
+  private readonly BOOST_MULTIPLIER = 100.0;
   
   // ✅ MEJORA: Factor de sensibilidad para suavizar el paneo ortográfico.
+  // Un valor más bajo significa menos sensibilidad (movimiento más lento).
   private readonly ORTHO_PAN_SENSITIVITY = 0.5;
 
   private tempVector = new THREE.Vector3();
@@ -47,6 +46,7 @@ export class ControlsManagerService implements OnDestroy {
     this.domElement = domElement;
     this.scene = scene;
     this.isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
     this.createOrbitControls(camera, domElement);
     this.createTransformControls(camera, domElement);
     this.addEventListeners();
@@ -93,37 +93,32 @@ export class ControlsManagerService implements OnDestroy {
       return;
     }
 
-    if (event.button === 0) {
+    if (event.button === 0) { // Clic Izquierdo para Orbitar
       this.isOrbiting = true;
       this.orbitControls.enabled = true;
-    } else if (event.button === 2) {
+    } else if (event.button === 2) { // Clic Derecho para Panear
       this.isPanning = true;
       this.orbitControls.enabled = true;
     }
   };
 
+  // 💡 LÓGICA CORREGIDA Y MEJORADA: Se aplica el factor de sensibilidad
   private onMouseMove = (event: MouseEvent) => {
     if (this.isOrthoPanning) {
-      const camera = this.camera as unknown as THREE.OrthographicCamera;
-      
-      // ✅ LÓGICA MEJORADA: Calcula el movimiento relativo al tamaño de la vista actual.
-      // Esto hace que el paneo se sienta consistente sin importar el nivel de zoom.
-      const viewWidth = (camera.right - camera.left) / camera.zoom;
-      const viewHeight = (camera.top - camera.bottom) / camera.zoom;
-
+      const orthoWidth = 2 / this.camera.projectionMatrix.elements[0];
+      const orthoHeight = 2 / this.camera.projectionMatrix.elements[5];
       const deltaX = event.movementX || 0;
       const deltaY = event.movementY || 0;
 
-      const panX = (deltaX / this.domElement.clientWidth) * viewWidth;
-      const panY = (deltaY / this.domElement.clientHeight) * viewHeight;
+      // Aplicamos el factor de sensibilidad aquí para reducir la velocidad del movimiento
+      const panX = (deltaX / this.domElement.clientWidth) * orthoWidth * this.ORTHO_PAN_SENSITIVITY;
+      const panY = (deltaY / this.domElement.clientHeight) * orthoHeight * this.ORTHO_PAN_SENSITIVITY;
       
       const right = this.tempVector.setFromMatrixColumn(this.camera.matrix, 0);
       const up = new THREE.Vector3().setFromMatrixColumn(this.camera.matrix, 1);
       
       this.panOffset.copy(right).multiplyScalar(-panX).add(up.multiplyScalar(panY));
       
-      // Mueve tanto la posición de la cámara como el objetivo de los controles.
-      // Esto es crucial para que el "foco" se mantenga correcto.
       this.camera.position.add(this.panOffset);
       this.orbitControls.target.add(this.panOffset);
       this.orbitControls.update();
@@ -139,24 +134,113 @@ export class ControlsManagerService implements OnDestroy {
     }
   };
 
+  private onMouseUp = (event: MouseEvent) => {
+    if (this.isOrthoPanning) {
+      this.isOrthoPanning = false;
+    }
+    if (this.isOrbiting || this.isPanning) {
+      this.orbitControls.enabled = false;
+      this.isOrbiting = false;
+      this.isPanning = false;
+    }
+  };
 
-  // --- MÉTODOS RESTANTES (SIN CAMBIOS) ---
-  private onMouseUp = (event: MouseEvent) => { if (this.isOrthoPanning) { this.isOrthoPanning = false; } if (this.isOrbiting || this.isPanning) { this.orbitControls.enabled = false; this.isOrbiting = false; this.isPanning = false; } };
   private preventContextMenu = (event: MouseEvent) => event.preventDefault();
-  private createOrbitControls(camera: THREE.Camera, domElement: HTMLElement): void { this.orbitControls = new OrbitControls(camera, domElement); this.orbitControls.enableDamping = true; this.orbitControls.dampingFactor = 0.1; this.orbitControls.screenSpacePanning = true; this.orbitControls.minDistance = 0; this.orbitControls.maxDistance = Infinity; this.orbitControls.enableZoom = true; this.orbitControls.enabled = false; }
-  private createTransformControls(camera: THREE.PerspectiveCamera, domElement: HTMLElement): void { this.transformControls = new TransformControls(camera, domElement); this.transformControls.addEventListener('dragging-changed', (event) => { this.isFlyEnabled = !event.value; if (event.value) { this.orbitControls.enabled = false; this.isOrbiting = false; this.unlockCursor(); } }); this.transformControls.addEventListener('objectChange', () => this.transformEndSubject.next()); this.transformControls.enabled = false; }
-  private addEventListeners = () => { if (!this.isTouchDevice) { this.domElement.addEventListener('mousedown', this.onMouseDown); window.addEventListener('mousemove', this.onMouseMove); window.addEventListener('mouseup', this.onMouseUp); this.domElement.addEventListener('wheel', this.onDocumentMouseWheel, { passive: false } as any); this.domElement.addEventListener('click', this.lockCursor); document.addEventListener('pointerlockchange', this.onPointerLockChange); } };
-  public update = (delta: number, keyMap: Map<string, boolean>): boolean => { let moved = false; if (this.isFlyEnabled) { moved = this.handleKeyboardFly(delta, keyMap); } if (this.isOrbiting || this.isPanning) { if (this.orbitControls.update()) { moved = true; } } return moved; };
-  private handleKeyboardFly(delta: number, keyMap: Map<string, boolean>): boolean { if (document.pointerLockElement !== this.domElement) return false; const moveDirection = new THREE.Vector3(); const forward = new THREE.Vector3(); const right = new THREE.Vector3(); this.camera.getWorldDirection(forward); right.copy(forward).cross(this.camera.up); if (keyMap.get('w')) moveDirection.add(forward); if (keyMap.get('s')) moveDirection.sub(forward); if (keyMap.get('a')) moveDirection.sub(right); if (keyMap.get('d')) moveDirection.add(right); if (keyMap.get('e')) moveDirection.y += 1; if (keyMap.get('q')) moveDirection.y -= 1; if (moveDirection.lengthSq() > 0) { moveDirection.normalize(); const currentSpeed = this.MOVEMENT_SPEED * (keyMap.get('shift') ? this.BOOST_MULTIPLIER : 1.0); const moveDistance = currentSpeed * delta; this.camera.position.addScaledVector(moveDirection, moveDistance); return true; } return false; }
+
+  private createOrbitControls(camera: THREE.Camera, domElement: HTMLElement): void {
+    this.orbitControls = new OrbitControls(camera, domElement);
+    this.orbitControls.enableDamping = true;
+    this.orbitControls.dampingFactor = 0.1;
+    this.orbitControls.screenSpacePanning = true;
+    this.orbitControls.minDistance = 0;
+    this.orbitControls.maxDistance = Infinity;
+    this.orbitControls.enableZoom = true;
+    this.orbitControls.enabled = false;
+  }
+
+  private createTransformControls(camera: THREE.PerspectiveCamera, domElement: HTMLElement): void {
+    this.transformControls = new TransformControls(camera, domElement);
+    
+    this.transformControls.addEventListener('dragging-changed', (event) => {
+      this.isFlyEnabled = !event.value;
+      if (event.value) {
+        this.orbitControls.enabled = false;
+        this.isOrbiting = false;
+        this.unlockCursor();
+      }
+    });
+    this.transformControls.addEventListener('objectChange', () => this.transformEndSubject.next());
+    this.transformControls.enabled = false;
+  }
+
+  private addEventListeners = () => {
+    if (!this.isTouchDevice) {
+      this.domElement.addEventListener('mousedown', this.onMouseDown);
+      window.addEventListener('mousemove', this.onMouseMove);
+      window.addEventListener('mouseup', this.onMouseUp);
+      this.domElement.addEventListener('wheel', this.onDocumentMouseWheel, { passive: false } as any);
+      this.domElement.addEventListener('click', this.lockCursor);
+      document.addEventListener('pointerlockchange', this.onPointerLockChange);
+    }
+  };
+
+  public update = (delta: number, keyMap: Map<string, boolean>): boolean => {
+    let moved = false;
+    if (this.isFlyEnabled) {
+      moved = this.handleKeyboardFly(delta, keyMap);
+    }
+    if (this.isOrbiting || this.isPanning) {
+      if (this.orbitControls.update()) {
+        moved = true;
+      }
+    }
+    return moved;
+  };
+
+  private handleKeyboardFly(delta: number, keyMap: Map<string, boolean>): boolean {
+    if (document.pointerLockElement !== this.domElement) return false;
+    const moveDirection = new THREE.Vector3();
+    const forward = new THREE.Vector3();
+    const right = new THREE.Vector3();
+    this.camera.getWorldDirection(forward);
+    right.copy(forward).cross(this.camera.up);
+    if (keyMap.get('w')) moveDirection.add(forward);
+    if (keyMap.get('s')) moveDirection.sub(forward);
+    if (keyMap.get('a')) moveDirection.sub(right);
+    if (keyMap.get('d')) moveDirection.add(right);
+    if (keyMap.get('e')) moveDirection.y += 1;
+    if (keyMap.get('q')) moveDirection.y -= 1;
+    if (moveDirection.lengthSq() > 0) {
+      moveDirection.normalize();
+      const currentSpeed = this.MOVEMENT_SPEED * (keyMap.get('shift') ? this.BOOST_MULTIPLIER : 1.0);
+      const moveDistance = currentSpeed * delta;
+      this.camera.position.addScaledVector(moveDirection, moveDistance);
+      return true;
+    }
+    return false;
+  }
+
   public exitFlyMode(): void { this.unlockCursor(); }
   public enableNavigation(): void { this.isOrbitEnabled = true; if (!this.isTouchDevice) this.isFlyEnabled = true; }
   public disableNavigation(): void { this.isOrbitEnabled = false; this.isFlyEnabled = false; this.unlockCursor(); }
   public setTransformMode = (mode: ToolMode): void => { this.currentToolMode = mode; if (mode === 'rotate' || mode === 'scale') { this.transformControls.setMode(mode); } };
   public attach = (object: THREE.Object3D) => { this.transformControls.attach(object); this.transformControls.enabled = true; };
   public detach = () => { this.transformControls.detach(); this.transformControls.enabled = false; };
+
   private lockCursor = () => { if (this.isFlyEnabled && !this.isOrbiting && !this.isPanning && !this.transformControls.dragging) this.domElement.requestPointerLock(); };
   private unlockCursor = () => { if (document.pointerLockElement === this.domElement) document.exitPointerLock(); };
-  private onPointerLockChange = () => { const isLocked = document.pointerLockElement === this.domElement; this.isFlyModeActiveSubject.next(isLocked); if (!isLocked) { const newTarget = this.tempVector; this.camera.getWorldDirection(newTarget); newTarget.multiplyScalar(100).add(this.camera.position); this.orbitControls.target.copy(newTarget); } };
+
+  private onPointerLockChange = () => {
+    const isLocked = document.pointerLockElement === this.domElement;
+    this.isFlyModeActiveSubject.next(isLocked);
+    if (!isLocked) {
+      const newTarget = this.tempVector;
+      this.camera.getWorldDirection(newTarget);
+      newTarget.multiplyScalar(100).add(this.camera.position);
+      this.orbitControls.target.copy(newTarget);
+    }
+  };
+
   public getCurrentToolMode = (): ToolMode => this.currentToolMode;
   public getControls = (): OrbitControls => this.orbitControls;
   public getGizmoObject = (): THREE.Object3D | undefined => this.transformControls.object;
