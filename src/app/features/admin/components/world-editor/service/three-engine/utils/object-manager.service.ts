@@ -1,5 +1,3 @@
-// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/object-manager.service.ts
-
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -88,7 +86,6 @@ export class ObjectManagerService {
         depthWrite: false,
         side: THREE.DoubleSide
       });
-      material.onBeforeCompile = (shader) => { /* shader sigue igual */ };
 
       const instancedMesh = new THREE.InstancedMesh(geometry, material, objectsData.length);
       const sanitizedName = texturePath.replace(/[^a-zA-Z0-9]/g, '_');
@@ -100,6 +97,7 @@ export class ObjectManagerService {
   }
 
   private _createDefaultGlowInstancedMesh(scene: THREE.Scene, objectsData: SceneObjectResponse[]): void {
+      // Usamos CircleGeometry para asegurar que el brillo sea siempre redondo y no un cuadrado
       const geometry = new THREE.CircleGeometry(4.0, 32); 
       const material = new THREE.MeshBasicMaterial({
         map: this._createGlowTexture(),
@@ -107,7 +105,6 @@ export class ObjectManagerService {
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       });
-      material.onBeforeCompile = (shader) => { /* shader sigue igual */ };
 
       const instancedMesh = new THREE.InstancedMesh(geometry, material, objectsData.length);
       instancedMesh.name = 'CelestialObjects_Default';
@@ -166,8 +163,33 @@ export class ObjectManagerService {
     if (instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
   }
 
-  // ... El resto de tus métodos permanecen igual ...
-  private _createGlowTexture(): THREE.CanvasTexture { if (this.glowTexture) return this.glowTexture; const canvas = document.createElement('canvas'); const size = 256; canvas.width = size; canvas.height = size; const context = canvas.getContext('2d')!; const gradient = context.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2); gradient.addColorStop(0, 'rgba(255, 255, 255, 1)'); gradient.addColorStop(0.2, 'rgba(255, 255, 255, 0.8)'); gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.2)'); gradient.addColorStop(1, 'rgba(0, 0, 0, 0)'); context.fillStyle = gradient; context.fillRect(0, 0, size, size); this.glowTexture = new THREE.CanvasTexture(canvas); this.glowTexture.needsUpdate = true; return this.glowTexture; }
+  // ✅ MEJORA: Textura de brillo de mayor calidad.
+  private _createGlowTexture(): THREE.CanvasTexture {
+    if (this.glowTexture) return this.glowTexture;
+
+    const canvas = document.createElement('canvas');
+    // Aumentamos la resolución para un brillo más nítido
+    const size = 512;
+    canvas.width = size;
+    canvas.height = size;
+
+    const context = canvas.getContext('2d')!;
+    const gradient = context.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    
+    // Ajustamos el degradado para una caída más suave y natural
+    gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    gradient.addColorStop(0.25, 'rgba(255, 255, 255, 0.7)');
+    gradient.addColorStop(0.6, 'rgba(255, 255, 255, 0.1)');
+    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, size, size);
+
+    this.glowTexture = new THREE.CanvasTexture(canvas);
+    this.glowTexture.needsUpdate = true;
+    return this.glowTexture;
+  }
+
   public createObjectFromData(scene: THREE.Scene, objData: SceneObjectResponse, loader: GLTFLoader): THREE.Object3D | null { let createdObject: THREE.Object3D | null = null; switch (objData.type) { case 'model': if (objData.properties?.['is_black_hole']) { createdObject = this.createBlackHolePrimitive(scene, objData); } else { this.loadGltfModel(scene, objData, loader); } break; case 'star': case 'galaxy': case 'supernova': case 'diffraction_star': console.warn(`[ObjectManager] La creación individual de '${objData.type}' se maneja por InstancedMesh.`); break; case 'cube': case 'sphere': case 'cone': case 'torus': case 'floor': createdObject = this.createStandardPrimitive(scene, objData); break; default: console.warn(`[ObjectManager] Tipo '${objData.type}' no manejado y será ignorado.`); break; } return createdObject; }
   public createSelectionProxy(): THREE.Mesh { const proxyGeometry = new THREE.SphereGeometry(1.1, 16, 8); const proxyMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0, depthWrite: true, depthTest: true }); const proxyMesh = new THREE.Mesh(proxyGeometry, proxyMaterial); proxyMesh.name = 'SelectionProxy'; return proxyMesh; }
   private createBlackHolePrimitive(scene: THREE.Scene, objData: SceneObjectResponse): THREE.Mesh { const geometry = new THREE.SphereGeometry(0.5, 32, 16); const material = new THREE.MeshBasicMaterial({ color: 0x000000 }); const mesh = new THREE.Mesh(geometry, material); this.applyTransformations(mesh, objData); scene.add(mesh); return mesh; }

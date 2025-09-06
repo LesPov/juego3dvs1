@@ -1,5 +1,3 @@
-// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/scene-manager.service.ts
-
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -44,7 +42,9 @@ export class SceneManagerService {
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
       antialias: true,
-      powerPreference: 'high-performance'
+      powerPreference: 'high-performance',
+      // ✅ MEJORA: Solicita la máxima precisión para los shaders, lo que puede mejorar la calidad visual.
+      precision: 'highp'
     });
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -53,8 +53,10 @@ export class SceneManagerService {
     
     const renderPass = new RenderPass(this.scene, this.editorCamera);
     
-    // Estos valores para el bloom son un buen punto de partida.
-    // strength=1.2, radius=0.6, threshold=0.1
+    // ✅ MEJORA: Parámetros del efecto Bloom para un brillo atractivo.
+    // strength: Qué tan intenso es el brillo. (Ej: 1.2)
+    // radius: Qué tan difuminado es el brillo. (Ej: 0.6)
+    // threshold: Qué tan brillante debe ser un píxel para empezar a "brillar". Un valor más bajo hace que más cosas brillen. (Ej: 0.1)
     this.bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 1.2, 0.6, 0.1);
 
     this.composer = new EffectComposer(this.renderer);
@@ -99,8 +101,11 @@ export class SceneManagerService {
     const newHeight = container.clientHeight;
 
     if (this.canvas.width !== newWidth || this.canvas.height !== newHeight) {
+      // La actualización de la matriz de proyección se maneja en EngineService para el caso ortográfico.
+      // Aquí solo actualizamos el aspect ratio para el caso de perspectiva.
       this.editorCamera.aspect = newWidth / newHeight;
       this.editorCamera.updateProjectionMatrix();
+
       this.renderer.setSize(newWidth, newHeight);
       this.composer.setSize(newWidth, newHeight);
       if (this.bloomPass) {
