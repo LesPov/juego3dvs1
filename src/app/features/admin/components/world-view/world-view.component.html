@@ -1,33 +1,31 @@
-<!-- world-view.component.html (Sin cambios, es correcto) -->
+<!-- world-view.component.html -->
+
+<!-- FIX: Vuelve el preloader inicial para "Obteniendo datos..." -->
 <div *ngIf="isLoadingData" class="preloader-overlay">
   <div class="preloader-content">
     <h1>Obteniendo datos del episodio...</h1>
   </div>
 </div>
-<div *ngIf="!isLoadingData && isRenderingScene" class="preloader-overlay">
-  <div class="preloader-content">
-    <h1>Cargando Escena...</h1>
-    <div class="progress-bar-container">
-      <div class="progress-bar" [style.width.%]="loadingProgress"></div>
-    </div>
-    <p class="progress-text">{{ loadingProgress | number:'1.0-0' }}%</p>
-  </div>
-</div>
+
 <app-add-object-modal *ngIf="isAddObjectModalVisible" (close)="closeAddObjectModal()"
   (create)="createSceneObject($event)">
 </app-add-object-modal>
+
+<!-- FIX: La condición !isLoadingData es clave aquí. El div no se crea hasta que los datos básicos existen. -->
 <div *ngIf="!isLoadingData && !errorMessage && episodeId" 
      class="editor-layout"
-     [style.visibility]="isRenderingScene ? 'hidden' : 'visible'"
      [class.left-hidden]="!layoutState.leftVisible"
      [class.right-hidden]="!layoutState.rightVisible"
      [class.bottom-hidden]="!layoutState.bottomVisible">
+
   <header class="editor-top-bar">
     <div class="episode-title">
       Editor - {{ episodeTitle }}
     </div>
   </header>
+  
   <aside class="left-sidebar">
+    <!-- El contenido de la barra izquierda no ha cambiado -->
     <div class="panel scene-list-panel">
       <div class="panel-header">Lista de Objetos</div>
       <div class="search-bar-container">
@@ -91,6 +89,7 @@
       </div>
     </div>
   </aside>
+  
   <main class="main-viewport">
     <div class="scene-container-header">
       <div class="scene-tabs-container">
@@ -109,6 +108,18 @@
       </app-toolbar>
     </div>
     <div class="scene-render-area">
+
+      <!-- Loader específico para el área de la escena, solo se muestra si está renderizando -->
+      <div *ngIf="isRenderingScene" class="scene-loader-overlay">
+        <div class="preloader-content">
+          <h1>Cargando Escena...</h1>
+          <div class="progress-bar-container">
+            <div class="progress-bar" [style.width.%]="loadingProgress"></div>
+          </div>
+          <p class="progress-text">{{ loadingProgress | number:'1.0-0' }}%</p>
+        </div>
+      </div>
+      
       <div *ngIf="(axisLock$ | async) as lockedAxis" class="axis-lock-indicator" [ngClass]="'lock-' + lockedAxis">
         Moviendo en Eje: <b>{{ lockedAxis | uppercase }}</b>
       </div>
@@ -122,13 +133,21 @@
         <div class="crosshair-line horizontal"></div>
         <div class="crosshair-line vertical"></div>
       </div>
-      <app-scene [initialObjects]="sceneObjects" (loadingProgress)="handleLoadingProgress($event)"
-        (loadingComplete)="handleLoadingComplete()">
+      
+      <!-- Se oculta la escena mientras se carga con [style.visibility] para que mantenga su espacio -->
+      <app-scene 
+        [initialObjects]="sceneObjects" 
+        (loadingProgress)="handleLoadingProgress($event)"
+        (loadingComplete)="handleLoadingComplete()"
+        [style.visibility]="isRenderingScene ? 'hidden' : 'visible'">
       </app-scene>
+      
       <app-brujula></app-brujula>
     </div>
   </main>
+  
   <aside class="right-sidebar">
+    <!-- El contenido de la barra derecha no ha cambiado -->
     <div class="right-sidebar-top-group">
       <div class="panel episode-image-panel">
         <div class="panel-header">Imagen del Episodio</div>
@@ -156,7 +175,9 @@
       </div>
     </div>
   </aside>
+  
   <footer class="bottom-properties">
+    <!-- El contenido de los paneles inferiores no ha cambiado -->
     <div class="bottom-tabs-header">
       <button class="bottom-tab-button" [class.active]="activePropertiesTab==='object'"
         (click)="selectPropertiesTab('object')" [disabled]="!selectedObject">Transformación</button>
@@ -185,7 +206,9 @@
       </ng-container>
     </div>
   </footer>
+  
   <div class="bottom-description">
+    <!-- El contenido del panel de descripción no ha cambiado -->
     <div class="panel">
       <div class="panel-header">Descripción del Objeto</div>
       <div class="panel-content">
@@ -200,6 +223,7 @@
       </div>
     </div>
   </div>
+  
   <button class="panel-toggle-tab left" *ngIf="!layoutState.leftVisible" (click)="togglePanelVisibility('left')" title="Mostrar panel izquierdo">
     <span>&#9654;</span>
   </button>
@@ -210,4 +234,5 @@
     <span>&#9650;</span>
   </button>
 </div>
+
 <div *ngIf="errorMessage" class="error-state">{{ errorMessage }}</div>

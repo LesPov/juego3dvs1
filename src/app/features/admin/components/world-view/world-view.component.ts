@@ -43,7 +43,9 @@ export interface SceneTab {
 })
 export class WorldViewComponent implements OnInit, OnDestroy {
   public episodeId?: number;
-  public isLoadingData = true;
+  // FIX: isLoadingData controla la obtención inicial de datos (título, lista de objetos)
+  public isLoadingData = true; 
+  // FIX: isRenderingScene controla ÚNICAMENTE la carga de modelos 3D en el viewport
   public isRenderingScene = false;
   public loadingProgress = 0;
   public errorMessage: string | null = null;
@@ -120,7 +122,6 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     this.layoutState.leftVisible = shouldBeVisible;
     this.layoutState.rightVisible = shouldBeVisible;
     this.layoutState.bottomVisible = shouldBeVisible;
-    // ❌ ELIMINADO: Ya no se necesita llamar a `triggerEngineResize`. El `ResizeObserver` lo hace automáticamente.
   }
 
   togglePanelVisibility(panel: 'left' | 'right' | 'bottom'): void {
@@ -131,21 +132,35 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     if (this.layoutState.leftVisible && this.layoutState.rightVisible && this.layoutState.bottomVisible) {
       this.layoutState.isMaximized = false;
     }
-    // ❌ ELIMINADO: Ya no se necesita llamar a `triggerEngineResize`.
   }
-  
-  // ❌ ELIMINADO: Este método ya no es necesario gracias al `ResizeObserver`.
-  /*
-  private triggerEngineResize(): void {
-    setTimeout(() => {
-      this.engineService.onWindowResize();
-    }, 350);
-  }
-  */
 
   selectScene(sceneId: number): void { if (this.activeSceneId === sceneId) return; this.activeSceneId = sceneId; this.sceneTabs.forEach(tab => tab.isActive = tab.id === sceneId); console.log(`Cambiando a escena ID: ${sceneId}`); }
   addScene(): void { const newScene: SceneTab = { id: this.nextSceneId, name: `Escena ${this.nextSceneId}`, isActive: false }; this.sceneTabs.push(newScene); this.nextSceneId++; this.selectScene(newScene.id); }
-  loadEpisodeData(id: number): void { this.isLoadingData = true; this.adminService.getEpisodeForEditor(id).subscribe({ next: (response: PaginatedEpisodeResponse) => { this.episodeTitle = response.episode.title; this.sceneObjects = response.sceneObjects || []; this.isLoadingData = false; this.isRenderingScene = true; if (!this.sceneObjects.some(o => o.type === 'model' && o.asset?.path)) { this.simulateLoadingProgress(); } }, error: (err) => { this.errorMessage = "Error al cargar los datos del episodio."; this.isLoadingData = false; console.error(err); } }); }
+
+  // FIX: Lógica de carga original restaurada para evitar la condición de carrera.
+  loadEpisodeData(id: number): void { 
+    this.isLoadingData = true; // Mostramos el loader de "Obteniendo datos..."
+    this.adminService.getEpisodeForEditor(id).subscribe({
+      next: (response: PaginatedEpisodeResponse) => { 
+        this.episodeTitle = response.episode.title; 
+        this.sceneObjects = response.sceneObjects || []; 
+        // Cuando los datos llegan, ocultamos el loader de datos
+        this.isLoadingData = false;
+        // Y activamos el de la escena, que ahora vivirá sobre el canvas
+        this.isRenderingScene = true; 
+        // Si no hay modelos, simulamos la carga para que el loader de escena desaparezca.
+        if (!this.sceneObjects.some(o => o.type === 'model' && o.asset?.path)) { 
+          this.simulateLoadingProgress(); 
+        } 
+      }, 
+      error: (err) => { 
+        this.errorMessage = "Error al cargar los datos del episodio."; 
+        this.isLoadingData = false; 
+        console.error(err); 
+      } 
+    }); 
+  }
+
   private setupSubscriptions(): void { const transformSub = this.engineService.onTransformEnd$.subscribe(() => this.handleTransformEnd()); const propertyUpdateSub = this.propertyUpdate$.pipe(debounceTime(500), switchMap(update => this.handlePropertySave(update))).subscribe({ error: err => console.error("[WorldView] Error al guardar propiedad:", err) }); const entitiesSub = this.engineService.getSceneEntities().pipe(map(engineEntities => { const sceneObjectMap = new Map<string, SceneObjectResponse>(); this.sceneObjects.forEach(obj => sceneObjectMap.set(obj.id.toString(), obj)); return engineEntities.map(entity => { const originalObject = sceneObjectMap.get(entity.uuid); return { ...entity, type: originalObject ? originalObject.type : entity.type }; }); })).subscribe((correctedEntities: SceneEntity[]) => { this.allEntities = correctedEntities; this.allEntities$.next(correctedEntities); }); const brightnessSub = this.brightnessUpdate$.pipe(debounceTime(150)).subscribe(({ groupType, brightness }) => { const entityUuidsInGroup = this.allEntities.filter(entity => entity.type === groupType).map(entity => entity.uuid); if (entityUuidsInGroup.length > 0) { this.engineService.setGroupBrightness(entityUuidsInGroup, brightness); } }); const cameraModeSub = this.engineService.cameraMode$.subscribe(mode => { if (mode === 'perspective') { let stateChanged = false; for (const key of this.groupBrightnessState.keys()) { if (this.groupBrightnessState.get(key) !== 1.0) { this.groupBrightnessState.set(key, 1.0); stateChanged = true; } } if (stateChanged) { this.allEntities$.next([...this.allEntities]); } } }); this.subscriptions.add(transformSub); this.subscriptions.add(propertyUpdateSub); this.subscriptions.add(entitiesSub); this.subscriptions.add(brightnessSub); this.subscriptions.add(cameraModeSub); }
   public onGroupBrightnessChange(group: EntityGroup, event: Event): void { const slider = event.target as HTMLInputElement; const brightness = parseFloat(slider.value); this.groupBrightnessState.set(group.type, brightness); this.brightnessUpdate$.next({ groupType: group.type, brightness }); }
   public toggleGroupVisibility(group: EntityGroup, event: MouseEvent): void { event.stopPropagation(); const currentState = this.groupVisibilityState.get(group.type) ?? true; const newState = !currentState; this.groupVisibilityState.set(group.type, newState); const entityUuidsInGroup = this.allEntities.filter(entity => entity.type === group.type).map(entity => entity.uuid); if (entityUuidsInGroup.length > 0) { this.engineService.setGroupVisibility(entityUuidsInGroup, newState); } this.allEntities$.next([...this.allEntities]); }

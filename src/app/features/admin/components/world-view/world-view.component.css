@@ -1,4 +1,4 @@
-/* world-view.component.css (Sin cambios, es correcto) */
+/* world-view.component.css */
 :host {
   display: block;
   width: 100vw;
@@ -181,12 +181,29 @@
 .search-input:focus { border-color: #5294e2; }
 .placeholder-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #999; padding: 20px; text-align: center; height: 100%; }
 .placeholder-panel h2 { margin-bottom: 10px; color: #ccc; }
+
 .preloader-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(30, 30, 30, 0.95); z-index: 9999; display: flex; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
 .preloader-content { text-align: center; color: #e0e0e0; width: 80%; max-width: 400px; }
 .preloader-content h1 { font-size: 1.5rem; font-weight: 300; margin-bottom: 20px; letter-spacing: 1px; }
 .progress-bar-container { width: 100%; height: 12px; background-color: #3a3a3a; border-radius: 6px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4); }
 .progress-bar { height: 100%; background-color: #5294e2; border-radius: 6px; transition: width 0.2s ease-out; }
 .progress-text { margin-top: 15px; font-size: 1.2rem; font-weight: 500; color: #ffffff; }
+
+.scene-loader-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(30, 30, 30, 0.95);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  transition: opacity 0.5s ease;
+}
+
 .group-header { position: relative; display: flex; align-items: center; gap: 6px; padding: 8px 10px; padding-right: 40px; background-color: #3a3a3a; color: #e0e0e0; font-weight: bold; font-size: 14px; border-top: 1px solid #202020; border-bottom: 1px solid #202020; cursor: pointer; user-select: none; transition: background-color 0.2s, opacity 0.3s; }
 .group-header:hover { background-color: #454545; }
 .group-header.group-hidden { opacity: 0.6; }
