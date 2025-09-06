@@ -1,3 +1,5 @@
+// RUTA: src/app/features/admin/views/world-editor/world-editor/service/three-engine/utils/scene-manager.service.ts
+
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -35,7 +37,7 @@ export class SceneManagerService {
     const width = container.clientWidth;
     const height = container.clientHeight;
 
-    this.editorCamera = new THREE.PerspectiveCamera(50, width / height, 0.1, 500000000000);
+    this.editorCamera = new THREE.PerspectiveCamera(50, width / height, 0.1, 500_000_000_000);
     this.editorCamera.position.set(0, 50, 150);
     this.editorCamera.lookAt(0, 0, 0);
 
@@ -43,8 +45,7 @@ export class SceneManagerService {
       canvas: this.canvas,
       antialias: true,
       powerPreference: 'high-performance',
-      // ✅ MEJORA: Solicita la máxima precisión para los shaders, lo que puede mejorar la calidad visual.
-      precision: 'highp'
+      precision: 'highp' // ✅ MEJORA: Solicita máxima precisión para shaders.
     });
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -54,20 +55,19 @@ export class SceneManagerService {
     const renderPass = new RenderPass(this.scene, this.editorCamera);
     
     // ✅ MEJORA: Parámetros del efecto Bloom para un brillo atractivo.
-    // strength: Qué tan intenso es el brillo. (Ej: 1.2)
-    // radius: Qué tan difuminado es el brillo. (Ej: 0.6)
-    // threshold: Qué tan brillante debe ser un píxel para empezar a "brillar". Un valor más bajo hace que más cosas brillen. (Ej: 0.1)
-    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 1.2, 0.6, 0.1);
+    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 
+      1.2, // strength: Qué tan intenso es el brillo.
+      0.6, // radius: Qué tan difuminado es el brillo.
+      0.1  // threshold: Qué tan brillante debe ser algo para empezar a brillar.
+    );
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(renderPass);
     this.composer.addPass(this.bloomPass);
   }
 
-  public setControls(controls: OrbitControls): void {
-    this.controls = controls;
-  }
-
+  // --- MÉTODOS RESTANTES (SIN CAMBIOS) ---
+  public setControls(controls: OrbitControls): void { this.controls = controls; }
   public getSceneBoundingBox(): THREE.Box3 {
     const box = new THREE.Box3();
     if (!this.scene) return box;
@@ -91,7 +91,6 @@ export class SceneManagerService {
 
     return box;
   }
-
   public onWindowResize(): void {
     if (!this.canvas || !this.renderer || !this.editorCamera) return;
     const container = this.canvas.parentElement;
@@ -101,8 +100,6 @@ export class SceneManagerService {
     const newHeight = container.clientHeight;
 
     if (this.canvas.width !== newWidth || this.canvas.height !== newHeight) {
-      // La actualización de la matriz de proyección se maneja en EngineService para el caso ortográfico.
-      // Aquí solo actualizamos el aspect ratio para el caso de perspectiva.
       this.editorCamera.aspect = newWidth / newHeight;
       this.editorCamera.updateProjectionMatrix();
 
@@ -114,15 +111,12 @@ export class SceneManagerService {
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     }
   }
-
   public frameScene(sceneWidth: number, sceneHeight: number): void {
     if (!this.editorCamera || !this.controls) return;
-
     const fovRad = THREE.MathUtils.degToRad(this.editorCamera.fov);
     const effectiveHeight = Math.max(sceneHeight, sceneWidth / this.editorCamera.aspect);
     const distance = (effectiveHeight / 2) / Math.tan(fovRad / 2);
     const finalZ = distance * 1.2;
-
     this.editorCamera.position.set(0, 0, finalZ);
     this.editorCamera.lookAt(0, 0, 0);
     this.controls.target.set(0, 0, 0);
