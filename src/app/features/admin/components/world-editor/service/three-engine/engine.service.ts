@@ -1,3 +1,5 @@
+// RUTA: src/app/features/admin/views/world-editor/world-editor/service/three-engine/engine.service.ts
+
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
@@ -80,9 +82,10 @@ export class EngineService implements OnDestroy {
     this.sceneManager.onWindowResize();
     this.interactionHelperManager.updateScale();
     
-    // ✅ MEJORA: Soluciona el problema de la pantalla negra en modo 2D al maximizar.
+    // ✅ CORRECCIÓN: Soluciona el problema de la pantalla negra/vista incorrecta
+    // al redimensionar la ventana (ej. maximizar) mientras se está en una vista 2D (ortográfica).
     // Si estamos en modo ortográfico, debemos recalcular la vista con las nuevas dimensiones del canvas.
-    // Usamos el último estado guardado para mantener la misma vista (eje y posición).
+    // Usamos el último estado guardado para mantener el mismo eje y posición.
     if (this.cameraModeSubject.getValue() === 'orthographic' && this.lastOrthographicState) {
       this.setCameraView(null, this.lastOrthographicState);
     }

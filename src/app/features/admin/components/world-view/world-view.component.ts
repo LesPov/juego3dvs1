@@ -1,5 +1,3 @@
-// RUTA: src/app/features/admin/views/world-editor/world-view/world-view.component.ts
-
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
@@ -17,7 +15,8 @@ import { ToolbarComponent } from '../world-editor/toolbar/toolbar.component';
 import { SceneObjectResponse, AdminService, PaginatedEpisodeResponse } from '../../services/admin.service';
 import { BrujulaComponent } from '../world-editor/brujula/brujula.component';
 import { EngineService } from '../world-editor/service/three-engine/engine.service';
-
+import { environment } from '../../../../../environments/environment';
+ 
 export interface EntityGroup {
   type: string;
   visibleEntities: SceneEntity[];
@@ -43,15 +42,14 @@ export interface SceneTab {
 })
 export class WorldViewComponent implements OnInit, OnDestroy {
   public episodeId?: number;
-  // FIX: isLoadingData controla la obtención inicial de datos (título, lista de objetos)
   public isLoadingData = true; 
-  // FIX: isRenderingScene controla ÚNICAMENTE la carga de modelos 3D en el viewport
   public isRenderingScene = false;
   public loadingProgress = 0;
   public errorMessage: string | null = null;
   public sceneObjects: SceneObjectResponse[] = [];
   public allEntities: SceneEntity[] = [];
   public episodeTitle = '';
+  public episodeThumbnailUrl: string | null = null;
   public selectedEntityUuid: string | null = null;
   public selectedObject: SceneObjectResponse | null = null;
   public isAddObjectModalVisible = false;
@@ -66,6 +64,10 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   public sceneTabs: SceneTab[] = [];
   public activeSceneId: number = 1;
   private nextSceneId: number = 2;
+
+  // ===== NUEVA PROPIEDAD PARA EL MODAL DE LA IMAGEN =====
+  public isImageModalVisible = false;
+  // =======================================================
 
   public layoutState = {
     isMaximized: false,
@@ -116,6 +118,18 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     this.brightnessUpdate$.complete();
   }
 
+  // ===== NUEVOS MÉTODOS PARA MANEJAR EL MODAL DE IMAGEN =====
+  openImageModal(): void {
+    if (this.episodeThumbnailUrl) {
+      this.isImageModalVisible = true;
+    }
+  }
+
+  closeImageModal(): void {
+    this.isImageModalVisible = false;
+  }
+  // ==========================================================
+
   onMaximizeToggle(): void {
     this.layoutState.isMaximized = !this.layoutState.isMaximized;
     const shouldBeVisible = !this.layoutState.isMaximized;
@@ -137,18 +151,15 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   selectScene(sceneId: number): void { if (this.activeSceneId === sceneId) return; this.activeSceneId = sceneId; this.sceneTabs.forEach(tab => tab.isActive = tab.id === sceneId); console.log(`Cambiando a escena ID: ${sceneId}`); }
   addScene(): void { const newScene: SceneTab = { id: this.nextSceneId, name: `Escena ${this.nextSceneId}`, isActive: false }; this.sceneTabs.push(newScene); this.nextSceneId++; this.selectScene(newScene.id); }
 
-  // FIX: Lógica de carga original restaurada para evitar la condición de carrera.
   loadEpisodeData(id: number): void { 
-    this.isLoadingData = true; // Mostramos el loader de "Obteniendo datos..."
+    this.isLoadingData = true;
     this.adminService.getEpisodeForEditor(id).subscribe({
       next: (response: PaginatedEpisodeResponse) => { 
         this.episodeTitle = response.episode.title; 
+        this.episodeThumbnailUrl = this.buildFullThumbnailUrl(response.episode.thumbnailUrl);
         this.sceneObjects = response.sceneObjects || []; 
-        // Cuando los datos llegan, ocultamos el loader de datos
         this.isLoadingData = false;
-        // Y activamos el de la escena, que ahora vivirá sobre el canvas
         this.isRenderingScene = true; 
-        // Si no hay modelos, simulamos la carga para que el loader de escena desaparezca.
         if (!this.sceneObjects.some(o => o.type === 'model' && o.asset?.path)) { 
           this.simulateLoadingProgress(); 
         } 
@@ -159,6 +170,19 @@ export class WorldViewComponent implements OnInit, OnDestroy {
         console.error(err); 
       } 
     }); 
+  }
+
+  private buildFullThumbnailUrl(relativePath: string | null): string | null {
+    if (!relativePath) {
+      return null;
+    }
+    const cleanEndpoint = environment.endpoint.endsWith('/')
+      ? environment.endpoint.slice(0, -1)
+      : environment.endpoint;
+    const cleanThumbnailPath = relativePath.startsWith('/')
+      ? relativePath.slice(1)
+      : relativePath;
+    return `${cleanEndpoint}/${cleanThumbnailPath}`;
   }
 
   private setupSubscriptions(): void { const transformSub = this.engineService.onTransformEnd$.subscribe(() => this.handleTransformEnd()); const propertyUpdateSub = this.propertyUpdate$.pipe(debounceTime(500), switchMap(update => this.handlePropertySave(update))).subscribe({ error: err => console.error("[WorldView] Error al guardar propiedad:", err) }); const entitiesSub = this.engineService.getSceneEntities().pipe(map(engineEntities => { const sceneObjectMap = new Map<string, SceneObjectResponse>(); this.sceneObjects.forEach(obj => sceneObjectMap.set(obj.id.toString(), obj)); return engineEntities.map(entity => { const originalObject = sceneObjectMap.get(entity.uuid); return { ...entity, type: originalObject ? originalObject.type : entity.type }; }); })).subscribe((correctedEntities: SceneEntity[]) => { this.allEntities = correctedEntities; this.allEntities$.next(correctedEntities); }); const brightnessSub = this.brightnessUpdate$.pipe(debounceTime(150)).subscribe(({ groupType, brightness }) => { const entityUuidsInGroup = this.allEntities.filter(entity => entity.type === groupType).map(entity => entity.uuid); if (entityUuidsInGroup.length > 0) { this.engineService.setGroupBrightness(entityUuidsInGroup, brightness); } }); const cameraModeSub = this.engineService.cameraMode$.subscribe(mode => { if (mode === 'perspective') { let stateChanged = false; for (const key of this.groupBrightnessState.keys()) { if (this.groupBrightnessState.get(key) !== 1.0) { this.groupBrightnessState.set(key, 1.0); stateChanged = true; } } if (stateChanged) { this.allEntities$.next([...this.allEntities]); } } }); this.subscriptions.add(transformSub); this.subscriptions.add(propertyUpdateSub); this.subscriptions.add(entitiesSub); this.subscriptions.add(brightnessSub); this.subscriptions.add(cameraModeSub); }

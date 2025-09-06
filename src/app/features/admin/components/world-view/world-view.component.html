@@ -1,6 +1,14 @@
 <!-- world-view.component.html -->
 
-<!-- FIX: Vuelve el preloader inicial para "Obteniendo datos..." -->
+<!-- ===== NUEVO: Visor de Imagen a pantalla completa (Lightbox) ===== -->
+<div *ngIf="isImageModalVisible" class="image-modal-overlay" (click)="closeImageModal()">
+  <div class="image-modal-content" (click)="$event.stopPropagation()">
+    <img [src]="episodeThumbnailUrl" [alt]="'Vista ampliada de ' + episodeTitle" class="image-modal-image">
+    <button class="image-modal-close" (click)="closeImageModal()" title="Cerrar">&times;</button>
+  </div>
+</div>
+<!-- =================================================================== -->
+
 <div *ngIf="isLoadingData" class="preloader-overlay">
   <div class="preloader-content">
     <h1>Obteniendo datos del episodio...</h1>
@@ -11,7 +19,6 @@
   (create)="createSceneObject($event)">
 </app-add-object-modal>
 
-<!-- FIX: La condición !isLoadingData es clave aquí. El div no se crea hasta que los datos básicos existen. -->
 <div *ngIf="!isLoadingData && !errorMessage && episodeId" 
      class="editor-layout"
      [class.left-hidden]="!layoutState.leftVisible"
@@ -25,7 +32,6 @@
   </header>
   
   <aside class="left-sidebar">
-    <!-- El contenido de la barra izquierda no ha cambiado -->
     <div class="panel scene-list-panel">
       <div class="panel-header">Lista de Objetos</div>
       <div class="search-bar-container">
@@ -109,7 +115,6 @@
     </div>
     <div class="scene-render-area">
 
-      <!-- Loader específico para el área de la escena, solo se muestra si está renderizando -->
       <div *ngIf="isRenderingScene" class="scene-loader-overlay">
         <div class="preloader-content">
           <h1>Cargando Escena...</h1>
@@ -134,7 +139,6 @@
         <div class="crosshair-line vertical"></div>
       </div>
       
-      <!-- Se oculta la escena mientras se carga con [style.visibility] para que mantenga su espacio -->
       <app-scene 
         [initialObjects]="sceneObjects" 
         (loadingProgress)="handleLoadingProgress($event)"
@@ -147,15 +151,26 @@
   </main>
   
   <aside class="right-sidebar">
-    <!-- El contenido de la barra derecha no ha cambiado -->
     <div class="right-sidebar-top-group">
       <div class="panel episode-image-panel">
         <div class="panel-header">Imagen del Episodio</div>
-        <div class="panel-content">
-          <div class="placeholder-panel">
-            <p>Componente de imagen.</p>
-          </div>
+        <!-- ===== LÓGICA MODIFICADA PARA LA IMAGEN INTERACTIVA ===== -->
+        <div class="panel-content image-panel-content">
+          <ng-container *ngIf="episodeThumbnailUrl; else noImagePlaceholder">
+            <div class="thumbnail-container" (click)="openImageModal()" title="Ampliar imagen">
+              <img [src]="episodeThumbnailUrl" [alt]="'Miniatura de ' + episodeTitle" class="episode-thumbnail">
+              <div class="thumbnail-overlay">
+                <span class="thumbnail-zoom-icon"></span>
+              </div>
+            </div>
+          </ng-container>
+          <ng-template #noImagePlaceholder>
+            <div class="placeholder-panel">
+              <p>Este episodio no tiene imagen asignada.</p>
+            </div>
+          </ng-template>
         </div>
+        <!-- ========================================================== -->
       </div>
       <div class="panel episode-objects-panel">
         <div class="panel-header">Objetos del Episodio</div>
@@ -177,7 +192,6 @@
   </aside>
   
   <footer class="bottom-properties">
-    <!-- El contenido de los paneles inferiores no ha cambiado -->
     <div class="bottom-tabs-header">
       <button class="bottom-tab-button" [class.active]="activePropertiesTab==='object'"
         (click)="selectPropertiesTab('object')" [disabled]="!selectedObject">Transformación</button>
@@ -208,7 +222,6 @@
   </footer>
   
   <div class="bottom-description">
-    <!-- El contenido del panel de descripción no ha cambiado -->
     <div class="panel">
       <div class="panel-header">Descripción del Objeto</div>
       <div class="panel-content">
