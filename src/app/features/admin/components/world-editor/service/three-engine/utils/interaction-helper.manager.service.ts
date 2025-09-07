@@ -66,7 +66,7 @@ export class InteractionHelperManagerService {
     this.centerPivotHelper.layers.set(HELPER_LAYER);
     this.centerPivotHelper.traverse(child => child.layers.set(HELPER_LAYER));
 
-    this.axesHelper = new THREE.AxesHelper(1.0); // Tamaño base 1
+    this.axesHelper = new THREE.AxesHelper(10.0); // Tamaño base 1
     (this.axesHelper.material as THREE.LineBasicMaterial).depthTest = false;
     (this.axesHelper.material as THREE.LineBasicMaterial).transparent = true;
     (this.axesHelper.material as THREE.LineBasicMaterial).opacity = 0.8;
@@ -75,7 +75,7 @@ export class InteractionHelperManagerService {
 
     // 2. ✅ ¡NUEVO! Creamos la esfera amarilla (pivotPoint) como un objeto separado.
     // Esto nos permite controlar su escala y posición de forma independiente.
-    const sphereGeo = new THREE.SphereGeometry(1, 16, 16); // Geometría con radio 1
+    const sphereGeo = new THREE.SphereGeometry(5, 16, 16); // Geometría con radio 1
     const sphereMat = new THREE.MeshBasicMaterial({ 
         color: 0xffff00, 
         depthTest: false, 
