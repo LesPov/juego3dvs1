@@ -18,9 +18,9 @@ const BASE_VISIBILITY_DISTANCE = 100000000000;
 const MAX_PERCEPTUAL_DISTANCE = 1000000000000;
 const DEEP_SPACE_SCALE_BOOST = 10.0;
 const ORTHO_ZOOM_VISIBILITY_MULTIPLIER = 5.0;
-const ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR = 12.0; 
-const BRIGHTNESS_MULTIPLIER = 1.0; 
-const MAX_INTENSITY = 4.0; 
+const ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR = 12.0;
+const BRIGHTNESS_MULTIPLIER = 1.0;
+const MAX_INTENSITY = 4.0;
 const BRIGHTNESS_FALLOFF_START_DISTANCE = 50_000_000;
 const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
 
@@ -75,14 +75,10 @@ export class EngineService implements OnDestroy {
     this.isFlyModeActive$ = this.controlsManager.isFlyModeActive$;
   }
 
-  // 💡 LÓGICA CORREGIDA Y MEJORADA
   public onWindowResize = () => {
     this.sceneManager.onWindowResize();
     this.interactionHelperManager.updateScale();
-    
-    // ✅ MEJORA: Soluciona el problema de la pantalla negra en modo 2D al maximizar.
-    // Si estamos en modo ortográfico, debemos recalcular la vista con las nuevas dimensiones del canvas.
-    // Usamos el último estado guardado para mantener la misma vista (eje y posición).
+
     if (this.cameraModeSubject.getValue() === 'orthographic' && this.lastOrthographicState) {
       this.setCameraView(null, this.lastOrthographicState);
     }
