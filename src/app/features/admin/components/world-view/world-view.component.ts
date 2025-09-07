@@ -16,7 +16,7 @@ import { SceneObjectResponse, AdminService, PaginatedEpisodeResponse } from '../
 import { BrujulaComponent } from '../world-editor/brujula/brujula.component';
 import { EngineService } from '../world-editor/service/three-engine/engine.service';
 import { environment } from '../../../../../environments/environment';
- 
+
 export interface EntityGroup {
   type: string;
   visibleEntities: SceneEntity[];
@@ -42,7 +42,7 @@ export interface SceneTab {
 })
 export class WorldViewComponent implements OnInit, OnDestroy {
   public episodeId?: number;
-  public isLoadingData = true; 
+  public isLoadingData = true;
   public isRenderingScene = false;
   public loadingProgress = 0;
   public errorMessage: string | null = null;
@@ -98,7 +98,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     this.isFlyModeActive$ = this.engineService.isFlyModeActive$;
     // Se ha refactorizado la lógica del pipe a una función privada para mayor claridad
     this.displayGroups$ = combineLatest([
-      this.allEntities$, 
+      this.allEntities$,
       this.searchFilter$.pipe(debounceTime(200), startWith(''))
     ]).pipe(
       map(([allEntities, filter]) => this.processEntities(allEntities, filter))
@@ -125,9 +125,9 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   private processEntities(allEntities: SceneEntity[], filter: string): EntityGroup[] {
     const searchTerm = filter.trim().toLowerCase();
     const filteredEntities = searchTerm ? allEntities.filter(e => e.name.toLowerCase().includes(searchTerm)) : allEntities;
-    
+
     this.totalFilteredEntityCount = filteredEntities.length;
-    
+
     const groups: { [key: string]: SceneEntity[] } = filteredEntities.reduce((acc, entity) => {
       const type = entity.type || 'unknown';
       (acc[type] = acc[type] || []).push(entity);
@@ -137,12 +137,12 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     return Object.keys(groups).sort().map(type => {
       const allGroupEntities = groups[type];
       const totalCount = allGroupEntities.length;
-      
+
       // Inicializar estados si no existen
       if (this.groupExpansionState.get(type) === undefined) this.groupExpansionState.set(type, false);
       if (this.groupVisibilityState.get(type) === undefined) this.groupVisibilityState.set(type, true);
       if (this.groupBrightnessState.get(type) === undefined) this.groupBrightnessState.set(type, 1.0);
-      
+
       const isExpanded = this.groupExpansionState.get(type)!;
       const displayCount = this.groupDisplayCountState.get(type) || this.listIncrement;
       const visibleEntities = allGroupEntities.slice(0, displayCount);
@@ -180,7 +180,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     if (panel === 'left') this.layoutState.leftVisible = !this.layoutState.leftVisible;
     if (panel === 'right') this.layoutState.rightVisible = !this.layoutState.rightVisible;
     if (panel === 'bottom') this.layoutState.bottomVisible = !this.layoutState.bottomVisible;
-    
+
     if (this.layoutState.leftVisible && this.layoutState.rightVisible && this.layoutState.bottomVisible) {
       this.layoutState.isMaximized = false;
     }
@@ -189,25 +189,25 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   selectScene(sceneId: number): void { if (this.activeSceneId === sceneId) return; this.activeSceneId = sceneId; this.sceneTabs.forEach(tab => tab.isActive = tab.id === sceneId); console.log(`Cambiando a escena ID: ${sceneId}`); }
   addScene(): void { const newScene: SceneTab = { id: this.nextSceneId, name: `Escena ${this.nextSceneId}`, isActive: false }; this.sceneTabs.push(newScene); this.nextSceneId++; this.selectScene(newScene.id); }
 
-  loadEpisodeData(id: number): void { 
+  loadEpisodeData(id: number): void {
     this.isLoadingData = true;
     this.adminService.getEpisodeForEditor(id).subscribe({
-      next: (response: PaginatedEpisodeResponse) => { 
-        this.episodeTitle = response.episode.title; 
+      next: (response: PaginatedEpisodeResponse) => {
+        this.episodeTitle = response.episode.title;
         this.episodeThumbnailUrl = this.buildFullThumbnailUrl(response.episode.thumbnailUrl);
-        this.sceneObjects = response.sceneObjects || []; 
+        this.sceneObjects = response.sceneObjects || [];
         this.isLoadingData = false;
-        this.isRenderingScene = true; 
-        if (!this.sceneObjects.some(o => o.type === 'model' && o.asset?.path)) { 
-          this.simulateLoadingProgress(); 
-        } 
-      }, 
-      error: (err) => { 
-        this.errorMessage = "Error al cargar los datos del episodio."; 
-        this.isLoadingData = false; 
-        console.error(err); 
-      } 
-    }); 
+        this.isRenderingScene = true;
+        if (!this.sceneObjects.some(o => o.type === 'model' && o.asset?.path)) {
+          this.simulateLoadingProgress();
+        }
+      },
+      error: (err) => {
+        this.errorMessage = "Error al cargar los datos del episodio.";
+        this.isLoadingData = false;
+        console.error(err);
+      }
+    });
   }
 
   private buildFullThumbnailUrl(relativePath: string | null): string | null {

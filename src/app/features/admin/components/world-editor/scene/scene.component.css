@@ -1,4 +1,3 @@
-/* RUTA: src/app/features/admin/views/world-editor/world-editor/scene/scene.component.css */
 :host {
     display: block;
     /* Ocupa todo el espacio que su contenedor padre le da */
@@ -7,7 +6,7 @@
     overflow: hidden; /* Evita barras de scroll inesperadas */
 }
 
-/* El canvas y su contenedor deben llenar el componente host */
+/* El contenedor y el canvas deben llenar el componente host para que el ResizeObserver funcione correctamente. */
 .scene-container,
 canvas {
     width: 100%;

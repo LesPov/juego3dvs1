@@ -1,5 +1,3 @@
-// src/app/features/admin/components/world-editor/service/three-engine/engine.service.ts
-
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
@@ -209,7 +207,7 @@ export class EngineService implements OnDestroy {
         target: controls.target.clone()
       };
       
-      // ✅ SOLUCIÓN: Cambiado a 'axis-z' para que la vista por defecto sea desde Z positivo hacia Z negativo.
+      // ✅ MEJORA: Cambiado a 'axis-z' para que la vista por defecto sea frontal, más útil en edición.
       this.setCameraView('axis-z');
       
     } else {

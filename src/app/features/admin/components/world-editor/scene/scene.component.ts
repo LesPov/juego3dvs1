@@ -1,5 +1,3 @@
-// RUTA: src/app/features/admin/views/world-editor/world-editor/scene/scene.component.ts
-
 import { AfterViewInit, Component, ElementRef, Input, Output, EventEmitter, OnDestroy, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SceneObjectResponse } from '../../../services/admin.service';
@@ -19,7 +17,7 @@ export class SceneComponent implements AfterViewInit, OnDestroy {
   @Output() loadingProgress = new EventEmitter<number>();
   @Output() loadingComplete = new EventEmitter<void>();
 
-  // ✅ NUEVO: Declaramos el ResizeObserver
+  // ✅ NUEVO: Declaramos la propiedad para el ResizeObserver.
   private resizeObserver!: ResizeObserver;
 
   constructor(private engineService: EngineService) {}
@@ -33,7 +31,8 @@ export class SceneComponent implements AfterViewInit, OnDestroy {
     this.engineService.init(this.canvasRef);
     console.log('[SceneComponent] El motor 3D ha sido inicializado.');
 
-    // ✅ NUEVO: Configuramos el ResizeObserver después de inicializar el motor
+    // ✅ SOLUCIÓN: Configuramos el ResizeObserver después de inicializar el motor.
+    // Esto es lo que resolverá el lag al maximizar/minimizar.
     this.setupResizeObserver();
 
     if (this.initialObjects && this.initialObjects.length > 0) {
@@ -47,14 +46,15 @@ export class SceneComponent implements AfterViewInit, OnDestroy {
     }
   }
   
-  // ✅ NUEVO: Método para configurar el observador
+  // ✅ NUEVO: Método para configurar el observador.
   private setupResizeObserver(): void {
+    // Observamos el elemento PADRE del canvas, que es el que cambia de tamaño por el CSS Grid.
     const container = this.canvasRef.nativeElement.parentElement;
     if (!container) return;
 
     this.resizeObserver = new ResizeObserver(() => {
       // Cada vez que el contenedor cambie de tamaño, llamamos al redimensionador del motor.
-      // ¡Esto es lo que hace la transición suave!
+      // ¡Esto es lo que hace la transición suave y mantiene los FPS altos!
       this.engineService.onWindowResize();
     });
 
@@ -65,7 +65,8 @@ export class SceneComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     console.log('[SceneComponent] Destruyendo la instancia del motor 3D.');
     
-    // ✅ NUEVO: Es muy importante desconectar el observador para evitar fugas de memoria.
+    // ✅ NUEVO: Es MUY importante desconectar el observador al destruir el componente
+    // para evitar fugas de memoria.
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
     }
