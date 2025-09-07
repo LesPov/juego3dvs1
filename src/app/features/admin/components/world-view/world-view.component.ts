@@ -53,7 +53,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   public selectedEntityUuid: string | null = null;
   public selectedObject: SceneObjectResponse | null = null;
   public isAddObjectModalVisible = false;
-  public activePropertiesTab: string = 'scene';
+  public activePropertiesTab: string = 'object'; // Default to object properties
   public isMobileSidebarVisible = false;
   public axisLock$: Observable<'x' | 'y' | 'z' | null>;
   public isFlyModeActive$: Observable<boolean>;
@@ -65,15 +65,13 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   public activeSceneId: number = 1;
   private nextSceneId: number = 2;
 
-  // ===== NUEVA PROPIEDAD PARA EL MODAL DE LA IMAGEN =====
   public isImageModalVisible = false;
-  // =======================================================
 
   public layoutState = {
     isMaximized: false,
     leftVisible: true,
     rightVisible: true,
-    bottomVisible: true
+    bottomVisible: true // Ahora controla el footer de descripción
   };
 
   private groupExpansionState = new Map<string, boolean>();
@@ -98,7 +96,13 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   ) {
     this.axisLock$ = this.engineService.axisLockState$;
     this.isFlyModeActive$ = this.engineService.isFlyModeActive$;
-    this.displayGroups$ = combineLatest([this.allEntities$, this.searchFilter$.pipe(debounceTime(200), startWith(''))]).pipe(map(([allEntities, filter]) => { const searchTerm = filter.trim().toLowerCase(); const filteredEntities = searchTerm ? allEntities.filter(e => e.name.toLowerCase().includes(searchTerm)) : allEntities; this.totalFilteredEntityCount = filteredEntities.length; const groups: { [key: string]: SceneEntity[] } = filteredEntities.reduce((acc, entity) => { const type = entity.type || 'unknown'; (acc[type] = acc[type] || []).push(entity); return acc; }, {} as { [key: string]: SceneEntity[] }); return Object.keys(groups).sort().map(type => { const allGroupEntities = groups[type]; const totalCount = allGroupEntities.length; if (this.groupExpansionState.get(type) === undefined) this.groupExpansionState.set(type, false); if (this.groupVisibilityState.get(type) === undefined) this.groupVisibilityState.set(type, true); if (this.groupBrightnessState.get(type) === undefined) this.groupBrightnessState.set(type, 1.0); const isExpanded = this.groupExpansionState.get(type)!; const displayCount = this.groupDisplayCountState.get(type) || this.listIncrement; const visibleEntities = allGroupEntities.slice(0, displayCount); return { type: type, visibleEntities: visibleEntities, isExpanded: isExpanded, totalCount: totalCount, isGroupVisible: this.groupVisibilityState.get(type)!, brightness: this.groupBrightnessState.get(type)!, }; }); }));
+    // Se ha refactorizado la lógica del pipe a una función privada para mayor claridad
+    this.displayGroups$ = combineLatest([
+      this.allEntities$, 
+      this.searchFilter$.pipe(debounceTime(200), startWith(''))
+    ]).pipe(
+      map(([allEntities, filter]) => this.processEntities(allEntities, filter))
+    );
   }
 
   ngOnInit(): void {
@@ -118,7 +122,42 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     this.brightnessUpdate$.complete();
   }
 
-  // ===== NUEVOS MÉTODOS PARA MANEJAR EL MODAL DE IMAGEN =====
+  private processEntities(allEntities: SceneEntity[], filter: string): EntityGroup[] {
+    const searchTerm = filter.trim().toLowerCase();
+    const filteredEntities = searchTerm ? allEntities.filter(e => e.name.toLowerCase().includes(searchTerm)) : allEntities;
+    
+    this.totalFilteredEntityCount = filteredEntities.length;
+    
+    const groups: { [key: string]: SceneEntity[] } = filteredEntities.reduce((acc, entity) => {
+      const type = entity.type || 'unknown';
+      (acc[type] = acc[type] || []).push(entity);
+      return acc;
+    }, {} as { [key: string]: SceneEntity[] });
+
+    return Object.keys(groups).sort().map(type => {
+      const allGroupEntities = groups[type];
+      const totalCount = allGroupEntities.length;
+      
+      // Inicializar estados si no existen
+      if (this.groupExpansionState.get(type) === undefined) this.groupExpansionState.set(type, false);
+      if (this.groupVisibilityState.get(type) === undefined) this.groupVisibilityState.set(type, true);
+      if (this.groupBrightnessState.get(type) === undefined) this.groupBrightnessState.set(type, 1.0);
+      
+      const isExpanded = this.groupExpansionState.get(type)!;
+      const displayCount = this.groupDisplayCountState.get(type) || this.listIncrement;
+      const visibleEntities = allGroupEntities.slice(0, displayCount);
+
+      return {
+        type: type,
+        visibleEntities: visibleEntities,
+        isExpanded: isExpanded,
+        totalCount: totalCount,
+        isGroupVisible: this.groupVisibilityState.get(type)!,
+        brightness: this.groupBrightnessState.get(type)!,
+      };
+    });
+  }
+
   openImageModal(): void {
     if (this.episodeThumbnailUrl) {
       this.isImageModalVisible = true;
@@ -128,7 +167,6 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   closeImageModal(): void {
     this.isImageModalVisible = false;
   }
-  // ==========================================================
 
   onMaximizeToggle(): void {
     this.layoutState.isMaximized = !this.layoutState.isMaximized;

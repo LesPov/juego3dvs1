@@ -1,13 +1,12 @@
 <!-- world-view.component.html -->
 
-<!-- ===== NUEVO: Visor de Imagen a pantalla completa (Lightbox) ===== -->
+<!-- Visor de Imagen a pantalla completa (Lightbox) -->
 <div *ngIf="isImageModalVisible" class="image-modal-overlay" (click)="closeImageModal()">
   <div class="image-modal-content" (click)="$event.stopPropagation()">
     <img [src]="episodeThumbnailUrl" [alt]="'Vista ampliada de ' + episodeTitle" class="image-modal-image">
     <button class="image-modal-close" (click)="closeImageModal()" title="Cerrar">&times;</button>
   </div>
 </div>
-<!-- =================================================================== -->
 
 <div *ngIf="isLoadingData" class="preloader-overlay">
   <div class="preloader-content">
@@ -31,7 +30,12 @@
     </div>
   </header>
   
+  <!-- ========================================================== -->
+  <!-- INICIO: CAMBIOS EN LA BARRA LATERAL IZQUIERDA              -->
+  <!-- ========================================================== -->
   <aside class="left-sidebar">
+    
+    <!-- 1. Panel de la lista de objetos (como antes) -->
     <div class="panel scene-list-panel">
       <div class="panel-header">Lista de Objetos</div>
       <div class="search-bar-container">
@@ -94,8 +98,42 @@
         </ul>
       </div>
     </div>
+
+    <!-- 2. Panel de propiedades (MOVIDO AQUÍ) -->
+    <div class="properties-panel-container">
+      <div class="bottom-tabs-header">
+        <button class="bottom-tab-button" [class.active]="activePropertiesTab==='object'"
+          (click)="selectPropertiesTab('object')" [disabled]="!selectedObject">Transformación</button>
+        <button class="bottom-tab-button" [class.active]="activePropertiesTab==='scene'"
+          (click)="selectPropertiesTab('scene')">Render</button>
+        <button class="bottom-tab-button" [class.active]="activePropertiesTab==='world'"
+          (click)="selectPropertiesTab('world')">Ajustes</button>
+      </div>
+      <div class="bottom-tabs-content">
+        <ng-container [ngSwitch]="activePropertiesTab">
+          <ng-container *ngSwitchCase="'object'">
+            <app-properties-panel [selectedObject]="selectedObject" (objectUpdate)="handleObjectUpdate($event)">
+            </app-properties-panel>
+            <div *ngIf="!selectedObject" class="placeholder-panel">
+              <h2>Propiedades del Objeto</h2>
+              <p>Selecciona un objeto para ver sus transformaciones y propiedades.</p>
+            </div>
+          </ng-container>
+          <ng-container *ngSwitchCase="'scene'">
+            <app-scene-settings-panel></app-scene-settings-panel>
+          </ng-container>
+          <div *ngSwitchDefault class="placeholder-panel">
+            <h2>{{ activePropertiesTab | titlecase }}</h2>
+            <p>Contenido de la pestaña {{ activePropertiesTab }}.</p>
+          </div>
+        </ng-container>
+      </div>
+    </div>
   </aside>
-  
+  <!-- ========================================================== -->
+  <!-- FIN: CAMBIOS EN LA BARRA LATERAL IZQUIERDA                 -->
+  <!-- ========================================================== -->
+
   <main class="main-viewport">
     <div class="scene-container-header">
       <div class="scene-tabs-container">
@@ -150,37 +188,40 @@
     </div>
   </main>
   
+  <!-- ========================================================== -->
+  <!-- INICIO: CAMBIOS EN LA BARRA LATERAL DERECHA                -->
+  <!-- ========================================================== -->
   <aside class="right-sidebar">
-    <div class="right-sidebar-top-group">
-      <div class="panel episode-image-panel">
-        <div class="panel-header">Imagen del Episodio</div>
-        <!-- ===== LÓGICA MODIFICADA PARA LA IMAGEN INTERACTIVA ===== -->
-        <div class="panel-content image-panel-content">
-          <ng-container *ngIf="episodeThumbnailUrl; else noImagePlaceholder">
-            <div class="thumbnail-container" (click)="openImageModal()" title="Ampliar imagen">
-              <img [src]="episodeThumbnailUrl" [alt]="'Miniatura de ' + episodeTitle" class="episode-thumbnail">
-              <div class="thumbnail-overlay">
-                <span class="thumbnail-zoom-icon"></span>
-              </div>
+    <!-- El div "right-sidebar-top-group" se ha eliminado -->
+    <!-- Ahora los 3 paneles son hijos directos y se apilan solos -->
+    <div class="panel episode-image-panel">
+      <div class="panel-header">Imagen del Episodio</div>
+      <div class="panel-content image-panel-content">
+        <ng-container *ngIf="episodeThumbnailUrl; else noImagePlaceholder">
+          <div class="thumbnail-container" (click)="openImageModal()" title="Ampliar imagen">
+            <img [src]="episodeThumbnailUrl" [alt]="'Miniatura de ' + episodeTitle" class="episode-thumbnail">
+            <div class="thumbnail-overlay">
+              <span class="thumbnail-zoom-icon"></span>
             </div>
-          </ng-container>
-          <ng-template #noImagePlaceholder>
-            <div class="placeholder-panel">
-              <p>Este episodio no tiene imagen asignada.</p>
-            </div>
-          </ng-template>
-        </div>
-        <!-- ========================================================== -->
-      </div>
-      <div class="panel episode-objects-panel">
-        <div class="panel-header">Objetos del Episodio</div>
-        <div class="panel-content">
-          <div class="placeholder-panel">
-            <p>Lista de objetos/assets disponibles.</p>
           </div>
+        </ng-container>
+        <ng-template #noImagePlaceholder>
+          <div class="placeholder-panel">
+            <p>Este episodio no tiene imagen asignada.</p>
+          </div>
+        </ng-template>
+      </div>
+    </div>
+    
+    <div class="panel episode-objects-panel">
+      <div class="panel-header">Objetos del Episodio</div>
+      <div class="panel-content">
+        <div class="placeholder-panel">
+          <p>Lista de objetos/assets disponibles.</p>
         </div>
       </div>
     </div>
+  
     <div class="panel fps-panel">
       <div class="panel-header">Rendimiento</div>
       <div class="panel-content">
@@ -190,38 +231,14 @@
       </div>
     </div>
   </aside>
-  
-  <footer class="bottom-properties">
-    <div class="bottom-tabs-header">
-      <button class="bottom-tab-button" [class.active]="activePropertiesTab==='object'"
-        (click)="selectPropertiesTab('object')" [disabled]="!selectedObject">Transformación</button>
-      <button class="bottom-tab-button" [class.active]="activePropertiesTab==='scene'"
-        (click)="selectPropertiesTab('scene')">Render</button>
-      <button class="bottom-tab-button" [class.active]="activePropertiesTab==='world'"
-        (click)="selectPropertiesTab('world')">Ajustes</button>
-    </div>
-    <div class="bottom-tabs-content">
-      <ng-container [ngSwitch]="activePropertiesTab">
-        <ng-container *ngSwitchCase="'object'">
-          <app-properties-panel [selectedObject]="selectedObject" (objectUpdate)="handleObjectUpdate($event)">
-          </app-properties-panel>
-          <div *ngIf="!selectedObject" class="placeholder-panel">
-            <h2>Propiedades del Objeto</h2>
-            <p>Selecciona un objeto para ver sus transformaciones y propiedades.</p>
-          </div>
-        </ng-container>
-        <ng-container *ngSwitchCase="'scene'">
-          <app-scene-settings-panel></app-scene-settings-panel>
-        </ng-container>
-        <div *ngSwitchDefault class="placeholder-panel">
-          <h2>{{ activePropertiesTab | titlecase }}</h2>
-          <p>Contenido de la pestaña {{ activePropertiesTab }}.</p>
-        </div>
-      </ng-container>
-    </div>
-  </footer>
-  
-  <div class="bottom-description">
+  <!-- ========================================================== -->
+  <!-- FIN: CAMBIOS EN LA BARRA LATERAL DERECHA                   -->
+  <!-- ========================================================== -->
+
+  <!-- ========================================================== -->
+  <!-- INICIO: CAMBIOS EN EL FOOTER                               -->
+  <!-- ========================================================== -->
+  <footer class="editor-footer">
     <div class="panel">
       <div class="panel-header">Descripción del Objeto</div>
       <div class="panel-content">
@@ -235,7 +252,10 @@
         </ng-template>
       </div>
     </div>
-  </div>
+  </footer>
+  <!-- ========================================================== -->
+  <!-- FIN: CAMBIOS EN EL FOOTER                                  -->
+  <!-- ========================================================== -->
   
   <button class="panel-toggle-tab left" *ngIf="!layoutState.leftVisible" (click)="togglePanelVisibility('left')" title="Mostrar panel izquierdo">
     <span>&#9654;</span>
@@ -243,7 +263,7 @@
   <button class="panel-toggle-tab right" *ngIf="!layoutState.rightVisible" (click)="togglePanelVisibility('right')" title="Mostrar panel derecho">
     <span>&#9664;</span>
   </button>
-  <button class="panel-toggle-tab bottom" *ngIf="!layoutState.bottomVisible" (click)="togglePanelVisibility('bottom')" title="Mostrar paneles inferiores">
+  <button class="panel-toggle-tab bottom" *ngIf="!layoutState.bottomVisible" (click)="togglePanelVisibility('bottom')" title="Mostrar panel inferior">
     <span>&#9650;</span>
   </button>
 </div>
