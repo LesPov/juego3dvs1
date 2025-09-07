@@ -98,7 +98,7 @@ export class ObjectManagerService {
 
   private _createDefaultGlowInstancedMesh(scene: THREE.Scene, objectsData: SceneObjectResponse[]): void {
       // Usamos CircleGeometry para asegurar que el brillo sea siempre redondo y no un cuadrado
-      const geometry = new THREE.CircleGeometry(4.0, 32); 
+      const geometry = new THREE.CircleGeometry(5.0, 32); 
       const material = new THREE.MeshBasicMaterial({
         map: this._createGlowTexture(),
         transparent: true,
