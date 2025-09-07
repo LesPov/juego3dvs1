@@ -57,7 +57,7 @@ export class SceneManagerService {
     // strength: Qué tan intenso es el brillo. (Ej: 1.2)
     // radius: Qué tan difuminado es el brillo. (Ej: 0.6)
     // threshold: Qué tan brillante debe ser un píxel para empezar a "brillar". Un valor más bajo hace que más cosas brillen. (Ej: 0.1)
-    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 5.2, 0.6, 0.1);
+    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 2.5, 0.6, 0.1);
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(renderPass);

@@ -66,7 +66,7 @@ export class InteractionHelperManagerService {
     this.centerPivotHelper.layers.set(HELPER_LAYER);
     this.centerPivotHelper.traverse(child => child.layers.set(HELPER_LAYER));
 
-    this.axesHelper = new THREE.AxesHelper(10.0); // Tamaño base 1
+    this.axesHelper = new THREE.AxesHelper(5.0); // Tamaño base 1
     (this.axesHelper.material as THREE.LineBasicMaterial).depthTest = false;
     (this.axesHelper.material as THREE.LineBasicMaterial).transparent = true;
     (this.axesHelper.material as THREE.LineBasicMaterial).opacity = 0.8;
