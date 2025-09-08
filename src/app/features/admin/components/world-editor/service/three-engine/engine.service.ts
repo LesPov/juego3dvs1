@@ -13,15 +13,15 @@ import { InteractionHelperManagerService } from './utils/interaction-helper.mana
 import { DragInteractionManagerService } from './utils/drag-interaction.manager.service';
 import { CelestialInstanceData } from './utils/object-manager.service';
 
-const INSTANCES_TO_CHECK_PER_FRAME = 200000;
-const BASE_VISIBILITY_DISTANCE = 100000000000;
-const MAX_PERCEPTUAL_DISTANCE = 1000000000000;
+const INSTANCES_TO_CHECK_PER_FRAME = 20000000;
+const BASE_VISIBILITY_DISTANCE = 1000000000000;
+const MAX_PERCEPTUAL_DISTANCE = 10000000000000;
 const DEEP_SPACE_SCALE_BOOST = 10.0;
 const ORTHO_ZOOM_VISIBILITY_MULTIPLIER = 5.0;
 const ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR = 12.0;
 const BRIGHTNESS_MULTIPLIER = 1.0;
-const MAX_INTENSITY = 4.0;
-const BRIGHTNESS_FALLOFF_START_DISTANCE = 50_000_000;
+const MAX_INTENSITY = 6.0;
+const BRIGHTNESS_FALLOFF_START_DISTANCE = 500_000_000;
 const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
 
 export type CameraMode = 'perspective' | 'orthographic';

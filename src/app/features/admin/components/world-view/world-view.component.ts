@@ -166,7 +166,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
           };
           img.src = this.episodeThumbnailUrl;
         } else {
-            this.isThumbnailLoaded = true;
+          this.isThumbnailLoaded = true;
         }
 
         this.sceneObjects = response.sceneObjects || [];

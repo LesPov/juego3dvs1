@@ -14,30 +14,36 @@
 /* === ESTRUCTURA DE LAYOUT CON GRID ADAPTATIVO Y FLUIDO === */
 /* ========================================================= */
 .editor-layout {
-  width: 100%; height: 100%; display: grid; padding: 8px; gap: 8px; box-sizing: border-box;
   
-  --left-col-width: 320px;
-  --right-col-width: 280px;
-  --bottom-row-height: 120px;
-  
-  grid-template-columns: var(--left-col-width) 1fr var(--right-col-width);
-  grid-template-rows: 50px repeat(10, 1fr) var(--bottom-row-height);
-
-  transition: grid-template-columns 0.35s ease, grid-template-rows 0.35s ease;
+    width: 100%;
+    height: 100%;
+    display: grid
+;
+    padding: 8px;
+    gap: 8px;
+    box-sizing: border-box;
+    --left-col-width: 320px;
+    --right-col-width: 280px;
+    --bottom-row-height: 120px;
+    grid-template-columns: var(--left-col-width) repeat(5, 1fr) var(--right-col-width);
+    grid-template-rows: 50px repeat(10, 1fr) var(--bottom-row-height);
+    transition: grid-template-columns 0.35s 
+ease, grid-template-rows 0.35s 
+ease;
 }
 
 .editor-layout.left-collapsed { --left-col-width: 0px; }
 .editor-layout.right-collapsed { --right-col-width: 0px; }
 .editor-layout.bottom-collapsed { --bottom-row-height: 0px; }
 
-.p-header           { grid-area: 1 / 1 / 2 / 4; }
-.p-viewport         { grid-area: 2 / 2 / 12 / 3; z-index: 10; }
+.p-header           { grid-area: 1 / 1 / 2 / 8; }
+.p-viewport         { grid-area: 2 / 2 / 12 / 7; z-index: 10; }
 .p-scene-list       { grid-area: 2 / 1 / 7 / 2; }
 .p-properties       { grid-area: 7 / 1 / 12 / 2; }
-.p-episode-image    { grid-area: 2 / 3 / 5 / 4; }
-.p-episode-assets   { grid-area: 5 / 3 / 10 / 4; }
-.p-performance      { grid-area: 10 / 3 / 12 / 4; }
-.p-description      { grid-area: 12 / 1 / 13 / 4; }
+.p-episode-image    { grid-area: 2 / 7 / 5 / 8; }
+.p-episode-assets   { grid-area: 5 / 7 / 10 / 8; }
+.p-performance      { grid-area: 10 / 7 / 12 / 8; }
+.p-description      { grid-area: 12 / 1 / 13 / 8; }
 
 /* === PANELES Y ANIMACIÓN DE OCULTAR === */
 .panel {
