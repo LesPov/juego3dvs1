@@ -50,11 +50,11 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   public allEntities: SceneEntity[] = [];
   public episodeTitle = '';
   public episodeThumbnailUrl: string | null = null;
+  public isThumbnailLoaded = false;
   public selectedEntityUuid: string | null = null;
   public selectedObject: SceneObjectResponse | null = null;
   public isAddObjectModalVisible = false;
-  public activePropertiesTab: string = 'object'; // Default to object properties
-  public isMobileSidebarVisible = false;
+  public activePropertiesTab: string = 'object';
   public axisLock$: Observable<'x' | 'y' | 'z' | null>;
   public isFlyModeActive$: Observable<boolean>;
   public displayGroups$: Observable<EntityGroup[]>;
@@ -64,14 +64,16 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   public sceneTabs: SceneTab[] = [];
   public activeSceneId: number = 1;
   private nextSceneId: number = 2;
-
   public isImageModalVisible = false;
 
   public layoutState = {
     isMaximized: false,
-    leftVisible: true,
-    rightVisible: true,
-    bottomVisible: true // Ahora controla el footer de descripción
+    sceneListVisible: true,
+    propertiesVisible: true,
+    imageVisible: true,
+    assetsVisible: true,
+    performanceVisible: true,
+    descriptionVisible: true
   };
 
   private groupExpansionState = new Map<string, boolean>();
@@ -96,7 +98,6 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   ) {
     this.axisLock$ = this.engineService.axisLockState$;
     this.isFlyModeActive$ = this.engineService.isFlyModeActive$;
-    // Se ha refactorizado la lógica del pipe a una función privada para mayor claridad
     this.displayGroups$ = combineLatest([
       this.allEntities$,
       this.searchFilter$.pipe(debounceTime(200), startWith(''))
@@ -122,79 +123,52 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     this.brightnessUpdate$.complete();
   }
 
-  private processEntities(allEntities: SceneEntity[], filter: string): EntityGroup[] {
-    const searchTerm = filter.trim().toLowerCase();
-    const filteredEntities = searchTerm ? allEntities.filter(e => e.name.toLowerCase().includes(searchTerm)) : allEntities;
+  onMaximizeToggle(): void {
+    const goingToMaximized = !this.layoutState.isMaximized;
 
-    this.totalFilteredEntityCount = filteredEntities.length;
+    if (goingToMaximized) {
+      this.layoutState.isMaximized = true;
+    } else {
+      this.layoutState.sceneListVisible = true;
+      this.layoutState.propertiesVisible = true;
+      this.layoutState.imageVisible = true;
+      this.layoutState.assetsVisible = true;
+      this.layoutState.performanceVisible = true;
+      this.layoutState.descriptionVisible = true;
 
-    const groups: { [key: string]: SceneEntity[] } = filteredEntities.reduce((acc, entity) => {
-      const type = entity.type || 'unknown';
-      (acc[type] = acc[type] || []).push(entity);
-      return acc;
-    }, {} as { [key: string]: SceneEntity[] });
-
-    return Object.keys(groups).sort().map(type => {
-      const allGroupEntities = groups[type];
-      const totalCount = allGroupEntities.length;
-
-      // Inicializar estados si no existen
-      if (this.groupExpansionState.get(type) === undefined) this.groupExpansionState.set(type, false);
-      if (this.groupVisibilityState.get(type) === undefined) this.groupVisibilityState.set(type, true);
-      if (this.groupBrightnessState.get(type) === undefined) this.groupBrightnessState.set(type, 1.0);
-
-      const isExpanded = this.groupExpansionState.get(type)!;
-      const displayCount = this.groupDisplayCountState.get(type) || this.listIncrement;
-      const visibleEntities = allGroupEntities.slice(0, displayCount);
-
-      return {
-        type: type,
-        visibleEntities: visibleEntities,
-        isExpanded: isExpanded,
-        totalCount: totalCount,
-        isGroupVisible: this.groupVisibilityState.get(type)!,
-        brightness: this.groupBrightnessState.get(type)!,
-      };
-    });
-  }
-
-  openImageModal(): void {
-    if (this.episodeThumbnailUrl) {
-      this.isImageModalVisible = true;
+      setTimeout(() => {
+        this.layoutState.isMaximized = false;
+        this.cdr.detectChanges();
+      }, 10);
     }
   }
 
-  closeImageModal(): void {
-    this.isImageModalVisible = false;
-  }
-
-  onMaximizeToggle(): void {
-    this.layoutState.isMaximized = !this.layoutState.isMaximized;
-    const shouldBeVisible = !this.layoutState.isMaximized;
-    this.layoutState.leftVisible = shouldBeVisible;
-    this.layoutState.rightVisible = shouldBeVisible;
-    this.layoutState.bottomVisible = shouldBeVisible;
-  }
-
-  togglePanelVisibility(panel: 'left' | 'right' | 'bottom'): void {
-    if (panel === 'left') this.layoutState.leftVisible = !this.layoutState.leftVisible;
-    if (panel === 'right') this.layoutState.rightVisible = !this.layoutState.rightVisible;
-    if (panel === 'bottom') this.layoutState.bottomVisible = !this.layoutState.bottomVisible;
-
-    if (this.layoutState.leftVisible && this.layoutState.rightVisible && this.layoutState.bottomVisible) {
+  togglePanel(panel: keyof Omit<typeof this.layoutState, 'isMaximized'>): void {
+    this.layoutState[panel] = !this.layoutState[panel];
+    if (this.layoutState[panel] === true && this.layoutState.isMaximized) {
       this.layoutState.isMaximized = false;
     }
   }
 
-  selectScene(sceneId: number): void { if (this.activeSceneId === sceneId) return; this.activeSceneId = sceneId; this.sceneTabs.forEach(tab => tab.isActive = tab.id === sceneId); console.log(`Cambiando a escena ID: ${sceneId}`); }
-  addScene(): void { const newScene: SceneTab = { id: this.nextSceneId, name: `Escena ${this.nextSceneId}`, isActive: false }; this.sceneTabs.push(newScene); this.nextSceneId++; this.selectScene(newScene.id); }
-
   loadEpisodeData(id: number): void {
     this.isLoadingData = true;
     this.adminService.getEpisodeForEditor(id).subscribe({
-      next: (response: PaginatedEpisodeResponse) => {
+      next: (response) => {
         this.episodeTitle = response.episode.title;
         this.episodeThumbnailUrl = this.buildFullThumbnailUrl(response.episode.thumbnailUrl);
+
+        if (this.episodeThumbnailUrl) {
+          this.isThumbnailLoaded = false;
+          const img = new Image();
+          img.onload = () => {
+            this.isThumbnailLoaded = true;
+            this.cdr.detectChanges();
+          };
+          img.src = this.episodeThumbnailUrl;
+        } else {
+            this.isThumbnailLoaded = true;
+        }
+
         this.sceneObjects = response.sceneObjects || [];
         this.isLoadingData = false;
         this.isRenderingScene = true;
@@ -210,37 +184,113 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     });
   }
 
-  private buildFullThumbnailUrl(relativePath: string | null): string | null {
-    if (!relativePath) {
-      return null;
+  private processEntities(allEntities: SceneEntity[], filter: string): EntityGroup[] {
+    const searchTerm = filter.trim().toLowerCase();
+    const filteredEntities = searchTerm ? allEntities.filter(e => e.name.toLowerCase().includes(searchTerm)) : allEntities;
+    this.totalFilteredEntityCount = filteredEntities.length;
+    const groups: { [key: string]: SceneEntity[] } = filteredEntities.reduce((acc, entity) => {
+      const type = entity.type || 'unknown';
+      (acc[type] = acc[type] || []).push(entity);
+      return acc;
+    }, {} as { [key: string]: SceneEntity[] });
+
+    return Object.keys(groups).sort().map(type => {
+      const allGroupEntities = groups[type];
+      const totalCount = allGroupEntities.length;
+      if (this.groupExpansionState.get(type) === undefined) this.groupExpansionState.set(type, false);
+      if (this.groupVisibilityState.get(type) === undefined) this.groupVisibilityState.set(type, true);
+      if (this.groupBrightnessState.get(type) === undefined) this.groupBrightnessState.set(type, 1.0);
+      const isExpanded = this.groupExpansionState.get(type)!;
+      const displayCount = this.groupDisplayCountState.get(type) || this.listIncrement;
+      const visibleEntities = allGroupEntities.slice(0, displayCount);
+      return { type, visibleEntities, isExpanded, totalCount, isGroupVisible: this.groupVisibilityState.get(type)!, brightness: this.groupBrightnessState.get(type)! };
+    });
+  }
+
+  openImageModal(): void {
+    if (this.episodeThumbnailUrl) {
+      this.isImageModalVisible = true;
     }
-    const cleanEndpoint = environment.endpoint.endsWith('/')
-      ? environment.endpoint.slice(0, -1)
-      : environment.endpoint;
-    const cleanThumbnailPath = relativePath.startsWith('/')
-      ? relativePath.slice(1)
-      : relativePath;
+  }
+
+  closeImageModal(): void {
+    this.isImageModalVisible = false;
+  }
+
+  selectScene(sceneId: number): void {
+    if (this.activeSceneId === sceneId) return;
+    this.activeSceneId = sceneId;
+    this.sceneTabs.forEach(tab => tab.isActive = tab.id === sceneId);
+    console.log(`Cambiando a escena ID: ${sceneId}`);
+  }
+
+  addScene(): void {
+    const newScene: SceneTab = { id: this.nextSceneId, name: `Escena ${this.nextSceneId}`, isActive: false };
+    this.sceneTabs.push(newScene);
+    this.nextSceneId++;
+    this.selectScene(newScene.id);
+  }
+
+  private buildFullThumbnailUrl(relativePath: string | null): string | null {
+    if (!relativePath) return null;
+    const cleanEndpoint = environment.endpoint.endsWith('/') ? environment.endpoint.slice(0, -1) : environment.endpoint;
+    const cleanThumbnailPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
     return `${cleanEndpoint}/${cleanThumbnailPath}`;
   }
 
-  private setupSubscriptions(): void { const transformSub = this.engineService.onTransformEnd$.subscribe(() => this.handleTransformEnd()); const propertyUpdateSub = this.propertyUpdate$.pipe(debounceTime(500), switchMap(update => this.handlePropertySave(update))).subscribe({ error: err => console.error("[WorldView] Error al guardar propiedad:", err) }); const entitiesSub = this.engineService.getSceneEntities().pipe(map(engineEntities => { const sceneObjectMap = new Map<string, SceneObjectResponse>(); this.sceneObjects.forEach(obj => sceneObjectMap.set(obj.id.toString(), obj)); return engineEntities.map(entity => { const originalObject = sceneObjectMap.get(entity.uuid); return { ...entity, type: originalObject ? originalObject.type : entity.type }; }); })).subscribe((correctedEntities: SceneEntity[]) => { this.allEntities = correctedEntities; this.allEntities$.next(correctedEntities); }); const brightnessSub = this.brightnessUpdate$.pipe(debounceTime(150)).subscribe(({ groupType, brightness }) => { const entityUuidsInGroup = this.allEntities.filter(entity => entity.type === groupType).map(entity => entity.uuid); if (entityUuidsInGroup.length > 0) { this.engineService.setGroupBrightness(entityUuidsInGroup, brightness); } }); const cameraModeSub = this.engineService.cameraMode$.subscribe(mode => { if (mode === 'perspective') { let stateChanged = false; for (const key of this.groupBrightnessState.keys()) { if (this.groupBrightnessState.get(key) !== 1.0) { this.groupBrightnessState.set(key, 1.0); stateChanged = true; } } if (stateChanged) { this.allEntities$.next([...this.allEntities]); } } }); this.subscriptions.add(transformSub); this.subscriptions.add(propertyUpdateSub); this.subscriptions.add(entitiesSub); this.subscriptions.add(brightnessSub); this.subscriptions.add(cameraModeSub); }
+  private setupSubscriptions(): void {
+    const transformSub = this.engineService.onTransformEnd$.subscribe(() => this.handleTransformEnd());
+    const propertyUpdateSub = this.propertyUpdate$.pipe(debounceTime(500), switchMap(update => this.handlePropertySave(update))).subscribe({ error: err => console.error("[WorldView] Error al guardar propiedad:", err) });
+    const entitiesSub = this.engineService.getSceneEntities().pipe(map(engineEntities => {
+      const sceneObjectMap = new Map<string, SceneObjectResponse>();
+      this.sceneObjects.forEach(obj => sceneObjectMap.set(obj.id.toString(), obj));
+      return engineEntities.map(entity => {
+        const originalObject = sceneObjectMap.get(entity.uuid);
+        return { ...entity, type: originalObject ? originalObject.type : entity.type };
+      });
+    })).subscribe((correctedEntities: SceneEntity[]) => {
+      this.allEntities = correctedEntities;
+      this.allEntities$.next(correctedEntities);
+    });
+    const brightnessSub = this.brightnessUpdate$.pipe(debounceTime(150)).subscribe(({ groupType, brightness }) => {
+      const entityUuidsInGroup = this.allEntities.filter(entity => entity.type === groupType).map(entity => entity.uuid);
+      if (entityUuidsInGroup.length > 0) this.engineService.setGroupBrightness(entityUuidsInGroup, brightness);
+    });
+    const cameraModeSub = this.engineService.cameraMode$.subscribe(mode => {
+      if (mode === 'perspective') {
+        let stateChanged = false;
+        for (const key of this.groupBrightnessState.keys()) {
+          if (this.groupBrightnessState.get(key) !== 1.0) {
+            this.groupBrightnessState.set(key, 1.0);
+            stateChanged = true;
+          }
+        }
+        if (stateChanged) this.allEntities$.next([...this.allEntities]);
+      }
+    });
+    this.subscriptions.add(transformSub);
+    this.subscriptions.add(propertyUpdateSub);
+    this.subscriptions.add(entitiesSub);
+    this.subscriptions.add(brightnessSub);
+    this.subscriptions.add(cameraModeSub);
+  }
+
   public onGroupBrightnessChange(group: EntityGroup, event: Event): void { const slider = event.target as HTMLInputElement; const brightness = parseFloat(slider.value); this.groupBrightnessState.set(group.type, brightness); this.brightnessUpdate$.next({ groupType: group.type, brightness }); }
-  public toggleGroupVisibility(group: EntityGroup, event: MouseEvent): void { event.stopPropagation(); const currentState = this.groupVisibilityState.get(group.type) ?? true; const newState = !currentState; this.groupVisibilityState.set(group.type, newState); const entityUuidsInGroup = this.allEntities.filter(entity => entity.type === group.type).map(entity => entity.uuid); if (entityUuidsInGroup.length > 0) { this.engineService.setGroupVisibility(entityUuidsInGroup, newState); } this.allEntities$.next([...this.allEntities]); }
+  public toggleGroupVisibility(group: EntityGroup, event: MouseEvent): void { event.stopPropagation(); const newState = !(this.groupVisibilityState.get(group.type) ?? true); this.groupVisibilityState.set(group.type, newState); const entityUuidsInGroup = this.allEntities.filter(entity => entity.type === group.type).map(entity => entity.uuid); if (entityUuidsInGroup.length > 0) this.engineService.setGroupVisibility(entityUuidsInGroup, newState); this.allEntities$.next([...this.allEntities]); }
   public toggleGroup(group: EntityGroup): void { const newState = !group.isExpanded; this.groupExpansionState.set(group.type, newState); this.allEntities$.next([...this.allEntities]); }
-  public showMoreInGroup(group: EntityGroup): void { const currentCount = this.groupDisplayCountState.get(group.type) || this.listIncrement; const newCount = currentCount + this.listIncrement; this.groupDisplayCountState.set(group.type, newCount); this.allEntities$.next([...this.allEntities]); }
+  public showMoreInGroup(group: EntityGroup): void { const newCount = (this.groupDisplayCountState.get(group.type) || this.listIncrement) + this.listIncrement; this.groupDisplayCountState.set(group.type, newCount); this.allEntities$.next([...this.allEntities]); }
   onDrop(event: CdkDragDrop<SceneEntity[]>): void { moveItemInArray(event.container.data, event.previousIndex, event.currentIndex); }
   trackByGroupType(index: number, group: EntityGroup): string { return group.type; }
   public onSearchChange(term: string): void { this.groupDisplayCountState.clear(); this.searchFilter$.next(term); }
   trackByEntity(index: number, entity: SceneEntity): string { return entity.uuid; }
-  handleObjectUpdate(update: PropertyUpdate): void { if (!this.selectedObject) return; if (update.path === 'position' || update.path === 'rotation' || update.path === 'scale') { this.engineService.updateObjectTransform(this.selectedObject.id.toString(), update.path, update.value as any); } else if (update.path === 'name') { this.engineService.updateObjectName(this.selectedObject.id.toString(), update.value as string); } this.updateLocalSelectedObject({ [update.path]: update.value }); this.propertyUpdate$.next(update); }
-  private handlePropertySave(update: PropertyUpdate): Observable<SceneObjectResponse> { if (!this.episodeId || !this.selectedObject) { return new Observable(obs => { obs.error(new Error("EpisodeID or SelectedObject is null for saving")); }); } const dataToUpdate: Partial<SceneObjectResponse> = { [update.path]: update.value }; return this.sceneObjectService.updateSceneObject(this.episodeId, this.selectedObject.id, dataToUpdate).pipe(tap(updatedObj => { this.updateLocalSelectedObject(updatedObj); console.log("Guardado exitoso:", updatedObj); })); }
-  private handleTransformEnd(): void { const transformedObject = this.engineService.getGizmoAttachedObject(); if (!transformedObject || !this.selectedObject || !this.episodeId) return; const newPosition = { x: transformedObject.position.x, y: transformedObject.position.y, z: transformedObject.position.z }; const newRotation = { x: transformedObject.rotation.x, y: transformedObject.rotation.y, z: transformedObject.rotation.z }; const newScale = { x: transformedObject.scale.x, y: transformedObject.scale.y, z: transformedObject.scale.z }; this.updateLocalSelectedObject({ position: newPosition, rotation: newRotation, scale: newScale }); const dataToSave: Partial<SceneObjectResponse> = { position: newPosition, rotation: newRotation, scale: newScale }; this.sceneObjectService.updateSceneObject(this.episodeId, this.selectedObject.id, dataToSave).subscribe({ next: updatedObj => this.updateLocalSelectedObject(updatedObj), error: err => console.error("[WorldView] Error al guardar objeto tras transformación:", err) }); }
+  handleObjectUpdate(update: PropertyUpdate): void { if (!this.selectedObject) return; if (['position', 'rotation', 'scale'].includes(update.path)) { this.engineService.updateObjectTransform(this.selectedObject.id.toString(), update.path as any, update.value as any); } else if (update.path === 'name') { this.engineService.updateObjectName(this.selectedObject.id.toString(), update.value as string); } this.updateLocalSelectedObject({ [update.path]: update.value }); this.propertyUpdate$.next(update); }
+  private handlePropertySave(update: PropertyUpdate): Observable<SceneObjectResponse> { if (!this.episodeId || !this.selectedObject) return new Observable(obs => obs.error(new Error("EpisodeID or SelectedObject is null"))); const dataToUpdate: Partial<SceneObjectResponse> = { [update.path]: update.value }; return this.sceneObjectService.updateSceneObject(this.episodeId, this.selectedObject.id, dataToUpdate).pipe(tap(updatedObj => { this.updateLocalSelectedObject(updatedObj); console.log("Guardado exitoso:", updatedObj); })); }
+  private handleTransformEnd(): void { const transformedObject = this.engineService.getGizmoAttachedObject(); if (!transformedObject || !this.selectedObject || !this.episodeId) return; const newPosition = { x: transformedObject.position.x, y: transformedObject.position.y, z: transformedObject.position.z }; const newRotation = { x: transformedObject.rotation.x, y: transformedObject.rotation.y, z: transformedObject.rotation.z }; const newScale = { x: transformedObject.scale.x, y: transformedObject.scale.y, z: transformedObject.scale.z }; this.updateLocalSelectedObject({ position: newPosition, rotation: newRotation, scale: newScale }); const dataToSave: Partial<SceneObjectResponse> = { position: newPosition, rotation: newRotation, scale: newScale }; this.sceneObjectService.updateSceneObject(this.episodeId, this.selectedObject.id, dataToSave).subscribe({ next: updatedObj => this.updateLocalSelectedObject(updatedObj), error: err => console.error("[WorldView] Error al guardar tras transformación:", err) }); }
   onEntitySelect(entity: SceneEntity): void { if (entity.uuid.startsWith('placeholder-')) { this.isAddObjectModalVisible = true; this.deselectObject(); return; } if (this.selectedEntityUuid === entity.uuid) { this.deselectObject(); } else { this.selectedEntityUuid = entity.uuid; const foundObject = this.sceneObjects.find(o => o.id.toString() === entity.uuid); if (foundObject) { this.selectedObject = { ...foundObject }; this.engineService.selectObjectByUuid(entity.uuid); this.selectPropertiesTab('object'); } else { this.deselectObject(); } } }
   deselectObject(): void { this.selectedEntityUuid = null; this.selectedObject = null; this.engineService.selectObjectByUuid(null); this.selectPropertiesTab('scene'); }
   createSceneObject(data: NewSceneObjectData): void { if (!this.episodeId) return; this.sceneObjectService.createSceneObject(this.episodeId, data).subscribe({ next: newObj => { this.closeAddObjectModal(); this.engineService.addObjectToScene(newObj); this.sceneObjects = [...this.sceneObjects, newObj]; }, error: err => console.error(err) }); }
   updateLocalSelectedObject(updatedData: Partial<SceneObjectResponse>): void { if (!this.selectedObject) return; this.selectedObject = { ...this.selectedObject, ...updatedData }; const index = this.sceneObjects.findIndex(o => o.id === this.selectedObject!.id); if (index !== -1) { this.sceneObjects[index] = { ...this.sceneObjects[index], ...updatedData }; } this.cdr.detectChanges(); }
   getColorClassForEntity(entity: SceneEntity): string { return this.typeColorMap[entity.type] || this.typeColorMap['default']; }
-  toggleMobileSidebar(): void { this.isMobileSidebarVisible = !this.isMobileSidebarVisible; }
   selectPropertiesTab(tab: string): void { this.activePropertiesTab = tab; }
   handleLoadingProgress(p: number): void { this.loadingProgress = p; this.cdr.detectChanges(); }
   handleLoadingComplete(): void { this.loadingProgress = 100; setTimeout(() => { this.isRenderingScene = false; this.cdr.detectChanges(); }, 500); }
