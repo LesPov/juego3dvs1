@@ -1,3 +1,4 @@
+// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/scene-manager.service.ts
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -7,15 +8,20 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { CelestialInstanceData } from './object-manager.service';
 
 const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
-const UNSELECTABLE_NAMES = ['Cámara del Editor', 'Luz Ambiental', 'EditorGrid', 'SelectionProxy', 'FocusPivot'];
+// ✅ MODIFICADO: Ya NO ocultamos las cámaras principales para que puedan ser seleccionadas
+const UNSELECTABLE_NAMES = ['Luz Ambiental', 'EditorGrid', 'SelectionProxy', 'FocusPivot'];
 
 @Injectable({ providedIn: 'root' })
 export class SceneManagerService {
   public scene!: THREE.Scene;
-  public editorCamera!: THREE.PerspectiveCamera;
+  
+  public activeCamera!: THREE.PerspectiveCamera;
+  public editorCameraOriginal!: THREE.PerspectiveCamera;
+  public mainCamera!: THREE.PerspectiveCamera; 
+
   public renderer!: THREE.WebGLRenderer;
   public composer!: EffectComposer;
-  private canvas!: HTMLCanvasElement;
+  public canvas!: HTMLCanvasElement;
   private controls!: OrbitControls;
   public bloomPass!: UnrealBloomPass;
 
@@ -35,15 +41,41 @@ export class SceneManagerService {
     const width = container.clientWidth;
     const height = container.clientHeight;
 
-    this.editorCamera = new THREE.PerspectiveCamera(50, width / height, 0.1, 500000000000);
-    this.editorCamera.position.set(0, 50, 150);
-    this.editorCamera.lookAt(0, 0, 0);
+    // ✨ ¡MEJORA IMPORTANTE! Reducimos el 'near' plane para poder acercarnos mucho a los objetos.
+    const nearPlane = 0.1;
+    const farPlane = 500000000000;
+
+    this.editorCameraOriginal = new THREE.PerspectiveCamera(50, width / height, nearPlane, farPlane);
+    this.editorCameraOriginal.position.set(0, 50, 150);
+    this.editorCameraOriginal.lookAt(0, 0, 0);
+    this.editorCameraOriginal.name = 'Cámara del Editor';
+    // ✅ MODIFICADO: Añadimos 'apiType' para que aparezca en la lista de entidades
+    this.editorCameraOriginal.userData['apiType'] = 'camera'; 
+    
+    this.mainCamera = new THREE.PerspectiveCamera(50, width / height, nearPlane, farPlane);
+    this.mainCamera.position.set(50, 50, 150);
+    this.mainCamera.lookAt(0, 0, 0);
+    this.mainCamera.name = 'Cámara Principal';
+    this.mainCamera.userData['apiType'] = 'camera';
+    
+    const editorCameraHelper = new THREE.CameraHelper(this.editorCameraOriginal);
+    editorCameraHelper.name = `${this.editorCameraOriginal.name}_helper`;
+    this.editorCameraOriginal.userData['helper'] = editorCameraHelper;
+    editorCameraHelper.visible = false;
+    
+    const mainCameraHelper = new THREE.CameraHelper(this.mainCamera);
+    mainCameraHelper.name = `${this.mainCamera.name}_helper`;
+    this.mainCamera.userData['helper'] = mainCameraHelper;
+    mainCameraHelper.visible = true;
+    
+    this.scene.add(this.editorCameraOriginal, editorCameraHelper, this.mainCamera, mainCameraHelper);
+    
+    this.activeCamera = this.editorCameraOriginal;
 
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
       antialias: true,
       powerPreference: 'high-performance',
-      // ✅ MEJORA: Solicita la máxima precisión para los shaders, lo que puede mejorar la calidad visual.
       precision: 'highp'
     });
     this.renderer.setSize(width, height);
@@ -51,12 +83,8 @@ export class SceneManagerService {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     
-    const renderPass = new RenderPass(this.scene, this.editorCamera);
+    const renderPass = new RenderPass(this.scene, this.activeCamera);
     
-    // ✅ MEJORA: Parámetros del efecto Bloom para un brillo atractivo.
-    // strength: Qué tan intenso es el brillo. (Ej: 1.2)
-    // radius: Qué tan difuminado es el brillo. (Ej: 0.6)
-    // threshold: Qué tan brillante debe ser un píxel para empezar a "brillar". Un valor más bajo hace que más cosas brillen. (Ej: 0.1)
     this.bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 2.5, 0.6, 0.1);
 
     this.composer = new EffectComposer(this.renderer);
@@ -73,6 +101,7 @@ export class SceneManagerService {
     if (!this.scene) return box;
 
     this.scene.children.forEach(object => {
+      // ✅ MODIFICADO: La lógica ahora solo ignora los objetos no seleccionables por su nombre
       if (!object.visible || UNSELECTABLE_NAMES.includes(object.name) || object.name.endsWith('_helper')) {
         return;
       }
@@ -93,7 +122,7 @@ export class SceneManagerService {
   }
 
   public onWindowResize(): void {
-    if (!this.canvas || !this.renderer || !this.editorCamera) return;
+    if (!this.canvas || !this.renderer || !this.activeCamera) return;
     const container = this.canvas.parentElement;
     if (!container) return;
 
@@ -101,10 +130,8 @@ export class SceneManagerService {
     const newHeight = container.clientHeight;
 
     if (this.canvas.width !== newWidth || this.canvas.height !== newHeight) {
-      // La actualización de la matriz de proyección se maneja en EngineService para el caso ortográfico.
-      // Aquí solo actualizamos el aspect ratio para el caso de perspectiva.
-      this.editorCamera.aspect = newWidth / newHeight;
-      this.editorCamera.updateProjectionMatrix();
+      this.activeCamera.aspect = newWidth / newHeight;
+      this.activeCamera.updateProjectionMatrix();
 
       this.renderer.setSize(newWidth, newHeight);
       this.composer.setSize(newWidth, newHeight);
@@ -116,15 +143,15 @@ export class SceneManagerService {
   }
 
   public frameScene(sceneWidth: number, sceneHeight: number): void {
-    if (!this.editorCamera || !this.controls) return;
+    if (!this.activeCamera || !this.controls) return;
 
-    const fovRad = THREE.MathUtils.degToRad(this.editorCamera.fov);
-    const effectiveHeight = Math.max(sceneHeight, sceneWidth / this.editorCamera.aspect);
+    const fovRad = THREE.MathUtils.degToRad(this.activeCamera.fov);
+    const effectiveHeight = Math.max(sceneHeight, sceneWidth / this.activeCamera.aspect);
     const distance = (effectiveHeight / 2) / Math.tan(fovRad / 2);
     const finalZ = distance * 1.2;
 
-    this.editorCamera.position.set(0, 0, finalZ);
-    this.editorCamera.lookAt(0, 0, 0);
+    this.activeCamera.position.set(0, 0, finalZ);
+    this.activeCamera.lookAt(0, 0, 0);
     this.controls.target.set(0, 0, 0);
     this.controls.update();
   }

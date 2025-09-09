@@ -1,3 +1,4 @@
+// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/controls-manager.service.ts
 import { Injectable, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -32,8 +33,6 @@ export class ControlsManagerService implements OnDestroy {
   private readonly MOVEMENT_SPEED = 100000000.0;
   private readonly BOOST_MULTIPLIER = 100.0;
   
-  // ✅ MEJORA: Factor de sensibilidad para suavizar el paneo ortográfico.
-  // Un valor más bajo significa menos sensibilidad (movimiento más lento).
   private readonly ORTHO_PAN_SENSITIVITY = 0.5;
 
   private tempVector = new THREE.Vector3();
@@ -50,6 +49,12 @@ export class ControlsManagerService implements OnDestroy {
     this.createOrbitControls(camera, domElement);
     this.createTransformControls(camera, domElement);
     this.addEventListeners();
+  }
+
+  public setCamera(newCamera: THREE.PerspectiveCamera): void {
+    this.camera = newCamera;
+    this.orbitControls.object = newCamera;
+    this.transformControls.camera = newCamera;
   }
 
   ngOnDestroy = () => {
@@ -86,31 +91,29 @@ export class ControlsManagerService implements OnDestroy {
     const isOrthographicMode = !this.orbitControls.enableRotate;
 
     if (isOrthographicMode) {
-      if (event.button === 2) { // Clic Derecho para Panear
+      if (event.button === 2) { 
         this.isOrthoPanning = true;
         this.domElement.addEventListener('contextmenu', this.preventContextMenu, { once: true });
       }
       return;
     }
 
-    if (event.button === 0) { // Clic Izquierdo para Orbitar
+    if (event.button === 0) { 
       this.isOrbiting = true;
       this.orbitControls.enabled = true;
-    } else if (event.button === 2) { // Clic Derecho para Panear
+    } else if (event.button === 2) {
       this.isPanning = true;
       this.orbitControls.enabled = true;
     }
   };
-
-  // 💡 LÓGICA CORREGIDA Y MEJORADA: Se aplica el factor de sensibilidad
+  
   private onMouseMove = (event: MouseEvent) => {
     if (this.isOrthoPanning) {
       const orthoWidth = 2 / this.camera.projectionMatrix.elements[0];
       const orthoHeight = 2 / this.camera.projectionMatrix.elements[5];
       const deltaX = event.movementX || 0;
       const deltaY = event.movementY || 0;
-
-      // Aplicamos el factor de sensibilidad aquí para reducir la velocidad del movimiento
+      
       const panX = (deltaX / this.domElement.clientWidth) * orthoWidth * this.ORTHO_PAN_SENSITIVITY;
       const panY = (deltaY / this.domElement.clientHeight) * orthoHeight * this.ORTHO_PAN_SENSITIVITY;
       

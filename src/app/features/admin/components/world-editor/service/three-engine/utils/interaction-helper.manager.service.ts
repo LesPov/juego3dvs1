@@ -1,3 +1,4 @@
+// src/app/features/admin/components/world-editor/service/three-engine/utils/interaction-helper.manager.service.ts
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 
@@ -16,8 +17,8 @@ export class InteractionHelperManagerService {
 
   // Helpers
   private interactionSphere?: THREE.Mesh;
-  private centerPivotHelper?: THREE.Group; // Contendrá solo los ejes
-  private pivotPoint?: THREE.Mesh;       // La esfera amarilla ahora es independiente
+  private centerPivotHelper?: THREE.Group; 
+  private pivotPoint?: THREE.Mesh;       
   private axesHelper?: THREE.AxesHelper;
 
   // Estado
@@ -35,7 +36,11 @@ export class InteractionHelperManagerService {
     this.camera = camera;
   }
 
-  // 💡 LÓGICA MODIFICADA
+  // ✅ ¡CORREGIDO! Método para actualizar la cámara que faltaba
+  public setCamera(newCamera: THREE.PerspectiveCamera): void {
+    this.camera = newCamera;
+  }
+
   public createHelpers(object: THREE.Object3D): void {
     if (this.centerPivotHelper || this.pivotPoint) this.cleanupHelpers();
 
@@ -59,23 +64,20 @@ export class InteractionHelperManagerService {
 
     this.objectBaseSize = interactionRadius;
 
-    // 1. Creamos el helper de ejes (sin la esfera)
     this.centerPivotHelper = new THREE.Group();
     this.centerPivotHelper.position.copy(center);
     this.scene.add(this.centerPivotHelper);
     this.centerPivotHelper.layers.set(HELPER_LAYER);
     this.centerPivotHelper.traverse(child => child.layers.set(HELPER_LAYER));
 
-    this.axesHelper = new THREE.AxesHelper(5.0); // Tamaño base 1
+    this.axesHelper = new THREE.AxesHelper(5.0);
     (this.axesHelper.material as THREE.LineBasicMaterial).depthTest = false;
     (this.axesHelper.material as THREE.LineBasicMaterial).transparent = true;
     (this.axesHelper.material as THREE.LineBasicMaterial).opacity = 0.8;
     this.axesHelper.renderOrder = 999; 
     this.centerPivotHelper.add(this.axesHelper);
 
-    // 2. ✅ ¡NUEVO! Creamos la esfera amarilla (pivotPoint) como un objeto separado.
-    // Esto nos permite controlar su escala y posición de forma independiente.
-    const sphereGeo = new THREE.SphereGeometry(5, 16, 16); // Geometría con radio 1
+    const sphereGeo = new THREE.SphereGeometry(5, 16, 16); 
     const sphereMat = new THREE.MeshBasicMaterial({ 
         color: 0xffff00, 
         depthTest: false, 
@@ -83,11 +85,10 @@ export class InteractionHelperManagerService {
         opacity: 0.9 
     });
     this.pivotPoint = new THREE.Mesh(sphereGeo, sphereMat);
-    this.pivotPoint.position.copy(center); // Se posiciona en el centro
-    this.pivotPoint.renderOrder = 1000; // Un poco más alto para estar sobre los ejes
+    this.pivotPoint.position.copy(center);
+    this.pivotPoint.renderOrder = 1000;
     this.scene.add(this.pivotPoint);
     
-    // 3. La esfera de interacción sigue siendo la misma.
     const interactionGeo = new THREE.SphereGeometry(interactionRadius * 1.2, 16, 16); 
     const interactionMat = new THREE.MeshBasicMaterial({ visible: false, depthTest: false });
     this.interactionSphere = new THREE.Mesh(interactionGeo, interactionMat);
@@ -107,7 +108,6 @@ export class InteractionHelperManagerService {
       this.interactionSphere = undefined;
     }
     
-    // ✅ ¡NUEVO! Limpiamos el pivotPoint por separado.
     if (this.pivotPoint) {
       this.pivotPoint.geometry.dispose();
       (this.pivotPoint.material as THREE.Material).dispose();
@@ -123,13 +123,11 @@ export class InteractionHelperManagerService {
     this.isSpecialObject = false;
   }
 
-  // 💡 LÓGICA DE ESCALADO SEPARADA Y DEFINITIVA
   public updateScale(): void {
     const distance = this.camera.position.distanceTo(
         this.centerPivotHelper?.position || this.pivotPoint?.position || new THREE.Vector3()
     );
 
-    // 1. Lógica para los EJES (centerPivotHelper) - se mantiene como estaba.
     if (this.centerPivotHelper) {
       const perspectiveScale = distance * this.AXES_SCREEN_SCALE_FACTOR;
       const objectRelativeScale = this.objectBaseSize * this.AXES_OBJECT_SIZE_MULTIPLIER;
@@ -137,15 +135,11 @@ export class InteractionHelperManagerService {
       this.centerPivotHelper.scale.set(finalScale, finalScale, finalScale);
     }
     
-    // 2. ✅ ¡NUEVA LÓGICA EXCLUSIVA PARA EL PIVOTE AMARILLO (pivotPoint)!
     if (this.pivotPoint) {
-      // Su escala será SIEMPRE el radio del objeto. Ni más, ni menos.
-      // Esto hace que siempre ocupe el tamaño del objeto seleccionado.
       const finalScale = this.objectBaseSize;
       this.pivotPoint.scale.set(finalScale, finalScale, finalScale);
     }
 
-    // Lógica para la esfera de interacción no cambia.
     if (this.isSpecialObject && this.interactionSphere) {
       const interactionScale = Math.max(distance * 0.15, this.objectBaseSize * 1.2);
       this.interactionSphere.scale.set(interactionScale, interactionScale, interactionScale);
@@ -162,7 +156,6 @@ export class InteractionHelperManagerService {
       center = object.position.clone();
     }
     
-    // ✅ ¡NUEVO! Actualizamos las posiciones de ambos helpers.
     if (this.centerPivotHelper) this.centerPivotHelper.position.copy(center);
     if (this.pivotPoint) this.pivotPoint.position.copy(center);
     if (this.interactionSphere) this.interactionSphere.position.copy(center);
@@ -185,7 +178,6 @@ export class InteractionHelperManagerService {
   }
   
   public getPivotPoint(): THREE.Mesh | undefined {
-    // La esfera de interacción ahora apunta al pivotPoint amarillo, que es el que se usa para arrastrar.
     return this.pivotPoint;
   }
 }

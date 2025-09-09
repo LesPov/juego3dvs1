@@ -1,5 +1,4 @@
 // src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/entity-manager.service.ts
-
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -11,7 +10,7 @@ import { SceneObjectResponse } from '../../../../../services/admin.service';
 export interface SceneEntity {
   uuid: string;
   name: string;
-  type: SceneObjectResponse['type'] | 'Model' | 'Camera' | 'Light';
+  type: SceneObjectResponse['type'] | 'Model' | 'camera' | 'directionalLight';
 }
 
 const PROXY_SCALE_MULTIPLIER = 7.0;
@@ -24,7 +23,9 @@ export class EntityManagerService {
   private scene!: THREE.Scene;
   private gltfLoader!: GLTFLoader;
   private sceneEntities = new BehaviorSubject<SceneEntity[]>([]);
-  private unselectableNames = ['Cámara del Editor', 'Luz Ambiental', 'FocusPivot', 'EditorGrid', 'SelectionProxy'];
+  
+  // ✅ MODIFICADO: Se han quitado las cámaras principales de esta lista
+  private unselectableNames = ['Luz Ambiental', 'FocusPivot', 'EditorGrid', 'SelectionProxy'];
   private zeroMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
 
   constructor(
@@ -44,12 +45,11 @@ export class EntityManagerService {
     this.scene.children.forEach(object => {
       if (!object.name.endsWith('_helper') && !this.unselectableNames.includes(object.name) && !object.name.startsWith(CELESTIAL_MESH_PREFIX)) {
         const apiType = object.userData['apiType'] as SceneEntity['type'] | undefined;
-        // ✅ Corregido para manejar correctamente los tipos de Three.js
         const finalType = apiType || (object instanceof THREE.PerspectiveCamera ? 'camera' : (object instanceof THREE.Light ? 'directionalLight' : 'Model'));
         entities.push({
           uuid: object.uuid,
           name: object.name,
-          type: finalType as SceneEntity['type']
+          type: finalType
         });
       }
       
@@ -128,18 +128,27 @@ export class EntityManagerService {
   public setGroupBrightness(uuids: string[], brightness: number): void { if (!this.scene) return; const celestialMeshes = this.scene.children.filter(o => o.name.startsWith(CELESTIAL_MESH_PREFIX)) as THREE.InstancedMesh[]; uuids.forEach(uuid => { const standardObject = this.scene.getObjectByProperty('uuid', uuid); if (standardObject) { standardObject.traverse(child => { if (child instanceof THREE.Mesh) { const materials = Array.isArray(child.material) ? child.material : [child.material]; materials.forEach(mat => { mat.transparent = brightness < 1.0; mat.opacity = brightness; }); } }); return; } for (const mesh of celestialMeshes) { const instanceData = (mesh.userData["celestialData"] as CelestialInstanceData[]).find(d => d.originalUuid === uuid); if (instanceData) { instanceData.brightness = brightness; break; } } }); }
   public setGroupVisibility(uuids: string[], visible: boolean): void { if (!this.scene) return; const celestialMeshes = this.scene.children.filter(o => o.name.startsWith(CELESTIAL_MESH_PREFIX)) as THREE.InstancedMesh[]; const instanceMapByMesh = new Map<string, Map<string, { data: CelestialInstanceData, index: number }>>(); celestialMeshes.forEach(mesh => { const map = new Map<string, { data: CelestialInstanceData, index: number }>(); (mesh.userData["celestialData"] as CelestialInstanceData[]).forEach((data, index) => map.set(data.originalUuid, { data, index })); instanceMapByMesh.set(mesh.uuid, map); }); const meshesToUpdate = new Set<THREE.InstancedMesh>(); uuids.forEach(uuid => { const standardObject = this.scene.getObjectByProperty('uuid', uuid); if (standardObject) { standardObject.visible = visible; return; } for (const mesh of celestialMeshes) { const instance = instanceMapByMesh.get(mesh.uuid)?.get(uuid); if (instance) { instance.data.isManuallyHidden = !visible; const matrixToApply = visible ? instance.data.originalMatrix : this.zeroMatrix; mesh.setMatrixAt(instance.index, matrixToApply); meshesToUpdate.add(mesh); break; } } }); meshesToUpdate.forEach(mesh => mesh.instanceMatrix.needsUpdate = true); }
   
-  // ✅ MODIFICADO para limpiar también los helpers
   public clearScene(): void {
     if (!this.scene) return;
+    
+    // ✅ MODIFICADO: Lista de objetos a mantener en la escena
+    const objectsToKeep = ['Cámara del Editor', 'Cámara Principal'];
+
     for (let i = this.scene.children.length - 1; i >= 0; i--) {
       const object = this.scene.children[i];
-      if (this.unselectableNames.includes(object.name)) continue;
+      // Si el objeto está en la lista de no seleccionables o en la de mantener, lo saltamos
+      if (this.unselectableNames.includes(object.name) || objectsToKeep.includes(object.name)) {
+        continue;
+      }
+      
+      // Evitamos borrar los helpers de las cámaras principales
+      if (object.name === 'Cámara del Editor_helper' || object.name === 'Cámara Principal_helper') {
+        continue;
+      }
 
-      // Si el objeto tiene un helper asociado, también lo eliminamos
       if (object.userData['helper']) {
           const helper = object.userData['helper'];
           this.scene.remove(helper);
-          // Los helpers no suelen tener geometrías complejas que necesiten dispose.
       }
       
       this.scene.remove(object);
@@ -162,7 +171,6 @@ export class EntityManagerService {
   public getObjectByUuid(uuid: string): THREE.Object3D | undefined { return this.scene.getObjectByProperty('uuid', uuid); }
   public createObjectFromData(objData: SceneObjectResponse): THREE.Object3D | null { const obj = this.objectManager.createObjectFromData(this.scene, objData, this.gltfLoader); if (obj) this.publishSceneEntities(); return obj; }
   
-  // ✅ MODIFICADO para actualizar el nombre del helper también
   public updateObjectName(uuid: string, newName: string): void {
     const objectToUpdate: THREE.Object3D | undefined = this.getObjectByUuid(uuid);
     if (objectToUpdate) {

@@ -1,3 +1,4 @@
+// src/app/features/admin/views/world-editor/world-view/service/three-engine/engine.service.ts
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
@@ -12,6 +13,7 @@ import { SceneObjectResponse } from '../../../../services/admin.service';
 import { InteractionHelperManagerService } from './utils/interaction-helper.manager.service';
 import { DragInteractionManagerService } from './utils/drag-interaction.manager.service';
 import { CelestialInstanceData } from './utils/object-manager.service';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 
 const INSTANCES_TO_CHECK_PER_FRAME = 20000000;
 const BASE_VISIBILITY_DISTANCE = 1000000000000;
@@ -46,6 +48,8 @@ export class EngineService implements OnDestroy {
   public cameraMode$ = this.cameraModeSubject.asObservable();
   private originalProjectionMatrix = new THREE.Matrix4();
   
+  private activeCamera: 'editor' | 'main' = 'editor';
+  
   private lastPerspectiveState: { position: THREE.Vector3, target: THREE.Vector3 } | null = null;
   private lastOrthographicState: { position: THREE.Vector3, target: THREE.Vector3 } | null = null;
   
@@ -79,6 +83,19 @@ export class EngineService implements OnDestroy {
   }
 
   public onWindowResize = () => {
+    const parentElement = this.sceneManager.canvas?.parentElement;
+    if (!parentElement) return;
+
+    const aspect = parentElement.clientWidth / parentElement.clientHeight;
+    if (this.sceneManager.editorCameraOriginal) {
+      this.sceneManager.editorCameraOriginal.aspect = aspect;
+      this.sceneManager.editorCameraOriginal.updateProjectionMatrix();
+    }
+    if (this.sceneManager.mainCamera) {
+      this.sceneManager.mainCamera.aspect = aspect;
+      this.sceneManager.mainCamera.updateProjectionMatrix();
+    }
+
     this.sceneManager.onWindowResize();
     this.interactionHelperManager.updateScale();
 
@@ -91,18 +108,25 @@ export class EngineService implements OnDestroy {
     this.animationFrameId = requestAnimationFrame(this.animate);
     this.statsManager.begin();
     const delta = this.clock.getDelta();
+
+    if (this.activeCamera === 'editor') {
+        this.sceneManager.mainCamera.userData['helper']?.update();
+    } else {
+        this.sceneManager.editorCameraOriginal.userData['helper']?.update();
+    }
+
     const cameraMoved = this.controlsManager.update(delta, this.keyMap);
     if (cameraMoved) {
       this.interactionHelperManager.updateScale();
-      this.cameraPositionSubject.next(this.sceneManager.editorCamera.position);
+      this.cameraPositionSubject.next(this.sceneManager.activeCamera.position);
     }
-    this.sceneManager.editorCamera.getWorldQuaternion(this.tempQuaternion);
+    this.sceneManager.activeCamera.getWorldQuaternion(this.tempQuaternion);
     if (!this.tempQuaternion.equals(this.cameraOrientationSubject.getValue())) {
       this.cameraOrientationSubject.next(this.tempQuaternion.clone());
     }
     const selectionProxy = this.sceneManager.scene.getObjectByName('SelectionProxy');
     if (selectionProxy) {
-      selectionProxy.quaternion.copy(this.sceneManager.editorCamera.quaternion);
+      selectionProxy.quaternion.copy(this.sceneManager.activeCamera.quaternion);
     }
 
     this.sceneManager.scene.children.forEach(object => {
@@ -126,7 +150,7 @@ export class EngineService implements OnDestroy {
     
     let needsColorUpdate = false;
     let needsMatrixUpdate = false;
-    const camera = this.sceneManager.editorCamera;
+    const camera = this.sceneManager.activeCamera;
     let visibilityFactor = 1.0;
     let bloomDampeningFactor = 1.0; 
     const isOrthographic = this.cameraModeSubject.getValue() === 'orthographic';
@@ -195,21 +219,45 @@ export class EngineService implements OnDestroy {
   private handleTransformEnd = () => { if (!this.selectedObject) return; if (this.selectedObject.name === 'SelectionProxy') { this.sceneManager.scene.children.forEach(obj => { if (!this.selectedObject) return; if (obj.name.startsWith(CELESTIAL_MESH_PREFIX)) { const instancedMesh = obj as THREE.InstancedMesh; const allData: CelestialInstanceData[] = instancedMesh.userData["celestialData"]; const instanceIndex = allData.findIndex(d => d.originalUuid === this.selectedObject!.uuid); if (instanceIndex > -1) { const data = allData[instanceIndex]; data.originalMatrix.compose(this.selectedObject.position, this.selectedObject.quaternion, this.selectedObject.scale); data.position.copy(this.selectedObject.position); instancedMesh.setMatrixAt(instanceIndex, data.originalMatrix); instancedMesh.instanceMatrix.needsUpdate = true; } } }); } this.transformEndSubject.next(); };
   public setGroupVisibility(uuids: string[], visible: boolean): void { this.entityManager.setGroupVisibility(uuids, visible); }
   public setGroupBrightness(uuids: string[], brightness: number): void { this.entityManager.setGroupBrightness(uuids, brightness); }
-  public init(canvasRef: ElementRef<HTMLCanvasElement>): void { const canvas = canvasRef.nativeElement; this.sceneManager.setupBasicScene(canvas); this.sceneManager.scene.add(this.focusPivot); this.entityManager.init(this.sceneManager.scene); this.statsManager.init(); this.controlsManager.init(this.sceneManager.editorCamera, canvas, this.sceneManager.scene, this.focusPivot); this.sceneManager.setControls(this.controlsManager.getControls()); this.interactionHelperManager.init(this.sceneManager.scene, this.sceneManager.editorCamera); this.dragInteractionManager.init(this.sceneManager.editorCamera, canvas, this.controlsManager); this.controlsManager.enableNavigation(); this.addEventListeners(); if (this.sceneManager.editorCamera) { this.originalProjectionMatrix.copy(this.sceneManager.editorCamera.projectionMatrix); } this.animate(); }
+  public init(canvasRef: ElementRef<HTMLCanvasElement>): void { const canvas = canvasRef.nativeElement; this.sceneManager.setupBasicScene(canvas); this.sceneManager.scene.add(this.focusPivot); this.entityManager.init(this.sceneManager.scene); this.statsManager.init(); this.controlsManager.init(this.sceneManager.activeCamera, canvas, this.sceneManager.scene, this.focusPivot); this.sceneManager.setControls(this.controlsManager.getControls()); this.interactionHelperManager.init(this.sceneManager.scene, this.sceneManager.activeCamera); this.dragInteractionManager.init(this.sceneManager.activeCamera, canvas, this.controlsManager); this.controlsManager.enableNavigation(); this.addEventListeners(); if (this.sceneManager.activeCamera) { this.originalProjectionMatrix.copy(this.sceneManager.activeCamera.projectionMatrix); } this.animate(); }
   public selectObjectByUuid(uuid: string | null): void { this.interactionHelperManager.cleanupHelpers(this.selectedObject); this.dragInteractionManager.stopListening(); this.controlsManager.detach(); this.axisLock = null; this.dragInteractionManager.setAxisConstraint(null); this.axisLockStateSubject.next(null); this.selectedObject = undefined; this.entityManager.selectObjectByUuid(uuid, this.focusPivot); if (uuid) { this.selectedObject = this.entityManager.getObjectByUuid(uuid); if (this.selectedObject) { this.setToolMode(this.controlsManager.getCurrentToolMode()); } } }
   ngOnDestroy = () => { this.removeEventListeners(); this.interactionHelperManager.cleanupHelpers(this.selectedObject); this.dragInteractionManager.stopListening(); if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId); this.statsManager.destroy(); this.controlsManager.ngOnDestroy(); if (this.sceneManager.renderer) this.sceneManager.renderer.dispose(); };
   
+  public toggleActiveCamera(): void {
+    const editorHelper = this.sceneManager.editorCameraOriginal.userData['helper'];
+    const mainHelper = this.sceneManager.mainCamera.userData['helper'];
+
+    if (this.activeCamera === 'editor') {
+      this.activeCamera = 'main';
+      this.sceneManager.activeCamera = this.sceneManager.mainCamera;
+      if (editorHelper) editorHelper.visible = true;
+      if (mainHelper) mainHelper.visible = false;
+    } else {
+      this.activeCamera = 'editor';
+      this.sceneManager.activeCamera = this.sceneManager.editorCameraOriginal;
+      if (editorHelper) editorHelper.visible = false;
+      if (mainHelper) mainHelper.visible = true;
+    }
+
+    const newActiveCamera = this.sceneManager.activeCamera;
+    this.controlsManager.setCamera(newActiveCamera);
+    (this.sceneManager.composer.passes[0] as RenderPass).camera = newActiveCamera;
+    this.interactionHelperManager.setCamera(newActiveCamera);
+    this.dragInteractionManager.setCamera(newActiveCamera);
+    
+    if(this.selectedObject && this.selectedObject.uuid === newActiveCamera.uuid) {
+        this.controlsManager.attach(this.selectedObject);
+    }
+  }
+
   public toggleCameraMode = () => {
     if (this.cameraModeSubject.getValue() === 'perspective') {
       const controls = this.controlsManager.getControls();
       this.lastPerspectiveState = {
-        position: this.sceneManager.editorCamera.position.clone(),
+        position: this.sceneManager.activeCamera.position.clone(),
         target: controls.target.clone()
       };
-      
-      // ✅ MEJORA: Cambiado a 'axis-z' para que la vista por defecto sea frontal, más útil en edición.
       this.setCameraView('axis-z');
-      
     } else {
       this.switchToPerspectiveView();
     }
@@ -217,7 +265,7 @@ export class EngineService implements OnDestroy {
 
   public setCameraView = (axisName: string | null, state?: { position: THREE.Vector3, target: THREE.Vector3 }) => {
     const controls = this.controlsManager.getControls();
-    const camera = this.sceneManager.editorCamera;
+    const camera = this.sceneManager.activeCamera;
     if (!controls) return;
     
     if (this.cameraModeSubject.getValue() === 'perspective') {
@@ -232,7 +280,7 @@ export class EngineService implements OnDestroy {
     const target = boundingBox.getCenter(new THREE.Vector3());
     const boxSize = boundingBox.getSize(this.tempBoxSize);
     
-    const distance = boxSize.length(); 
+    const distance = boxSize.length() || 100; // Default distance if box is a point
     
     if (axisName) {
       const newPosition = new THREE.Vector3();
@@ -253,10 +301,11 @@ export class EngineService implements OnDestroy {
     camera.lookAt(target);
     this.lastOrthographicState = { position: camera.position.clone(), target: target.clone() };
 
-    const aspect = this.sceneManager.renderer.domElement.clientWidth / this.sceneManager.renderer.domElement.clientHeight;
+    const rendererDomElement = this.sceneManager.renderer.domElement;
+    const aspect = rendererDomElement.clientWidth / rendererDomElement.clientHeight;
     
-    let frustumWidth: number;
-    let frustumHeight: number;
+    let frustumWidth = Math.max(boxSize.x, 0.1);
+    let frustumHeight = Math.max(boxSize.y, 0.1);
     const currentAxis = axisName || this.getAxisFromState(this.lastOrthographicState);
 
     switch (currentAxis) {
@@ -307,7 +356,7 @@ export class EngineService implements OnDestroy {
 
   public switchToPerspectiveView = () => {
     this.entityManager.resetAllGroupsBrightness();
-    const camera = this.sceneManager.editorCamera;
+    const camera = this.sceneManager.activeCamera;
     const controls = this.controlsManager.getControls();
     if (!controls) return;
 
@@ -316,10 +365,7 @@ export class EngineService implements OnDestroy {
       controls.target.copy(this.lastPerspectiveState.target);
     } else if (this.lastOrthographicState) {
       const target = this.lastOrthographicState.target.clone();
-      const direction = new THREE.Vector3()
-        .copy(this.lastOrthographicState.position)
-        .sub(target)
-        .normalize();
+      const direction = new THREE.Vector3().copy(this.lastOrthographicState.position).sub(target).normalize();
       
       const boundingBox = this.sceneManager.getSceneBoundingBox();
       const sceneSize = boundingBox.getSize(new THREE.Vector3()).length();
@@ -346,10 +392,23 @@ export class EngineService implements OnDestroy {
   private addEventListeners = () => { const controls = this.controlsManager.getControls(); controls.addEventListener('end', this.handleTransformEnd); controls.addEventListener('change', this.onControlsChange); window.addEventListener('resize', this.onWindowResize); window.addEventListener('keydown', this.onKeyDown); window.addEventListener('keyup', this.onKeyUp); this.controlsSubscription = this.dragInteractionManager.onDragEnd$.subscribe(() => { this.handleTransformEnd(); if (this.selectedObject) this.interactionHelperManager.updateHelperPositions(this.selectedObject); }); };
   private removeEventListeners = (): void => { const controls = this.controlsManager.getControls(); controls?.removeEventListener('end', this.handleTransformEnd); controls?.removeEventListener('change', this.onControlsChange); window.removeEventListener('resize', this.onWindowResize); window.removeEventListener('keydown', this.onKeyDown); window.removeEventListener('keyup', this.onKeyUp); this.controlsSubscription?.unsubscribe(); };
   public populateScene(objects: SceneObjectResponse[], onProgress: (p: number) => void, onLoaded: () => void): void { if (!this.sceneManager.scene) return; this.entityManager.clearScene(); const celestialTypes = ['star', 'galaxy', 'meteor', 'supernova', 'diffraction_star']; const celestialObjectsData = objects.filter(o => celestialTypes.includes(o.type)); const standardObjectsData = objects.filter(o => !celestialTypes.includes(o.type)); this.entityManager.objectManager.createCelestialObjectsInstanced(this.sceneManager.scene, celestialObjectsData); const loadingManager = this.entityManager.getLoadingManager(); loadingManager.onProgress = (_, loaded, total) => onProgress((loaded / total) * 100); loadingManager.onLoad = () => { onLoaded(); this.entityManager.publishSceneEntities(); }; standardObjectsData.forEach(o => this.entityManager.createObjectFromData(o)); if (!standardObjectsData.some(o => o.type === 'model' && o.asset?.path)) { setTimeout(() => { if (loadingManager.onLoad) loadingManager.onLoad(); }, 0); } }
-  private updateCameraFrustum(): void { const camera = this.sceneManager.editorCamera; camera.updateMatrixWorld(); this.projScreenMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); this.frustum.setFromProjectionMatrix(this.projScreenMatrix); }
+  private updateCameraFrustum(): void { const camera = this.sceneManager.activeCamera; camera.updateMatrixWorld(); this.projScreenMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); this.frustum.setFromProjectionMatrix(this.projScreenMatrix); }
   public setToolMode(mode: ToolMode): void { this.controlsManager.setTransformMode(mode); this.interactionHelperManager.cleanupHelpers(this.selectedObject); this.dragInteractionManager.stopListening(); this.controlsManager.detach(); this.axisLock = null; this.dragInteractionManager.setAxisConstraint(null); this.axisLockStateSubject.next(null); if (this.selectedObject) { switch (mode) { case 'move': this.interactionHelperManager.createHelpers(this.selectedObject); this.dragInteractionManager.startListening(this.selectedObject, this.interactionHelperManager); break; case 'rotate': case 'scale': this.controlsManager.attach(this.selectedObject); break; } } }
   private onControlsChange = () => { this.interactionHelperManager.updateScale(); };
-  private onKeyDown = (e: KeyboardEvent) => { const key = e.key.toLowerCase(); if (key === 'escape') { this.controlsManager.exitFlyMode(); return; } this.keyMap.set(key, true); if (this.controlsManager.getCurrentToolMode() === 'move' && ['x', 'y', 'z'].includes(key)) { this.axisLock = this.axisLock === key ? null : (key as 'x' | 'y' | 'z'); this.dragInteractionManager.setAxisConstraint(this.axisLock); this.axisLockStateSubject.next(this.axisLock); } };
+  
+  private onKeyDown = (e: KeyboardEvent) => { 
+    const key = e.key.toLowerCase(); 
+    if (key === 'escape') { this.controlsManager.exitFlyMode(); return; } 
+    this.keyMap.set(key, true); 
+    
+    if (key === 'c' && !(e.target instanceof HTMLInputElement)) {
+        e.preventDefault();
+        this.toggleActiveCamera();
+    }
+    
+    if (this.controlsManager.getCurrentToolMode() === 'move' && ['x', 'y', 'z'].includes(key)) { this.axisLock = this.axisLock === key ? null : (key as 'x' | 'y' | 'z'); this.dragInteractionManager.setAxisConstraint(this.axisLock); this.axisLockStateSubject.next(this.axisLock); } 
+  };
+  
   private onKeyUp = (e: KeyboardEvent) => this.keyMap.set(e.key.toLowerCase(), false);
   public frameScene = (width: number, height: number) => this.sceneManager.frameScene(width, height);
   public getGizmoAttachedObject = (): THREE.Object3D | undefined => this.selectedObject;
