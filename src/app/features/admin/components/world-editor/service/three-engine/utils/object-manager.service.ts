@@ -1,3 +1,5 @@
+// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/object-manager.service.ts
+
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -97,7 +99,6 @@ export class ObjectManagerService {
   }
 
   private _createDefaultGlowInstancedMesh(scene: THREE.Scene, objectsData: SceneObjectResponse[]): void {
-      // Usamos CircleGeometry para asegurar que el brillo sea siempre redondo y no un cuadrado
       const geometry = new THREE.CircleGeometry(6.0, 32); 
       const material = new THREE.MeshBasicMaterial({
         map: this._createGlowTexture(),
@@ -163,12 +164,10 @@ export class ObjectManagerService {
     if (instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
   }
 
-  // ✅ MEJORA: Textura de brillo de mayor calidad.
   private _createGlowTexture(): THREE.CanvasTexture {
     if (this.glowTexture) return this.glowTexture;
 
     const canvas = document.createElement('canvas');
-    // Aumentamos la resolución para un brillo más nítido
     const size = 512;
     canvas.width = size;
     canvas.height = size;
@@ -176,7 +175,6 @@ export class ObjectManagerService {
     const context = canvas.getContext('2d')!;
     const gradient = context.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
     
-    // Ajustamos el degradado para una caída más suave y natural
     gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
     gradient.addColorStop(0.25, 'rgba(255, 255, 255, 0.7)');
     gradient.addColorStop(0.6, 'rgba(255, 255, 255, 0.1)');
@@ -189,11 +187,151 @@ export class ObjectManagerService {
     this.glowTexture.needsUpdate = true;
     return this.glowTexture;
   }
+  
+  // ✅ MÉTODO PRINCIPAL CORREGIDO Y AMPLIADO
+  public createObjectFromData(scene: THREE.Scene, objData: SceneObjectResponse, loader: GLTFLoader): THREE.Object3D | null {
+    let createdObject: THREE.Object3D | null = null;
+    switch (objData.type) {
+      case 'model':
+        if (objData.properties?.['is_black_hole']) {
+          createdObject = this.createBlackHolePrimitive(scene, objData);
+        } else {
+          this.loadGltfModel(scene, objData, loader);
+        }
+        break;
+      
+      case 'star':
+      case 'galaxy':
+      case 'supernova':
+      case 'diffraction_star':
+        console.warn(`[ObjectManager] La creación individual de '${objData.type}' se maneja por InstancedMesh.`);
+        break;
+      
+      case 'cube':
+      case 'sphere':
+      case 'cone':
+      case 'torus':
+      case 'floor':
+        createdObject = this.createStandardPrimitive(scene, objData);
+        break;
 
-  public createObjectFromData(scene: THREE.Scene, objData: SceneObjectResponse, loader: GLTFLoader): THREE.Object3D | null { let createdObject: THREE.Object3D | null = null; switch (objData.type) { case 'model': if (objData.properties?.['is_black_hole']) { createdObject = this.createBlackHolePrimitive(scene, objData); } else { this.loadGltfModel(scene, objData, loader); } break; case 'star': case 'galaxy': case 'supernova': case 'diffraction_star': console.warn(`[ObjectManager] La creación individual de '${objData.type}' se maneja por InstancedMesh.`); break; case 'cube': case 'sphere': case 'cone': case 'torus': case 'floor': createdObject = this.createStandardPrimitive(scene, objData); break; default: console.warn(`[ObjectManager] Tipo '${objData.type}' no manejado y será ignorado.`); break; } return createdObject; }
-  public createSelectionProxy(): THREE.Mesh { const proxyGeometry = new THREE.SphereGeometry(1.1, 16, 8); const proxyMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0, depthWrite: true, depthTest: true }); const proxyMesh = new THREE.Mesh(proxyGeometry, proxyMaterial); proxyMesh.name = 'SelectionProxy'; return proxyMesh; }
-  private createBlackHolePrimitive(scene: THREE.Scene, objData: SceneObjectResponse): THREE.Mesh { const geometry = new THREE.SphereGeometry(0.5, 32, 16); const material = new THREE.MeshBasicMaterial({ color: 0x000000 }); const mesh = new THREE.Mesh(geometry, material); this.applyTransformations(mesh, objData); scene.add(mesh); return mesh; }
-  private createStandardPrimitive(scene: THREE.Scene, objData: SceneObjectResponse): THREE.Mesh { const properties = objData.properties || {}; const color = new THREE.Color(sanitizeHexColor(properties['color'])); let geometry: THREE.BufferGeometry; switch (objData.type) { case 'cube': geometry = new THREE.BoxGeometry(1, 1, 1); break; case 'cone': geometry = new THREE.ConeGeometry(0.5, 1, 32); break; case 'floor': geometry = new THREE.PlaneGeometry(1, 1); break; default: geometry = new THREE.SphereGeometry(0.5, 32, 16); } const material = new THREE.MeshStandardMaterial({ color }); if (objData.type === 'floor') { (material as THREE.MeshStandardMaterial).side = THREE.DoubleSide; } const mesh = new THREE.Mesh(geometry, material); this.applyTransformations(mesh, objData); scene.add(mesh); return mesh; }
-  private loadGltfModel(scene: THREE.Scene, objData: SceneObjectResponse, loader: GLTFLoader): void { if (!objData.asset?.path) return; const modelUrl = `${this.backendUrl}${objData.asset.path}`; loader.load(modelUrl, (gltf) => { const model = gltf.scene; this.applyTransformations(model, objData); scene.add(model); }); }
-  private applyTransformations(object: THREE.Object3D, data: SceneObjectResponse): void { object.name = data.name; object.uuid = data.id.toString(); object.position.set(data.position.x, data.position.y, data.position.z); object.rotation.set(data.rotation.x, data.rotation.y, data.rotation.z); object.scale.set(data.scale.x, data.scale.y, data.scale.z); object.userData['apiType'] = data.type; object.userData['properties'] = data.properties || {}; }
+      // ✅ NUEVA LÓGICA PARA OBJETOS DE AYUDA
+      case 'camera':
+        createdObject = this.createCamera(scene, objData);
+        break;
+      
+      case 'directionalLight':
+        createdObject = this.createDirectionalLight(scene, objData);
+        break;
+
+      default:
+        console.warn(`[ObjectManager] Tipo '${objData.type}' no manejado y será ignorado.`);
+        break;
+    }
+    return createdObject;
+  }
+
+  public createSelectionProxy(): THREE.Mesh {
+    const proxyGeometry = new THREE.SphereGeometry(1.1, 16, 8);
+    const proxyMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0, depthWrite: true, depthTest: true });
+    const proxyMesh = new THREE.Mesh(proxyGeometry, proxyMaterial);
+    proxyMesh.name = 'SelectionProxy';
+    return proxyMesh;
+  }
+
+  // ✅ NUEVO MÉTODO PARA CREAR CÁMARAS EN LA ESCENA
+  private createCamera(scene: THREE.Scene, objData: SceneObjectResponse): THREE.PerspectiveCamera {
+    const props = objData.properties || {};
+    const camera = new THREE.PerspectiveCamera(
+        props['fov'] ?? 50,
+        16 / 9, // Aspecto por defecto para el helper
+        props['near'] ?? 0.1,
+        props['far'] ?? 1000
+    );
+    
+    // El objeto cámara principal contiene la transformación
+    this.applyTransformations(camera, objData);
+    
+    // El helper es solo una representación visual
+    const helper = new THREE.CameraHelper(camera);
+    helper.name = `${objData.name}_helper`;
+    
+    // Guardamos una referencia al helper en el objeto principal
+    camera.userData['helper'] = helper;
+    
+    scene.add(camera);
+    scene.add(helper); // Añadimos ambos a la escena
+    
+    return camera;
+  }
+
+  // ✅ NUEVO MÉTODO PARA CREAR LUCES EN LA ESCENA
+  private createDirectionalLight(scene: THREE.Scene, objData: SceneObjectResponse): THREE.DirectionalLight {
+    const props = objData.properties || {};
+    const color = new THREE.Color(sanitizeHexColor(props['color'], '#ffffff'));
+    const intensity = props['intensity'] ?? 1.0;
+    
+    const light = new THREE.DirectionalLight(color, intensity);
+    this.applyTransformations(light, objData);
+
+    const helper = new THREE.DirectionalLightHelper(light, 5, 0xffffff); // Helper con tamaño 5 y color blanco
+    helper.name = `${objData.name}_helper`;
+
+    light.userData['helper'] = helper;
+
+    scene.add(light);
+    scene.add(helper);
+
+    return light;
+  }
+  
+  private createBlackHolePrimitive(scene: THREE.Scene, objData: SceneObjectResponse): THREE.Mesh {
+    const geometry = new THREE.SphereGeometry(0.5, 32, 16);
+    const material = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    const mesh = new THREE.Mesh(geometry, material);
+    this.applyTransformations(mesh, objData);
+    scene.add(mesh);
+    return mesh;
+  }
+  
+  private createStandardPrimitive(scene: THREE.Scene, objData: SceneObjectResponse): THREE.Mesh {
+    const properties = objData.properties || {};
+    const color = new THREE.Color(sanitizeHexColor(properties['color']));
+    let geometry: THREE.BufferGeometry;
+    switch (objData.type) {
+      case 'cube': geometry = new THREE.BoxGeometry(1, 1, 1); break;
+      case 'cone': geometry = new THREE.ConeGeometry(0.5, 1, 32); break;
+      case 'floor': geometry = new THREE.PlaneGeometry(1, 1); break;
+      case 'torus': geometry = new THREE.TorusGeometry(0.4, 0.1, 16, 100); break; // ✅ Añadido Torus
+      default: geometry = new THREE.SphereGeometry(0.5, 32, 16);
+    }
+    const material = new THREE.MeshStandardMaterial({ color });
+    if (objData.type === 'floor') {
+      (material as THREE.MeshStandardMaterial).side = THREE.DoubleSide;
+    }
+    const mesh = new THREE.Mesh(geometry, material);
+    this.applyTransformations(mesh, objData);
+    scene.add(mesh);
+    return mesh;
+  }
+  
+  private loadGltfModel(scene: THREE.Scene, objData: SceneObjectResponse, loader: GLTFLoader): void {
+    if (!objData.asset?.path) return;
+    const modelUrl = `${this.backendUrl}${objData.asset.path}`;
+    loader.load(modelUrl, (gltf) => {
+      const model = gltf.scene;
+      this.applyTransformations(model, objData);
+      scene.add(model);
+    });
+  }
+  
+  private applyTransformations(object: THREE.Object3D, data: SceneObjectResponse): void {
+    object.name = data.name;
+    object.uuid = data.id.toString();
+    object.position.set(data.position.x, data.position.y, data.position.z);
+    object.rotation.set(data.rotation.x, data.rotation.y, data.rotation.z);
+    object.scale.set(data.scale.x, data.scale.y, data.scale.z);
+    object.userData['apiType'] = data.type;
+    object.userData['properties'] = data.properties || {};
+  }
 }
