@@ -20,7 +20,7 @@ export class ControlsManagerService implements OnDestroy {
   private isOrbiting = false;
   private isPanning = false;
   private isOrthoPanning = false;
-  
+
   private lookSpeed = 0.002;
   private currentToolMode: ToolMode = 'select';
   private transformEndSubject = new Subject<void>();
@@ -31,7 +31,7 @@ export class ControlsManagerService implements OnDestroy {
 
   private readonly MOVEMENT_SPEED = 100000000.0;
   private readonly BOOST_MULTIPLIER = 100.0;
-  
+
   private readonly ORTHO_PAN_SENSITIVITY = 0.5;
 
   private tempVector = new THREE.Vector3();
@@ -49,7 +49,7 @@ export class ControlsManagerService implements OnDestroy {
     this.createTransformControls(camera, domElement);
     this.addEventListeners();
   }
-  
+
   public setCamera(newCamera: THREE.PerspectiveCamera): void {
     this.camera = newCamera;
     this.orbitControls.object = newCamera;
@@ -72,7 +72,7 @@ export class ControlsManagerService implements OnDestroy {
 
   public configureForEditorCamera(): void {
     this.isFlyEnabled = true;
-    this.orbitControls.enabled = false; 
+    this.orbitControls.enabled = false;
     this.orbitControls.mouseButtons = {
       LEFT: THREE.MOUSE.ROTATE,
       MIDDLE: THREE.MOUSE.DOLLY,
@@ -80,12 +80,12 @@ export class ControlsManagerService implements OnDestroy {
     };
     this.orbitControls.enablePan = true;
   }
-  
+
   public configureForSecondaryCamera(): void {
     this.isFlyEnabled = false;
     this.exitFlyMode();
     this.orbitControls.enabled = true;
-    
+
     this.orbitControls.enablePan = false;
     this.orbitControls.enableRotate = true;
     this.orbitControls.enableZoom = true;
@@ -121,14 +121,14 @@ export class ControlsManagerService implements OnDestroy {
     const isOrthographicMode = !this.orbitControls.enableRotate;
 
     if (isOrthographicMode) {
-      if (event.button === 2) { 
+      if (event.button === 2) {
         this.isOrthoPanning = true;
         this.domElement.addEventListener('contextmenu', this.preventContextMenu, { once: true });
       }
       return;
     }
 
-    if (event.button === 0) { 
+    if (event.button === 0) {
       this.isOrbiting = true;
       this.orbitControls.enabled = true;
     } else if (event.button === 2) {
@@ -136,7 +136,7 @@ export class ControlsManagerService implements OnDestroy {
       this.orbitControls.enabled = true;
     }
   };
-  
+
   private onMouseMove = (event: MouseEvent) => {
     if (this.isOrthoPanning) {
       const orthoWidth = 2 / this.camera.projectionMatrix.elements[0];
@@ -182,9 +182,9 @@ export class ControlsManagerService implements OnDestroy {
     this.orbitControls.dampingFactor = 0.1;
     this.orbitControls.screenSpacePanning = true;
 
-    // ✨ MEJORA PROFESIONAL: Límites de zoom razonables para una experiencia fluida.
+    // ✨ MEJORA PROFESIONAL: Límites de zoom para una experiencia fluida y libre.
     this.orbitControls.minDistance = 1;
-    this.orbitControls.maxDistance = 1000;
+    this.orbitControls.maxDistance = Infinity; // Permitimos alejarse sin límite.
 
     this.orbitControls.enableZoom = true;
     this.orbitControls.enabled = false;
@@ -192,7 +192,7 @@ export class ControlsManagerService implements OnDestroy {
 
   private createTransformControls(camera: THREE.PerspectiveCamera, domElement: HTMLElement): void {
     this.transformControls = new TransformControls(camera, domElement);
-    
+
     this.transformControls.addEventListener('dragging-changed', (event) => {
       this.isFlyEnabled = !event.value;
       if (event.value) {
@@ -221,7 +221,7 @@ export class ControlsManagerService implements OnDestroy {
     if (this.isFlyEnabled) {
       moved = this.handleKeyboardFly(delta, keyMap);
     }
-    
+
     if (this.orbitControls.enabled) {
       if (this.orbitControls.update()) {
         moved = true;
