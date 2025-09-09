@@ -1,4 +1,3 @@
-// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/controls-manager.service.ts
 import { Injectable, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -21,7 +20,7 @@ export class ControlsManagerService implements OnDestroy {
   private isOrbiting = false;
   private isPanning = false;
   private isOrthoPanning = false;
-
+  
   private lookSpeed = 0.002;
   private currentToolMode: ToolMode = 'select';
   private transformEndSubject = new Subject<void>();
@@ -50,7 +49,7 @@ export class ControlsManagerService implements OnDestroy {
     this.createTransformControls(camera, domElement);
     this.addEventListeners();
   }
-
+  
   public setCamera(newCamera: THREE.PerspectiveCamera): void {
     this.camera = newCamera;
     this.orbitControls.object = newCamera;
@@ -71,6 +70,33 @@ export class ControlsManagerService implements OnDestroy {
     this.unlockCursor();
   };
 
+  public configureForEditorCamera(): void {
+    this.isFlyEnabled = true;
+    this.orbitControls.enabled = false; 
+    this.orbitControls.mouseButtons = {
+      LEFT: THREE.MOUSE.ROTATE,
+      MIDDLE: THREE.MOUSE.DOLLY,
+      RIGHT: THREE.MOUSE.PAN
+    };
+    this.orbitControls.enablePan = true;
+  }
+  
+  public configureForSecondaryCamera(): void {
+    this.isFlyEnabled = false;
+    this.exitFlyMode();
+    this.orbitControls.enabled = true;
+    
+    this.orbitControls.enablePan = false;
+    this.orbitControls.enableRotate = true;
+    this.orbitControls.enableZoom = true;
+
+    this.orbitControls.mouseButtons = {
+      LEFT: null as any,
+      MIDDLE: THREE.MOUSE.DOLLY,
+      RIGHT: THREE.MOUSE.ROTATE
+    };
+  }
+
   private onDocumentMouseWheel = (event: WheelEvent) => {
     if (!this.isOrbitEnabled) return;
     const isOrthographicMode = !this.orbitControls.enableRotate;
@@ -82,12 +108,16 @@ export class ControlsManagerService implements OnDestroy {
       const scaleMatrix = new THREE.Matrix4().makeScale(effectiveFactor, effectiveFactor, 1);
       this.camera.projectionMatrix.premultiply(scaleMatrix);
       this.camera.projectionMatrixInverse.copy(this.camera.projectionMatrix).invert();
+      return;
     }
   };
 
   private onMouseDown = (event: MouseEvent) => {
-    if (!this.isOrbitEnabled || this.transformControls.dragging || document.pointerLockElement === this.domElement) return;
+    if (this.orbitControls.enabled && !this.isFlyEnabled) {
+      return;
+    }
 
+    if (!this.isOrbitEnabled || this.transformControls.dragging || document.pointerLockElement === this.domElement) return;
     const isOrthographicMode = !this.orbitControls.enableRotate;
 
     if (isOrthographicMode) {
@@ -113,15 +143,11 @@ export class ControlsManagerService implements OnDestroy {
       const orthoHeight = 2 / this.camera.projectionMatrix.elements[5];
       const deltaX = event.movementX || 0;
       const deltaY = event.movementY || 0;
-      
       const panX = (deltaX / this.domElement.clientWidth) * orthoWidth * this.ORTHO_PAN_SENSITIVITY;
       const panY = (deltaY / this.domElement.clientHeight) * orthoHeight * this.ORTHO_PAN_SENSITIVITY;
-      
       const right = this.tempVector.setFromMatrixColumn(this.camera.matrix, 0);
       const up = new THREE.Vector3().setFromMatrixColumn(this.camera.matrix, 1);
-      
       this.panOffset.copy(right).multiplyScalar(-panX).add(up.multiplyScalar(panY));
-      
       this.camera.position.add(this.panOffset);
       this.orbitControls.target.add(this.panOffset);
       this.orbitControls.update();
@@ -141,7 +167,7 @@ export class ControlsManagerService implements OnDestroy {
     if (this.isOrthoPanning) {
       this.isOrthoPanning = false;
     }
-    if (this.isOrbiting || this.isPanning) {
+    if ((this.isOrbiting || this.isPanning) && this.isFlyEnabled) {
       this.orbitControls.enabled = false;
       this.isOrbiting = false;
       this.isPanning = false;
@@ -155,8 +181,11 @@ export class ControlsManagerService implements OnDestroy {
     this.orbitControls.enableDamping = true;
     this.orbitControls.dampingFactor = 0.1;
     this.orbitControls.screenSpacePanning = true;
-    this.orbitControls.minDistance = 0;
-    this.orbitControls.maxDistance = Infinity;
+
+    // ✨ MEJORA PROFESIONAL: Límites de zoom razonables para una experiencia fluida.
+    this.orbitControls.minDistance = 1;
+    this.orbitControls.maxDistance = 1000;
+
     this.orbitControls.enableZoom = true;
     this.orbitControls.enabled = false;
   }
@@ -192,7 +221,8 @@ export class ControlsManagerService implements OnDestroy {
     if (this.isFlyEnabled) {
       moved = this.handleKeyboardFly(delta, keyMap);
     }
-    if (this.isOrbiting || this.isPanning) {
+    
+    if (this.orbitControls.enabled) {
       if (this.orbitControls.update()) {
         moved = true;
       }

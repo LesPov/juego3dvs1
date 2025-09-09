@@ -1,4 +1,3 @@
-// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/scene-manager.service.ts
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -8,7 +7,6 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { CelestialInstanceData } from './object-manager.service';
 
 const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
-// ✅ MODIFICADO: Ya NO ocultamos las cámaras principales para que puedan ser seleccionadas
 const UNSELECTABLE_NAMES = ['Luz Ambiental', 'EditorGrid', 'SelectionProxy', 'FocusPivot'];
 
 @Injectable({ providedIn: 'root' })
@@ -16,8 +14,8 @@ export class SceneManagerService {
   public scene!: THREE.Scene;
   
   public activeCamera!: THREE.PerspectiveCamera;
-  public editorCameraOriginal!: THREE.PerspectiveCamera;
-  public mainCamera!: THREE.PerspectiveCamera; 
+  public editorCamera!: THREE.PerspectiveCamera;
+  public secondaryCamera!: THREE.PerspectiveCamera; 
 
   public renderer!: THREE.WebGLRenderer;
   public composer!: EffectComposer;
@@ -41,36 +39,39 @@ export class SceneManagerService {
     const width = container.clientWidth;
     const height = container.clientHeight;
 
-    // ✨ ¡MEJORA IMPORTANTE! Reducimos el 'near' plane para poder acercarnos mucho a los objetos.
     const nearPlane = 0.1;
     const farPlane = 500000000000;
 
-    this.editorCameraOriginal = new THREE.PerspectiveCamera(50, width / height, nearPlane, farPlane);
-    this.editorCameraOriginal.position.set(0, 50, 150);
-    this.editorCameraOriginal.lookAt(0, 0, 0);
-    this.editorCameraOriginal.name = 'Cámara del Editor';
-    // ✅ MODIFICADO: Añadimos 'apiType' para que aparezca en la lista de entidades
-    this.editorCameraOriginal.userData['apiType'] = 'camera'; 
+    this.editorCamera = new THREE.PerspectiveCamera(50, width / height, nearPlane, farPlane);
+    this.editorCamera.position.set(0, 50, 150);
+    this.editorCamera.lookAt(0, 0, 0);
+    this.editorCamera.name = 'Cámara del Editor';
+    this.editorCamera.userData['apiType'] = 'camera'; 
     
-    this.mainCamera = new THREE.PerspectiveCamera(50, width / height, nearPlane, farPlane);
-    this.mainCamera.position.set(50, 50, 150);
-    this.mainCamera.lookAt(0, 0, 0);
-    this.mainCamera.name = 'Cámara Principal';
-    this.mainCamera.userData['apiType'] = 'camera';
+    this.secondaryCamera = new THREE.PerspectiveCamera(50, width / height, nearPlane, farPlane);
     
-    const editorCameraHelper = new THREE.CameraHelper(this.editorCameraOriginal);
-    editorCameraHelper.name = `${this.editorCameraOriginal.name}_helper`;
-    this.editorCameraOriginal.userData['helper'] = editorCameraHelper;
+    // ✨ MEJORA PROFESIONAL: Esta es la posición relativa ideal de la cámara secundaria.
+    // Puedes ajustar estos valores para cambiar qué tan cerca/lejos o arriba/abajo empieza.
+    // (x: 0, y: 4, z: 15) es una buena posición "sobre el hombro", ni muy cerca ni muy lejos.
+    const initialSecondaryCamOffset = new THREE.Vector3(0, 4, 15);
+    this.secondaryCamera.userData['initialOffset'] = initialSecondaryCamOffset;
+    
+    this.secondaryCamera.name = 'Cámara Secundaria';
+    this.secondaryCamera.userData['apiType'] = 'camera';
+    
+    const editorCameraHelper = new THREE.CameraHelper(this.editorCamera);
+    editorCameraHelper.name = `${this.editorCamera.name}_helper`;
+    this.editorCamera.userData['helper'] = editorCameraHelper;
     editorCameraHelper.visible = false;
     
-    const mainCameraHelper = new THREE.CameraHelper(this.mainCamera);
-    mainCameraHelper.name = `${this.mainCamera.name}_helper`;
-    this.mainCamera.userData['helper'] = mainCameraHelper;
-    mainCameraHelper.visible = true;
+    const secondaryCameraHelper = new THREE.CameraHelper(this.secondaryCamera);
+    secondaryCameraHelper.name = `${this.secondaryCamera.name}_helper`;
+    this.secondaryCamera.userData['helper'] = secondaryCameraHelper;
+    secondaryCameraHelper.visible = true;
     
-    this.scene.add(this.editorCameraOriginal, editorCameraHelper, this.mainCamera, mainCameraHelper);
+    this.scene.add(this.editorCamera, this.secondaryCamera, editorCameraHelper, secondaryCameraHelper);
     
-    this.activeCamera = this.editorCameraOriginal;
+    this.activeCamera = this.editorCamera;
 
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
@@ -101,7 +102,6 @@ export class SceneManagerService {
     if (!this.scene) return box;
 
     this.scene.children.forEach(object => {
-      // ✅ MODIFICADO: La lógica ahora solo ignora los objetos no seleccionables por su nombre
       if (!object.visible || UNSELECTABLE_NAMES.includes(object.name) || object.name.endsWith('_helper')) {
         return;
       }

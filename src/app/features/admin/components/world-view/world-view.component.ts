@@ -83,7 +83,17 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   private groupDisplayCountState = new Map<string, number>();
   private readonly listIncrement = 50;
   private searchFilter$ = new BehaviorSubject<string>('');
-  private readonly typeColorMap: { [key: string]: string } = { 'Camera': 'color-camera', 'Light': 'color-light', 'Model': 'color-model', 'star': 'color-star', 'galaxy': 'color-galaxy', 'supernova': 'color-supernova', 'diffraction_star': 'color-diffraction-star', 'default': 'color-default' };
+  private readonly typeColorMap: { [key: string]: string } = { 
+    'camera': 'color-camera', 
+    'directionalLight': 'color-light',
+    'ambientLight': 'color-light',
+    'Model': 'color-model', 
+    'star': 'color-star', 
+    'galaxy': 'color-galaxy', 
+    'supernova': 'color-supernova', 
+    'diffraction_star': 'color-diffraction-star', 
+    'default': 'color-default' 
+  };
   private propertyUpdate$ = new Subject<PropertyUpdate>();
   private subscriptions = new Subscription();
   private allEntities$ = new BehaviorSubject<SceneEntity[]>([]);

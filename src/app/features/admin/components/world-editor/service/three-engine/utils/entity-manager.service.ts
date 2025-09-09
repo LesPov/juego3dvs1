@@ -24,7 +24,6 @@ export class EntityManagerService {
   private gltfLoader!: GLTFLoader;
   private sceneEntities = new BehaviorSubject<SceneEntity[]>([]);
   
-  // ✅ MODIFICADO: Se han quitado las cámaras principales de esta lista
   private unselectableNames = ['Luz Ambiental', 'FocusPivot', 'EditorGrid', 'SelectionProxy'];
   private zeroMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
 
@@ -131,17 +130,14 @@ export class EntityManagerService {
   public clearScene(): void {
     if (!this.scene) return;
     
-    // ✅ MODIFICADO: Lista de objetos a mantener en la escena
     const objectsToKeep = ['Cámara del Editor', 'Cámara Principal'];
 
     for (let i = this.scene.children.length - 1; i >= 0; i--) {
       const object = this.scene.children[i];
-      // Si el objeto está en la lista de no seleccionables o en la de mantener, lo saltamos
       if (this.unselectableNames.includes(object.name) || objectsToKeep.includes(object.name)) {
         continue;
       }
       
-      // Evitamos borrar los helpers de las cámaras principales
       if (object.name === 'Cámara del Editor_helper' || object.name === 'Cámara Principal_helper') {
         continue;
       }

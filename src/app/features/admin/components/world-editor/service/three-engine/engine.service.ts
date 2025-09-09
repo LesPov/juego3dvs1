@@ -1,4 +1,3 @@
-// src/app/features/admin/views/world-editor/world-view/service/three-engine/engine.service.ts
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
@@ -47,11 +46,14 @@ export class EngineService implements OnDestroy {
   private cameraModeSubject = new BehaviorSubject<CameraMode>('perspective');
   public cameraMode$ = this.cameraModeSubject.asObservable();
   private originalProjectionMatrix = new THREE.Matrix4();
-  
-  private activeCamera: 'editor' | 'main' = 'editor';
-  
+
+  private activeCamera: 'editor' | 'secondary' = 'editor';
+
   private lastPerspectiveState: { position: THREE.Vector3, target: THREE.Vector3 } | null = null;
   private lastOrthographicState: { position: THREE.Vector3, target: THREE.Vector3 } | null = null;
+  
+  // ✨ MEJORA PROFESIONAL: Variable para guardar el target de la cámara del editor.
+  private lastEditorTarget = new THREE.Vector3();
   
   private baseOrthoMatrixElement: number = 0;
   private controlsSubscription?: Subscription;
@@ -64,6 +66,7 @@ export class EngineService implements OnDestroy {
   private updateIndexCounter = 0;
   private tempScale = new THREE.Vector3();
   private tempBoxSize = new THREE.Vector3();
+  private tempWorldPos = new THREE.Vector3();
 
   private focusPivot: THREE.Object3D;
 
@@ -87,13 +90,13 @@ export class EngineService implements OnDestroy {
     if (!parentElement) return;
 
     const aspect = parentElement.clientWidth / parentElement.clientHeight;
-    if (this.sceneManager.editorCameraOriginal) {
-      this.sceneManager.editorCameraOriginal.aspect = aspect;
-      this.sceneManager.editorCameraOriginal.updateProjectionMatrix();
+    if (this.sceneManager.editorCamera) {
+      this.sceneManager.editorCamera.aspect = aspect;
+      this.sceneManager.editorCamera.updateProjectionMatrix();
     }
-    if (this.sceneManager.mainCamera) {
-      this.sceneManager.mainCamera.aspect = aspect;
-      this.sceneManager.mainCamera.updateProjectionMatrix();
+    if (this.sceneManager.secondaryCamera) {
+      this.sceneManager.secondaryCamera.aspect = aspect;
+      this.sceneManager.secondaryCamera.updateProjectionMatrix();
     }
 
     this.sceneManager.onWindowResize();
@@ -109,10 +112,17 @@ export class EngineService implements OnDestroy {
     this.statsManager.begin();
     const delta = this.clock.getDelta();
 
+    // ✨ MEJORA PROFESIONAL: El `animate` ya no fuerza la posición de la cámara secundaria.
+    // Solo se asegura de que su `target` (a dónde mira) siga siendo la cámara del editor.
+    if (this.activeCamera === 'secondary') {
+      const controls = this.controlsManager.getControls();
+      this.sceneManager.editorCamera.getWorldPosition(controls.target);
+    }
+    
     if (this.activeCamera === 'editor') {
-        this.sceneManager.mainCamera.userData['helper']?.update();
+        this.sceneManager.secondaryCamera.userData['helper']?.update();
     } else {
-        this.sceneManager.editorCameraOriginal.userData['helper']?.update();
+        this.sceneManager.editorCamera.userData['helper']?.update();
     }
 
     const cameraMoved = this.controlsManager.update(delta, this.keyMap);
@@ -224,19 +234,42 @@ export class EngineService implements OnDestroy {
   ngOnDestroy = () => { this.removeEventListeners(); this.interactionHelperManager.cleanupHelpers(this.selectedObject); this.dragInteractionManager.stopListening(); if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId); this.statsManager.destroy(); this.controlsManager.ngOnDestroy(); if (this.sceneManager.renderer) this.sceneManager.renderer.dispose(); };
   
   public toggleActiveCamera(): void {
-    const editorHelper = this.sceneManager.editorCameraOriginal.userData['helper'];
-    const mainHelper = this.sceneManager.mainCamera.userData['helper'];
+    const editorHelper = this.sceneManager.editorCamera.userData['helper'];
+    const secondaryHelper = this.sceneManager.secondaryCamera.userData['helper'];
+    const controls = this.controlsManager.getControls();
 
     if (this.activeCamera === 'editor') {
-      this.activeCamera = 'main';
-      this.sceneManager.activeCamera = this.sceneManager.mainCamera;
+      this.activeCamera = 'secondary';
+      this.sceneManager.activeCamera = this.sceneManager.secondaryCamera;
+      
+      // ✨ MEJORA PROFESIONAL: Guardamos el estado del editor y configuramos la cámara secundaria.
+      this.lastEditorTarget.copy(controls.target); // <-- ¡CLAVE! Guardamos a dónde miraba el editor.
+
+      const { editorCamera, secondaryCamera } = this.sceneManager;
+      const offset = secondaryCamera.userData['initialOffset'] as THREE.Vector3;
+
+      editorCamera.getWorldPosition(this.tempWorldPos);
+      editorCamera.getWorldQuaternion(this.tempQuaternion);
+
+      const newCamPos = offset.clone().applyQuaternion(this.tempQuaternion).add(this.tempWorldPos);
+      secondaryCamera.position.copy(newCamPos);
+
+      controls.target.copy(this.tempWorldPos);
+      
       if (editorHelper) editorHelper.visible = true;
-      if (mainHelper) mainHelper.visible = false;
+      if (secondaryHelper) secondaryHelper.visible = false;
+      this.controlsManager.configureForSecondaryCamera();
+
     } else {
       this.activeCamera = 'editor';
-      this.sceneManager.activeCamera = this.sceneManager.editorCameraOriginal;
+      this.sceneManager.activeCamera = this.sceneManager.editorCamera;
+
+      // ✨ MEJORA PROFESIONAL: Restauramos el estado del editor.
+      controls.target.copy(this.lastEditorTarget); // <-- ¡CLAVE! Restauramos el target guardado.
+
       if (editorHelper) editorHelper.visible = false;
-      if (mainHelper) mainHelper.visible = true;
+      if (secondaryHelper) secondaryHelper.visible = true;
+      this.controlsManager.configureForEditorCamera();
     }
 
     const newActiveCamera = this.sceneManager.activeCamera;
@@ -244,6 +277,7 @@ export class EngineService implements OnDestroy {
     (this.sceneManager.composer.passes[0] as RenderPass).camera = newActiveCamera;
     this.interactionHelperManager.setCamera(newActiveCamera);
     this.dragInteractionManager.setCamera(newActiveCamera);
+    controls.update(); // Forzamos la actualización de los controles tras cualquier cambio.
     
     if(this.selectedObject && this.selectedObject.uuid === newActiveCamera.uuid) {
         this.controlsManager.attach(this.selectedObject);
@@ -280,7 +314,7 @@ export class EngineService implements OnDestroy {
     const target = boundingBox.getCenter(new THREE.Vector3());
     const boxSize = boundingBox.getSize(this.tempBoxSize);
     
-    const distance = boxSize.length() || 100; // Default distance if box is a point
+    const distance = boxSize.length() || 100;
     
     if (axisName) {
       const newPosition = new THREE.Vector3();
