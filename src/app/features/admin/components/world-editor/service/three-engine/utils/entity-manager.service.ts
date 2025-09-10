@@ -1,5 +1,3 @@
-// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/entity-manager.service.ts
-
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -19,49 +17,34 @@ const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
 
 @Injectable({ providedIn: 'root' })
 export class EntityManagerService {
-
-  // ====================================================================
-  // SECTION: Properties & Initialization
-  // ====================================================================
-
   private scene!: THREE.Scene;
   private gltfLoader!: GLTFLoader;
   private sceneEntities = new BehaviorSubject<SceneEntity[]>([]);
   
   private unselectableNames = ['Luz Ambiental', 'FocusPivot', 'EditorGrid', 'SelectionProxy'];
-  private zeroMatrix = new THREE.Matrix4().makeScale(0, 0, 0); // Matriz para ocultar instancias
+  private zeroMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
 
   constructor(
     public objectManager: ObjectManagerService,
     private selectionManager: SelectionManagerService
   ) { }
 
-  /**
-   * Inicializa el manager con la escena de Three.js.
-   * @param scene La instancia de la escena principal.
-   */
   public init(scene: THREE.Scene): void {
     this.scene = scene;
     const loadingManager = new THREE.LoadingManager();
     this.gltfLoader = new GLTFLoader(loadingManager);
   }
   
-  // ====================================================================
-  // SECTION: Entity Publication & Discovery
-  // ====================================================================
-
-  /**
-   * Recorre la escena, recopila todos los objetos relevantes (incluyendo los instanciados)
-   * y emite una nueva lista de entidades para que la UI se actualice.
-   */
   public publishSceneEntities(): void {
     const entities: SceneEntity[] = [];
     
     this.scene.children.forEach(object => {
-      // Agrega objetos estándar (mallas, luces, cámaras)
       if (!object.name.endsWith('_helper') && !this.unselectableNames.includes(object.name) && !object.name.startsWith(CELESTIAL_MESH_PREFIX)) {
         const apiType = object.userData['apiType'] as SceneEntity['type'] | undefined;
-        const finalType = apiType || (object instanceof THREE.PerspectiveCamera ? 'camera' : (object instanceof THREE.Light ? 'directionalLight' : 'Model'));
+        // --- Lógica mejorada para manejar la escena de un modelo GLTF ---
+        const objectType = object.type === 'Group' ? 'Model' : apiType; // Los GLTF se cargan como Group
+        const finalType = objectType || (object instanceof THREE.PerspectiveCamera ? 'camera' : (object instanceof THREE.Light ? 'directionalLight' : 'Model'));
+
         entities.push({
           uuid: object.uuid,
           name: object.name,
@@ -69,7 +52,6 @@ export class EntityManagerService {
         });
       }
       
-      // Extrae las entidades de los objetos celestes instanciados
       if (object.name.startsWith(CELESTIAL_MESH_PREFIX)) {
         const allInstanceData: CelestialInstanceData[] = object.userData["celestialData"];
         if (allInstanceData) {
@@ -88,11 +70,6 @@ export class EntityManagerService {
     setTimeout(() => this.sceneEntities.next(entities));
   }
 
-  /**
-   * Busca una instancia específica dentro de todos los `InstancedMesh` celestes por su UUID original.
-   * @param uuid El UUID original de la instancia a buscar.
-   * @returns Un objeto con la malla, el índice y los datos de la instancia, o null si no se encuentra.
-   */
   private _findCelestialInstance(uuid: string): { mesh: THREE.InstancedMesh, instanceIndex: number, data: CelestialInstanceData } | null {
     for (const object of this.scene.children) {
       if (object.name.startsWith(CELESTIAL_MESH_PREFIX) && object instanceof THREE.InstancedMesh) {
@@ -108,19 +85,7 @@ export class EntityManagerService {
     return null;
   }
   
-  // ====================================================================
-  // SECTION: Object Selection & Proxy Management
-  // ====================================================================
-
-  /**
-   * Maneja la lógica de selección de un objeto por su UUID.
-   * Para objetos estándar, los selecciona directamente.
-   * Para objetos instanciados, crea un 'SelectionProxy' en su lugar para poder manipularlo.
-   * @param uuid El UUID del objeto a seleccionar, o null para deseleccionar todo.
-   * @param focusPivot Un objeto 3D que se mueve al centro del objeto seleccionado.
-   */
   public selectObjectByUuid(uuid: string | null, focusPivot: THREE.Object3D): void {
-    // Limpia cualquier proxy de selección anterior
     const existingProxy = this.scene.getObjectByName('SelectionProxy');
     if (existingProxy) {
       this.scene.remove(existingProxy);
@@ -133,7 +98,6 @@ export class EntityManagerService {
       return;
     }
 
-    // Intenta encontrar un objeto estándar en la escena
     const mainObject = this.scene.getObjectByProperty('uuid', uuid);
     if (mainObject) {
       focusPivot.position.copy(mainObject.position);
@@ -141,7 +105,6 @@ export class EntityManagerService {
       return;
     }
     
-    // Si no se encuentra, busca en los objetos instanciados y crea un proxy
     const celestialInstance = this._findCelestialInstance(uuid);
     if (celestialInstance) {
       const { data } = celestialInstance;
@@ -150,7 +113,7 @@ export class EntityManagerService {
       data.originalMatrix.decompose(pos, quat, scale);
       selectionProxy.position.copy(pos);
       selectionProxy.scale.copy(scale).multiplyScalar(PROXY_SCALE_MULTIPLIER);
-      selectionProxy.uuid = data.originalUuid; // Asigna el UUID original al proxy
+      selectionProxy.uuid = data.originalUuid;
       this.scene.add(selectionProxy);
       this.selectionManager.selectObjects([selectionProxy]);
       focusPivot.position.copy(selectionProxy.position);
@@ -160,20 +123,10 @@ export class EntityManagerService {
     this.selectionManager.selectObjects([]);
   }
   
-  // ====================================================================
-  // SECTION: Group Manipulation
-  // ====================================================================
-
-  /**
-   * Modifica la visibilidad de un grupo de objetos.
-   * @param uuids Array de UUIDs de los objetos a modificar.
-   * @param visible El nuevo estado de visibilidad.
-   */
   public setGroupVisibility(uuids: string[], visible: boolean): void {
     if (!this.scene) return;
     const celestialMeshes = this.scene.children.filter(o => o.name.startsWith(CELESTIAL_MESH_PREFIX)) as THREE.InstancedMesh[];
     
-    // Optimización: Pre-mapear las instancias para una búsqueda más rápida
     const instanceMapByMesh = new Map<string, Map<string, { data: CelestialInstanceData, index: number }>>();
     celestialMeshes.forEach(mesh => {
       const map = new Map<string, { data: CelestialInstanceData, index: number }>();
@@ -192,7 +145,6 @@ export class EntityManagerService {
         const instance = instanceMapByMesh.get(mesh.uuid)?.get(uuid);
         if (instance) {
           instance.data.isManuallyHidden = !visible;
-          // Para ocultar una instancia, escalamos su matriz a cero.
           const matrixToApply = visible ? instance.data.originalMatrix : this.zeroMatrix;
           mesh.setMatrixAt(instance.index, matrixToApply);
           meshesToUpdate.add(mesh);
@@ -203,11 +155,6 @@ export class EntityManagerService {
     meshesToUpdate.forEach(mesh => mesh.instanceMatrix.needsUpdate = true);
   }
 
-  /**
-   * Modifica el brillo (opacidad) de un grupo de objetos.
-   * @param uuids Array de UUIDs.
-   * @param brightness Valor de brillo/opacidad de 0 a 1.
-   */
   public setGroupBrightness(uuids: string[], brightness: number): void {
     if (!this.scene) return;
     const celestialMeshes = this.scene.children.filter(o => o.name.startsWith(CELESTIAL_MESH_PREFIX)) as THREE.InstancedMesh[];
@@ -249,13 +196,6 @@ export class EntityManagerService {
     });
   }
 
-  // ====================================================================
-  // SECTION: Public API & Scene Modification
-  // ====================================================================
-
-  /**
-   * Limpia la escena, eliminando todos los objetos excepto los esenciales (cámaras, etc.).
-   */
   public clearScene(): void {
     if (!this.scene) return;
     const objectsToKeep = ['Cámara del Editor', 'Cámara Principal'];
@@ -282,11 +222,6 @@ export class EntityManagerService {
     this.publishSceneEntities();
   }
   
-  /**
-   * Actualiza el nombre de un objeto en la escena y en los datos internos.
-   * @param uuid El UUID del objeto a renombrar.
-   * @param newName El nuevo nombre para el objeto.
-   */
   public updateObjectName(uuid: string, newName: string): void {
     const objectToUpdate = this.getObjectByUuid(uuid);
     if (objectToUpdate) {
@@ -305,11 +240,14 @@ export class EntityManagerService {
 
   public createObjectFromData(objData: SceneObjectResponse): THREE.Object3D | null {
     const obj = this.objectManager.createObjectFromData(this.scene, objData, this.gltfLoader);
-    if (obj) this.publishSceneEntities();
+    // Publica después de un breve retraso para dar tiempo a que los modelos asíncronos se carguen.
+    setTimeout(() => this.publishSceneEntities(), 100); 
     return obj;
   }
 
   public getLoadingManager(): THREE.LoadingManager { return this.gltfLoader.manager; }
+  // --- ¡NUEVO MÉTODO AÑADIDO! ---
+  public getGltfLoader(): GLTFLoader { return this.gltfLoader; }
   public getSceneEntities(): Observable<SceneEntity[]> { return this.sceneEntities.asObservable(); }
   public getObjectByUuid(uuid: string): THREE.Object3D | undefined { return this.scene.getObjectByProperty('uuid', uuid); }
 }
