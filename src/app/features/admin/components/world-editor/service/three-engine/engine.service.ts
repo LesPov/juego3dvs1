@@ -88,10 +88,12 @@ export class EngineService implements OnDestroy {
     this.sceneManager.scene.add(this.focusPivot);
     this.entityManager.init(this.sceneManager.scene);
     this.statsManager.init();
-    this.controlsManager.init(this.sceneManager.activeCamera, canvas, this.sceneManager.scene, this.focusPivot);
+
+    this.controlsManager.init(this.sceneManager.editorCamera, canvas, this.sceneManager.scene, this.focusPivot);
     this.sceneManager.setControls(this.controlsManager.getControls());
-    this.interactionHelperManager.init(this.sceneManager.scene, this.sceneManager.activeCamera);
-    this.dragInteractionManager.init(this.sceneManager.activeCamera, canvas, this.controlsManager);
+    this.interactionHelperManager.init(this.sceneManager.scene, this.sceneManager.editorCamera);
+    this.dragInteractionManager.init(this.sceneManager.editorCamera, canvas, this.controlsManager);
+
     this.cameraManager.initialize();
     this.controlsManager.enableNavigation();
     this.addEventListeners();
@@ -103,8 +105,6 @@ export class EngineService implements OnDestroy {
     this.statsManager.begin();
     const delta = this.clock.getDelta();
 
-    // ¡NUEVO! Ajusta los planos de recorte de la cámara en cada frame
-    // para maximizar la precisión de la profundidad y evitar parpadeos lejanos ("z-fighting").
     this.adjustCameraClippingPlanes();
 
     if (this.cameraManager.activeCameraType === 'secondary') {
@@ -157,7 +157,6 @@ export class EngineService implements OnDestroy {
       const distance = this.sceneManager.activeCamera.position.distanceTo(model.position);
       const maxScale = Math.max(model.scale.x, model.scale.y, model.scale.z);
 
-      // ¡MEJORA! Se ajustan las distancias para una transición de brillo más suave y natural.
       const START_FADE_DISTANCE = maxScale * 80.0;
       const END_FADE_DISTANCE = maxScale * 10.0;
 
@@ -165,9 +164,7 @@ export class EngineService implements OnDestroy {
       const baseIntensity = model.userData['baseEmissiveIntensity'] || 0.1;
 
       const fadeFactor = THREE.MathUtils.inverseLerp(START_FADE_DISTANCE, END_FADE_DISTANCE, distance);
-
       const clampedFadeFactor = THREE.MathUtils.clamp(fadeFactor, 0.0, 1.0);
-
       const targetIntensity = THREE.MathUtils.lerp(originalIntensity, baseIntensity, clampedFadeFactor);
 
       model.traverse(child => {
@@ -186,34 +183,30 @@ export class EngineService implements OnDestroy {
       });
     });
   }
-
-  // ¡NUEVO! Este método ajusta dinámicamente el frustum de la cámara.
-  // Cuando estás muy lejos, aleja el plano 'near'. Cuando te acercas, lo acerca.
-  // Esto aumenta drásticamente la precisión del buffer de profundidad, eliminando parpadeos.
+  
   private adjustCameraClippingPlanes = () => {
+    if (this.sceneManager.activeCamera.type !== 'PerspectiveCamera') return;
+
     const camera = this.sceneManager.activeCamera as THREE.PerspectiveCamera;
     const controls = this.controlsManager.getControls();
-    if (!camera || !controls || !camera.isPerspectiveCamera || !camera.userData['originalNear']) return;
+    if (!camera || !controls || !camera.userData['originalNear']) return;
 
     const distanceToTarget = camera.position.distanceTo(controls.target);
     const originalNear = camera.userData['originalNear'];
     const originalFar = camera.userData['originalFar'];
 
     const DYNAMIC_CLIPPING_THRESHOLD = 500_000_000;
-
     let newNear, newFar;
 
     if (distanceToTarget < DYNAMIC_CLIPPING_THRESHOLD) {
-      // Cerca: ajusta los planos para mayor precisión en objetos cercanos
       newNear = Math.max(10, distanceToTarget / 1000);
       newFar = distanceToTarget * 10;
     } else {
-      // Lejos: usa los valores originales para ver toda la escena
       newNear = originalNear;
       newFar = originalFar;
     }
 
-    newFar = Math.max(newFar, newNear * 2); // Asegura que far sea siempre mayor que near
+    newFar = Math.max(newFar, newNear * 2);
 
     if (camera.near !== newNear || camera.far !== newFar) {
       camera.near = newNear;
@@ -225,7 +218,6 @@ export class EngineService implements OnDestroy {
   public populateScene(objects: SceneObjectResponse[], onProgress: (p: number) => void, onLoaded: () => void): void {
     if (!this.sceneManager.scene) return;
     this.entityManager.clearScene();
-
     this.dynamicCelestialModels = [];
 
     const celestialTypes = ['star', 'galaxy', 'meteor', 'supernova', 'diffraction_star', 'model'];
@@ -241,17 +233,10 @@ export class EngineService implements OnDestroy {
     const loadingManager = this.entityManager.getLoadingManager();
     loadingManager.onProgress = (_, loaded, total) => onProgress((loaded / total) * 100);
     loadingManager.onLoad = () => {
-      // ¡MEJORA CLAVE! Esta es la solución al "lag" inicial.
-      // Una vez que todos los modelos se han descargado, le decimos a Three.js que compile
-      // todos los materiales y shaders de la escena. Esto fuerza a la GPU a prepararse
-      // para renderizar todo, en lugar de hacerlo sobre la marcha la primera vez que ves un objeto.
       console.log("Assets descargados. Pre-compilando shaders de la escena para eliminar lag inicial...");
       this.sceneManager.renderer.compile(this.sceneManager.scene, this.sceneManager.activeCamera);
       console.log("¡Shaders compilados!");
-
-      // Ahora que todo está realmente listo, llamamos al callback onLoaded.
       onLoaded();
-
       this.entityManager.publishSceneEntities();
       this.sceneManager.scene.traverse(obj => {
         if (obj.userData['isDynamicCelestialModel']) {
@@ -451,7 +436,8 @@ export class EngineService implements OnDestroy {
   public addObjectToScene = (objData: SceneObjectResponse) => this.entityManager.createObjectFromData(objData);
   public getSceneEntities = (): Observable<SceneEntity[]> => this.entityManager.getSceneEntities();
   public getGizmoAttachedObject = (): THREE.Object3D | undefined => this.selectedObject;
-  public frameScene = (width: number, height: number) => this.sceneManager.frameScene(width, height);
+  
+  public frameScene = () => this.cameraManager.frameScene();
 
   private onKeyDown = (e: KeyboardEvent) => {
     const key = e.key.toLowerCase();
@@ -522,22 +508,22 @@ export class EngineService implements OnDestroy {
     const parentElement = this.sceneManager.canvas?.parentElement;
     if (!parentElement) return;
 
-    const aspect = parentElement.clientWidth / parentElement.clientHeight;
-    if (this.sceneManager.editorCamera) {
-      this.sceneManager.editorCamera.aspect = aspect;
-      this.sceneManager.editorCamera.updateProjectionMatrix();
-    }
-    if (this.sceneManager.secondaryCamera) {
-      this.sceneManager.secondaryCamera.aspect = aspect;
-      this.sceneManager.secondaryCamera.updateProjectionMatrix();
+    if (this.cameraManager.cameraMode$.getValue() === 'orthographic') {
+      this.cameraManager.setCameraView(null, undefined);
+    } else {
+        const aspect = parentElement.clientWidth / parentElement.clientHeight;
+        if (this.sceneManager.editorCamera) {
+            this.sceneManager.editorCamera.aspect = aspect;
+            this.sceneManager.editorCamera.updateProjectionMatrix();
+        }
+        if (this.sceneManager.secondaryCamera) {
+            this.sceneManager.secondaryCamera.aspect = aspect;
+            this.sceneManager.secondaryCamera.updateProjectionMatrix();
+        }
     }
 
     this.sceneManager.onWindowResize();
     this.interactionHelperManager.updateScale();
-
-    if (this.cameraManager.cameraMode$.getValue() === 'orthographic') {
-      this.baseOrthoMatrixElement = this.cameraManager.setCameraView(null, undefined);
-    }
   };
 
   ngOnDestroy = () => {

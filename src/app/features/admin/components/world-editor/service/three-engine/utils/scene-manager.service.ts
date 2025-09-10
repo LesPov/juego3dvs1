@@ -15,7 +15,8 @@ const UNSELECTABLE_NAMES = ['Luz Ambiental', 'EditorGrid', 'SelectionProxy', 'Fo
 export class SceneManagerService {
 
   public scene!: THREE.Scene;
-  public activeCamera!: THREE.PerspectiveCamera;
+  // ✅ SOLUCIÓN: La cámara activa puede ser de perspectiva O ortográfica.
+  public activeCamera!: THREE.PerspectiveCamera | THREE.OrthographicCamera;
   public editorCamera!: THREE.PerspectiveCamera;
   public secondaryCamera!: THREE.PerspectiveCamera; 
 
@@ -38,9 +39,6 @@ export class SceneManagerService {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x000000);
 
-    // --- ¡NUEVA LUZ AMBIENTAL! ---
-    // Esta luz sutil asegura que las partes en sombra del modelo no sean negras,
-    // permitiendo que los detalles 3D sean visibles.
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.15);
     ambientLight.name = "Luz Ambiental";
     this.scene.add(ambientLight);
@@ -49,10 +47,12 @@ export class SceneManagerService {
     const farPlane = 500000000000;
 
     this.editorCamera = new THREE.PerspectiveCamera(50, width / height, nearPlane, farPlane);
-    this.editorCamera.position.set(0, 50, 150);
+    this.editorCamera.position.set(0, 50, 15000000000);
     this.editorCamera.lookAt(0, 0, 0);
     this.editorCamera.name = 'Cámara del Editor';
     this.editorCamera.userData['apiType'] = 'camera'; 
+    this.editorCamera.userData['originalNear'] = nearPlane; // Guardar para clipping dinámico
+    this.editorCamera.userData['originalFar'] = farPlane;
     
     this.secondaryCamera = new THREE.PerspectiveCamera(50, width / height, nearPlane, farPlane);
     this.secondaryCamera.name = 'Cámara Secundaria';
@@ -129,7 +129,10 @@ export class SceneManagerService {
     const newHeight = container.clientHeight;
 
     if (this.canvas.width !== newWidth || this.canvas.height !== newHeight) {
-      this.activeCamera.aspect = newWidth / newHeight;
+      // ✅ SOLUCIÓN: Comprobamos el tipo de cámara antes de acceder a 'aspect'.
+      if ('aspect' in this.activeCamera) {
+          this.activeCamera.aspect = newWidth / newHeight;
+      }
       this.activeCamera.updateProjectionMatrix();
 
       this.renderer.setSize(newWidth, newHeight);
@@ -142,7 +145,7 @@ export class SceneManagerService {
   }
 
   public frameScene(sceneWidth: number, sceneHeight: number): void {
-    if (!this.activeCamera || !this.controls) return;
+    if (!this.activeCamera || !this.controls || !('fov' in this.activeCamera)) return;
 
     const fovRad = THREE.MathUtils.degToRad(this.activeCamera.fov);
     const effectiveHeight = Math.max(sceneHeight, sceneWidth / this.activeCamera.aspect);

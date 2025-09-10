@@ -10,19 +10,12 @@ import { ToolMode } from '../../../toolbar/toolbar.component';
 @Injectable({ providedIn: 'root' })
 export class ControlsManagerService implements OnDestroy {
 
-  // ====================================================================
-  // SECTION: Properties & State
-  // ====================================================================
-  
-  // Controles de Three.js
   private orbitControls!: OrbitControls;
   private transformControls!: TransformControls;
 
-  // Referencias del entorno
-  private camera!: THREE.PerspectiveCamera;
+  private camera!: THREE.PerspectiveCamera | THREE.OrthographicCamera;
   private domElement!: HTMLElement;
   
-  // Estado interno de los controles
   private isOrbitEnabled = false;
   public isFlyEnabled = false;
   private isTouchDevice = false;
@@ -31,33 +24,18 @@ export class ControlsManagerService implements OnDestroy {
   private isOrthoPanning = false;
   private currentToolMode: ToolMode = 'select';
   
-  // Sujetos y Observables de RxJS para comunicar el estado
   private transformEndSubject = new Subject<void>();
   public onTransformEnd$ = this.transformEndSubject.asObservable();
   private isFlyModeActiveSubject = new BehaviorSubject<boolean>(false);
   public isFlyModeActive$ = this.isFlyModeActiveSubject.asObservable();
 
-  // Constantes de configuración
   private readonly MOVEMENT_SPEED = 100000000.0;
   private readonly BOOST_MULTIPLIER = 100.0;
   private readonly LOOK_SPEED = 0.002;
-  private readonly ORTHO_PAN_SENSITIVITY = 0.5;
 
-  // Vectores temporales para optimización
   private tempVector = new THREE.Vector3();
   private panOffset = new THREE.Vector3();
 
-  // ====================================================================
-  // SECTION: Initialization & Teardown
-  // ====================================================================
-  
-  /**
-   * Inicializa el gestor de controles.
-   * @param camera Cámara inicial.
-   * @param domElement Elemento del DOM para los eventos del ratón.
-   * @param scene La escena de Three.js.
-   * @param focusPivot Objeto pivote para los controles de órbita.
-   */
   public init(camera: THREE.PerspectiveCamera, domElement: HTMLElement, scene: THREE.Scene, focusPivot: THREE.Object3D): void {
     this.camera = camera;
     this.domElement = domElement;
@@ -65,11 +43,7 @@ export class ControlsManagerService implements OnDestroy {
 
     this.createOrbitControls(camera, domElement);
     this.createTransformControls(camera, domElement);
-    
-    // ✅ CORRECCIÓN: Se elimina la siguiente línea.
-    // TransformControls no se añade a la escena, funciona como una superposición.
-    // scene.add(this.transformControls); 
-    
+        
     this.addEventListeners();
   }
 
@@ -93,15 +67,14 @@ export class ControlsManagerService implements OnDestroy {
     this.orbitControls.dampingFactor = 0.1;
     this.orbitControls.screenSpacePanning = true;
     this.orbitControls.minDistance = 1;
-    this.orbitControls.maxDistance = Infinity; // Permite alejarse sin límite
+    this.orbitControls.maxDistance = Infinity;
     this.orbitControls.enabled = false;
   }
 
-  private createTransformControls(camera: THREE.PerspectiveCamera, domElement: HTMLElement): void {
+  private createTransformControls(camera: THREE.Camera, domElement: HTMLElement): void {
     this.transformControls = new TransformControls(camera, domElement);
     this.transformControls.addEventListener('dragging-changed', (event: any) => {
       const isDragging = event.value as boolean;
-      // Desactiva la navegación de la cámara mientras se arrastra el gizmo
       this.orbitControls.enabled = !isDragging; 
       if (isDragging) {
         this.isOrbiting = false;
@@ -111,22 +84,13 @@ export class ControlsManagerService implements OnDestroy {
     this.transformControls.addEventListener('objectChange', () => this.transformEndSubject.next());
     this.transformControls.enabled = false;
   }
-
-  // ====================================================================
-  // SECTION: Camera & Mode Configuration
-  // ====================================================================
-
-  /**
-   * Cambia la cámara que los controles están manejando.
-   * @param newCamera La nueva cámara a controlar.
-   */
-  public setCamera(newCamera: THREE.PerspectiveCamera): void {
+  
+  public setCamera(newCamera: THREE.PerspectiveCamera | THREE.OrthographicCamera): void {
     this.camera = newCamera;
     this.orbitControls.object = newCamera;
     this.transformControls.camera = newCamera;
   }
   
-  /** Configura los controles para la cámara principal del editor (modo vuelo activado, órbita con ratón). */
   public configureForEditorCamera(): void {
     this.isFlyEnabled = true;
     this.orbitControls.enabled = false;
@@ -134,7 +98,6 @@ export class ControlsManagerService implements OnDestroy {
     this.orbitControls.enablePan = true;
   }
   
-  /** Configura los controles para la cámara secundaria (modo órbita, sin modo vuelo). */
   public configureForSecondaryCamera(): void {
     this.isFlyEnabled = false;
     this.exitFlyMode();
@@ -144,10 +107,6 @@ export class ControlsManagerService implements OnDestroy {
     this.orbitControls.enableZoom = true;
     this.orbitControls.mouseButtons = { LEFT: null as any, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
   }
-
-  // ====================================================================
-  // SECTION: Event Listeners & Handlers
-  // ====================================================================
 
   private addEventListeners = () => {
     if (!this.isTouchDevice) {
@@ -161,14 +120,13 @@ export class ControlsManagerService implements OnDestroy {
   };
 
   private onMouseDown = (event: MouseEvent) => {
-    // Si el gizmo está activo, no iniciar navegación de cámara
     if (this.transformControls.dragging) return;
     if (this.orbitControls.enabled && !this.isFlyEnabled) return;
     if (!this.isOrbitEnabled || document.pointerLockElement === this.domElement) return;
     
     const isOrthographicMode = !this.orbitControls.enableRotate;
     if (isOrthographicMode) {
-      if (event.button === 2) { // Clic derecho
+      if (event.button === 2) {
         this.isOrthoPanning = true;
         this.domElement.addEventListener('contextmenu', this.preventContextMenu, { once: true });
       }
@@ -181,13 +139,22 @@ export class ControlsManagerService implements OnDestroy {
 
   private onMouseMove = (event: MouseEvent) => {
     if (this.isOrthoPanning) {
-      const orthoWidth = 2 / this.camera.projectionMatrix.elements[0];
-      const orthoHeight = 2 / this.camera.projectionMatrix.elements[5];
-      const panX = (event.movementX / this.domElement.clientWidth) * orthoWidth * this.ORTHO_PAN_SENSITIVITY;
-      const panY = (event.movementY / this.domElement.clientHeight) * orthoHeight * this.ORTHO_PAN_SENSITIVITY;
+      const orthoCam = this.camera as THREE.OrthographicCamera;
+      
+      const visibleWidth = orthoCam.right - orthoCam.left;
+      const visibleHeight = orthoCam.top - orthoCam.bottom;
+      
+      const deltaX = event.movementX / this.domElement.clientWidth;
+      const deltaY = event.movementY / this.domElement.clientHeight;
+
+      const panX = deltaX * visibleWidth;
+      const panY = deltaY * visibleHeight;
+
       const right = this.tempVector.setFromMatrixColumn(this.camera.matrix, 0);
       const up = new THREE.Vector3().setFromMatrixColumn(this.camera.matrix, 1);
+      
       this.panOffset.copy(right).multiplyScalar(-panX).add(up.multiplyScalar(panY));
+      
       this.camera.position.add(this.panOffset);
       this.orbitControls.target.add(this.panOffset);
       this.orbitControls.update();
@@ -212,39 +179,45 @@ export class ControlsManagerService implements OnDestroy {
 
   private onDocumentMouseWheel = (event: WheelEvent) => {
     if (!this.isOrbitEnabled) return;
-    if (!this.orbitControls.enableRotate) {
+    if (!this.orbitControls.enableRotate && this.camera.type === 'OrthographicCamera') {
       event.preventDefault();
+      const orthoCam = this.camera as THREE.OrthographicCamera;
       const zoomFactor = 1.1;
-      const effectiveFactor = event.deltaY > 0 ? 1 / zoomFactor : zoomFactor;
-      const scaleMatrix = new THREE.Matrix4().makeScale(effectiveFactor, effectiveFactor, 1);
-      this.camera.projectionMatrix.premultiply(scaleMatrix);
-      this.camera.projectionMatrixInverse.copy(this.camera.projectionMatrix).invert();
+      const zoomAmount = event.deltaY > 0 ? zoomFactor : 1 / zoomFactor;
+  
+      orthoCam.left *= zoomAmount;
+      orthoCam.right *= zoomAmount;
+      orthoCam.top *= zoomAmount;
+      orthoCam.bottom *= zoomAmount;
+  
+      orthoCam.updateProjectionMatrix();
     }
   };
   
+  // ✅ ¡LÓGICA MEJORADA Y CORREGIDA!
   private onPointerLockChange = () => {
     const isLocked = document.pointerLockElement === this.domElement;
     this.isFlyModeActiveSubject.next(isLocked);
-    if (!isLocked) { 
+    
+    // Si ya NO está bloqueado (porque salimos del modo vuelo con ESC)
+    if (!isLocked) {
+      // 1. Calculamos la distancia actual al 'target' antiguo.
+      const oldDistance = this.camera.position.distanceTo(this.orbitControls.target);
+      
+      // 2. Creamos un nuevo 'target' que esté en la dirección en la que mira la cámara,
+      //    pero a la misma distancia que el 'target' anterior.
       const newTarget = this.tempVector;
-      this.camera.getWorldDirection(newTarget);
-      newTarget.multiplyScalar(100).add(this.camera.position);
+      this.camera.getWorldDirection(newTarget); // Obtiene la dirección de la cámara (un vector de longitud 1)
+      newTarget.multiplyScalar(oldDistance); // Escala esa dirección a la distancia que teníamos
+      newTarget.add(this.camera.position); // Suma la posición actual para obtener el punto final
+      
+      // 3. Actualizamos el 'target' de los OrbitControls.
       this.orbitControls.target.copy(newTarget);
     }
   };
 
   private preventContextMenu = (event: MouseEvent) => event.preventDefault();
 
-  // ====================================================================
-  // SECTION: Core Update Loop
-  // ====================================================================
-
-  /**
-   * Actualiza el estado de los controles en cada frame. Llamado por EngineService.
-   * @param delta Tiempo transcurrido desde el último frame.
-   * @param keyMap Mapa del estado actual de las teclas.
-   * @returns `true` si la cámara se ha movido, `false` en caso contrario.
-   */
   public update = (delta: number, keyMap: Map<string, boolean>): boolean => {
     let moved = false;
     if (this.isFlyEnabled && document.pointerLockElement === this.domElement) {
@@ -279,10 +252,6 @@ export class ControlsManagerService implements OnDestroy {
     }
     return false;
   }
-
-  // ====================================================================
-  // SECTION: Public API
-  // ====================================================================
   
   public enableNavigation(): void { this.isOrbitEnabled = true; if (!this.isTouchDevice) this.isFlyEnabled = true; }
   public disableNavigation(): void { this.isOrbitEnabled = false; this.isFlyEnabled = false; this.unlockCursor(); }
@@ -291,7 +260,6 @@ export class ControlsManagerService implements OnDestroy {
   public setTransformMode = (mode: ToolMode): void => {
     this.currentToolMode = mode;
     if (mode === 'rotate' || mode === 'scale' || mode === 'move') {
-        // En Three.js, el modo para 'move' es 'translate'
         this.transformControls.setMode(mode === 'move' ? 'translate' : mode);
     }
   };
