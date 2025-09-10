@@ -58,7 +58,7 @@ export class EngineService implements OnDestroy {
   private boundingSphere = new THREE.Sphere();
   private tempScale = new THREE.Vector3();
   private tempColor = new THREE.Color();
-  
+
   private dynamicCelestialModels: THREE.Group[] = [];
 
 
@@ -102,7 +102,9 @@ export class EngineService implements OnDestroy {
     this.animationFrameId = requestAnimationFrame(this.animate);
     this.statsManager.begin();
     const delta = this.clock.getDelta();
-    
+
+    // ¡NUEVO! Ajusta los planos de recorte de la cámara en cada frame
+    // para maximizar la precisión de la profundidad y evitar parpadeos lejanos ("z-fighting").
     this.adjustCameraClippingPlanes();
 
     if (this.cameraManager.activeCameraType === 'secondary') {
@@ -131,14 +133,14 @@ export class EngineService implements OnDestroy {
     if (selectionProxy) {
       selectionProxy.quaternion.copy(this.sceneManager.activeCamera.quaternion);
     }
-    
+
     this.updateDynamicCelestialModels(delta);
-    
+
     this.sceneManager.scene.children.forEach(object => {
       if (object.name.startsWith(CELESTIAL_MESH_PREFIX)) {
         this.updateVisibleCelestialInstances(object as THREE.InstancedMesh);
       }
-      
+
       if (object.userData['animationMixer']) {
         object.userData['animationMixer'].update(delta);
       }
@@ -149,66 +151,69 @@ export class EngineService implements OnDestroy {
   };
 
   private updateDynamicCelestialModels(delta: number): void {
-      this.dynamicCelestialModels.forEach(model => {
-          if (!model.userData['isDynamicCelestialModel']) return;
-          
-          const distance = this.sceneManager.activeCamera.position.distanceTo(model.position);
-          const maxScale = Math.max(model.scale.x, model.scale.y, model.scale.z);
+    this.dynamicCelestialModels.forEach(model => {
+      if (!model.userData['isDynamicCelestialModel']) return;
 
-          // === AJUSTE DE DISTANCIAS DE BRILLO ===
-          // El brillo comenzará a disminuir a 80 veces el tamaño del objeto (más lejos).
-          const START_FADE_DISTANCE = maxScale * 80.0; 
-          // El brillo llegará a su mínimo a 10 veces el tamaño del objeto (da más espacio para acercarse).
-          const END_FADE_DISTANCE = maxScale * 10.0;
-  
-          const originalIntensity = model.userData['originalEmissiveIntensity'] || 1.0;
-          const baseIntensity = model.userData['baseEmissiveIntensity'] || 0.1;
-  
-          const fadeFactor = THREE.MathUtils.inverseLerp(START_FADE_DISTANCE, END_FADE_DISTANCE, distance);
-          
-          const clampedFadeFactor = THREE.MathUtils.clamp(fadeFactor, 0.0, 1.0);
+      const distance = this.sceneManager.activeCamera.position.distanceTo(model.position);
+      const maxScale = Math.max(model.scale.x, model.scale.y, model.scale.z);
 
-          const targetIntensity = THREE.MathUtils.lerp(originalIntensity, baseIntensity, clampedFadeFactor);
-  
-          model.traverse(child => {
-              if (child instanceof THREE.Mesh && child.material) {
-                  const applyIntensity = (material: any) => {
-                      if ('emissiveIntensity' in material) {
-                          material.emissiveIntensity = THREE.MathUtils.lerp(material.emissiveIntensity, targetIntensity, delta * 5);
-                      }
-                  };
-                  if(Array.isArray(child.material)) {
-                    child.material.forEach(applyIntensity);
-                  } else {
-                    applyIntensity(child.material);
-                  }
-              }
-          });
+      // ¡MEJORA! Se ajustan las distancias para una transición de brillo más suave y natural.
+      const START_FADE_DISTANCE = maxScale * 80.0;
+      const END_FADE_DISTANCE = maxScale * 10.0;
+
+      const originalIntensity = model.userData['originalEmissiveIntensity'] || 1.0;
+      const baseIntensity = model.userData['baseEmissiveIntensity'] || 0.1;
+
+      const fadeFactor = THREE.MathUtils.inverseLerp(START_FADE_DISTANCE, END_FADE_DISTANCE, distance);
+
+      const clampedFadeFactor = THREE.MathUtils.clamp(fadeFactor, 0.0, 1.0);
+
+      const targetIntensity = THREE.MathUtils.lerp(originalIntensity, baseIntensity, clampedFadeFactor);
+
+      model.traverse(child => {
+        if (child instanceof THREE.Mesh && child.material) {
+          const applyIntensity = (material: any) => {
+            if ('emissiveIntensity' in material) {
+              material.emissiveIntensity = THREE.MathUtils.lerp(material.emissiveIntensity, targetIntensity, delta * 5);
+            }
+          };
+          if (Array.isArray(child.material)) {
+            child.material.forEach(applyIntensity);
+          } else {
+            applyIntensity(child.material);
+          }
+        }
       });
+    });
   }
-  
+
+  // ¡NUEVO! Este método ajusta dinámicamente el frustum de la cámara.
+  // Cuando estás muy lejos, aleja el plano 'near'. Cuando te acercas, lo acerca.
+  // Esto aumenta drásticamente la precisión del buffer de profundidad, eliminando parpadeos.
   private adjustCameraClippingPlanes = () => {
-    const camera = this.sceneManager.activeCamera;
+    const camera = this.sceneManager.activeCamera as THREE.PerspectiveCamera;
     const controls = this.controlsManager.getControls();
-    if (!camera || !controls || !camera.userData['originalNear']) return;
+    if (!camera || !controls || !camera.isPerspectiveCamera || !camera.userData['originalNear']) return;
 
     const distanceToTarget = camera.position.distanceTo(controls.target);
     const originalNear = camera.userData['originalNear'];
     const originalFar = camera.userData['originalFar'];
-    
+
     const DYNAMIC_CLIPPING_THRESHOLD = 500_000_000;
 
     let newNear, newFar;
 
     if (distanceToTarget < DYNAMIC_CLIPPING_THRESHOLD) {
-      newNear = Math.max(10, distanceToTarget / 1000); 
+      // Cerca: ajusta los planos para mayor precisión en objetos cercanos
+      newNear = Math.max(10, distanceToTarget / 1000);
       newFar = distanceToTarget * 10;
     } else {
+      // Lejos: usa los valores originales para ver toda la escena
       newNear = originalNear;
       newFar = originalFar;
     }
-    
-    newFar = Math.max(newFar, newNear * 2);
+
+    newFar = Math.max(newFar, newNear * 2); // Asegura que far sea siempre mayor que near
 
     if (camera.near !== newNear || camera.far !== newFar) {
       camera.near = newNear;
@@ -220,51 +225,58 @@ export class EngineService implements OnDestroy {
   public populateScene(objects: SceneObjectResponse[], onProgress: (p: number) => void, onLoaded: () => void): void {
     if (!this.sceneManager.scene) return;
     this.entityManager.clearScene();
-    
+
     this.dynamicCelestialModels = [];
-    
+
     const celestialTypes = ['star', 'galaxy', 'meteor', 'supernova', 'diffraction_star', 'model'];
     const celestialObjectsData = objects.filter(o => celestialTypes.includes(o.type));
     const standardObjectsData = objects.filter(o => !celestialTypes.includes(o.type));
 
     this.entityManager.objectManager.createCelestialObjectsInstanced(
-        this.sceneManager.scene,
-        celestialObjectsData,
-        this.entityManager.getGltfLoader()
+      this.sceneManager.scene,
+      celestialObjectsData,
+      this.entityManager.getGltfLoader()
     );
 
     const loadingManager = this.entityManager.getLoadingManager();
     loadingManager.onProgress = (_, loaded, total) => onProgress((loaded / total) * 100);
     loadingManager.onLoad = () => {
+      // ¡MEJORA CLAVE! Esta es la solución al "lag" inicial.
+      // Una vez que todos los modelos se han descargado, le decimos a Three.js que compile
+      // todos los materiales y shaders de la escena. Esto fuerza a la GPU a prepararse
+      // para renderizar todo, en lugar de hacerlo sobre la marcha la primera vez que ves un objeto.
+      console.log("Assets descargados. Pre-compilando shaders de la escena para eliminar lag inicial...");
+      this.sceneManager.renderer.compile(this.sceneManager.scene, this.sceneManager.activeCamera);
+      console.log("¡Shaders compilados!");
+
+      // Ahora que todo está realmente listo, llamamos al callback onLoaded.
       onLoaded();
+
       this.entityManager.publishSceneEntities();
       this.sceneManager.scene.traverse(obj => {
-          if (obj.userData['isDynamicCelestialModel']) {
-              this.dynamicCelestialModels.push(obj as THREE.Group);
-          }
+        if (obj.userData['isDynamicCelestialModel']) {
+          this.dynamicCelestialModels.push(obj as THREE.Group);
+        }
       });
     };
 
     standardObjectsData.forEach(o => this.entityManager.createObjectFromData(o));
 
     const hasModelsToLoad = standardObjectsData.some(o => o.type === 'model' && o.asset?.path) ||
-                             celestialObjectsData.some(o => o.asset?.type === 'model_glb');
+      celestialObjectsData.some(o => o.asset?.type === 'model_glb');
 
     if (!hasModelsToLoad) {
       setTimeout(() => { if (loadingManager.onLoad) loadingManager.onLoad(); }, 0);
     }
   }
-  
-  // El resto del archivo es idéntico al anterior...
-  // ...
 
   private updateVisibleCelestialInstances(instancedMesh: THREE.InstancedMesh): void {
     if (!instancedMesh) return;
     const allData: CelestialInstanceData[] = instancedMesh.userData['celestialData'];
     if (!allData || allData.length === 0) return;
-  
+
     this.updateCameraFrustum();
-  
+
     let needsColorUpdate = false;
     let needsMatrixUpdate = false;
     const camera = this.sceneManager.activeCamera;
@@ -278,19 +290,19 @@ export class EngineService implements OnDestroy {
       visibilityFactor = Math.max(0.1, visibilityFactor);
       bloomDampeningFactor = Math.min(1.0, ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR / zoomRatio);
     }
-  
+
     const totalInstances = allData.length;
     const startIndex = instancedMesh.userData['updateIndexCounter'] || 0;
     const checkCount = Math.min(totalInstances, Math.ceil(INSTANCES_TO_CHECK_PER_FRAME / 5));
-  
+
     for (let i = 0; i < checkCount; i++) {
       const currentIndex = (startIndex + i) % totalInstances;
       const data = allData[currentIndex];
-  
+
       if (data.isManuallyHidden) { continue; }
-  
+
       const distance = data.position.distanceTo(camera.position);
-  
+
       if (distance < NEAR_CULLING_THRESHOLD) {
         if (!data.isVisible) data.isVisible = true;
         const baseIntensity = data.emissiveIntensity * BRIGHTNESS_MULTIPLIER;
@@ -305,27 +317,27 @@ export class EngineService implements OnDestroy {
         needsColorUpdate = true;
         continue;
       }
-  
+
       this.boundingSphere.center.copy(data.position);
       this.boundingSphere.radius = Math.max(data.scale.x, data.scale.y, data.scale.z) * DEEP_SPACE_SCALE_BOOST;
       if (!this.frustum.intersectsSphere(this.boundingSphere)) {
         if (data.isVisible) { this.tempColor.setScalar(0); instancedMesh.setColorAt(currentIndex, this.tempColor); needsColorUpdate = true; data.isVisible = false; }
         continue;
       }
-  
+
       const personalVisibilityDistance = Math.min(BASE_VISIBILITY_DISTANCE * data.luminosity, MAX_PERCEPTUAL_DISTANCE);
       const effectiveVisibilityDistance = personalVisibilityDistance * visibilityFactor;
       if (distance > effectiveVisibilityDistance) {
         if (data.isVisible) { this.tempColor.setScalar(0); instancedMesh.setColorAt(currentIndex, this.tempColor); needsColorUpdate = true; data.isVisible = false; }
         continue;
       }
-  
+
       const visibilityFalloff = 1.0 - THREE.MathUtils.smoothstep(distance, 0, effectiveVisibilityDistance);
       const distanceFalloff = 1.0 - THREE.MathUtils.smoothstep(distance, BRIGHTNESS_FALLOFF_START_DISTANCE, effectiveVisibilityDistance);
       const baseIntensity = data.emissiveIntensity * BRIGHTNESS_MULTIPLIER * visibilityFalloff * distanceFalloff;
       const brightnessMultiplier = isOrthographic ? data.brightness : 1.0;
       const finalIntensity = Math.min(baseIntensity, MAX_INTENSITY) * bloomDampeningFactor * brightnessMultiplier;
-  
+
       this.tempScale.copy(data.scale).multiplyScalar(DEEP_SPACE_SCALE_BOOST);
       if (finalIntensity > 0.01) {
         if (!data.isVisible) data.isVisible = true;
@@ -342,17 +354,29 @@ export class EngineService implements OnDestroy {
         data.isVisible = false;
       }
     }
-  
+
     instancedMesh.userData['updateIndexCounter'] = (startIndex + checkCount) % totalInstances;
-  
+
     if (needsColorUpdate && instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
     if (needsMatrixUpdate) instancedMesh.instanceMatrix.needsUpdate = true;
   }
-  
-  public toggleActiveCamera(): void { this.cameraManager.toggleActiveCamera(this.selectedObject); }
-  public toggleCameraMode(): void { this.cameraManager.toggleCameraMode(); }
-  public setCameraView(axisName: string | null): void { this.baseOrthoMatrixElement = this.cameraManager.setCameraView(axisName, undefined); }
-  public switchToPerspectiveView(): void { this.cameraManager.switchToPerspectiveView(); }
+
+  public toggleActiveCamera(): void {
+    this.cameraManager.toggleActiveCamera(this.selectedObject);
+  }
+
+  public toggleCameraMode(): void {
+    this.cameraManager.toggleCameraMode();
+  }
+
+  public setCameraView(axisName: string | null): void {
+    this.baseOrthoMatrixElement = this.cameraManager.setCameraView(axisName, undefined);
+  }
+
+  public switchToPerspectiveView(): void {
+    this.cameraManager.switchToPerspectiveView();
+  }
+
   public selectObjectByUuid(uuid: string | null): void {
     this.interactionHelperManager.cleanupHelpers(this.selectedObject);
     this.dragInteractionManager.stopListening();
@@ -361,12 +385,16 @@ export class EngineService implements OnDestroy {
     this.dragInteractionManager.setAxisConstraint(null);
     this.axisLockStateSubject.next(null);
     this.selectedObject = undefined;
+
     this.entityManager.selectObjectByUuid(uuid, this.focusPivot);
     if (uuid) {
       this.selectedObject = this.entityManager.getObjectByUuid(uuid);
-      if (this.selectedObject) { this.setToolMode(this.controlsManager.getCurrentToolMode()); }
+      if (this.selectedObject) {
+        this.setToolMode(this.controlsManager.getCurrentToolMode());
+      }
     }
   }
+
   public updateObjectTransform = (uuid: string, path: 'position' | 'rotation' | 'scale', value: { x: number; y: number; z: number; }) => {
     const standardObject = this.entityManager.getObjectByUuid(uuid);
     if (standardObject && standardObject.name !== 'SelectionProxy') {
@@ -394,7 +422,9 @@ export class EngineService implements OnDestroy {
       }
     }
   };
+
   public updateObjectName = (uuid: string, newName: string) => this.entityManager.updateObjectName(uuid, newName);
+
   public setToolMode(mode: ToolMode): void {
     this.controlsManager.setTransformMode(mode);
     this.interactionHelperManager.cleanupHelpers(this.selectedObject);
@@ -415,25 +445,34 @@ export class EngineService implements OnDestroy {
       }
     }
   }
+
   public setGroupVisibility = (uuids: string[], visible: boolean): void => this.entityManager.setGroupVisibility(uuids, visible);
   public setGroupBrightness = (uuids: string[], brightness: number): void => this.entityManager.setGroupBrightness(uuids, brightness);
   public addObjectToScene = (objData: SceneObjectResponse) => this.entityManager.createObjectFromData(objData);
   public getSceneEntities = (): Observable<SceneEntity[]> => this.entityManager.getSceneEntities();
   public getGizmoAttachedObject = (): THREE.Object3D | undefined => this.selectedObject;
   public frameScene = (width: number, height: number) => this.sceneManager.frameScene(width, height);
+
   private onKeyDown = (e: KeyboardEvent) => {
     const key = e.key.toLowerCase();
     if (key === 'escape') { this.controlsManager.exitFlyMode(); return; }
     this.keyMap.set(key, true);
-    if (key === 'c' && !(e.target instanceof HTMLInputElement)) { e.preventDefault(); this.toggleActiveCamera(); }
+
+    if (key === 'c' && !(e.target instanceof HTMLInputElement)) {
+      e.preventDefault();
+      this.toggleActiveCamera();
+    }
+
     if (this.controlsManager.getCurrentToolMode() === 'move' && ['x', 'y', 'z'].includes(key)) {
       this.axisLock = this.axisLock === key ? null : (key as 'x' | 'y' | 'z');
       this.dragInteractionManager.setAxisConstraint(this.axisLock);
       this.axisLockStateSubject.next(this.axisLock);
     }
   };
+
   private onKeyUp = (e: KeyboardEvent) => this.keyMap.set(e.key.toLowerCase(), false);
   private onControlsChange = () => this.interactionHelperManager.updateScale();
+
   private handleTransformEnd = () => {
     if (!this.selectedObject) return;
     if (this.selectedObject.name === 'SelectionProxy') {
@@ -455,6 +494,7 @@ export class EngineService implements OnDestroy {
     }
     this.transformEndSubject.next();
   };
+
   private addEventListeners = () => {
     const controls = this.controlsManager.getControls();
     controls.addEventListener('end', this.handleTransformEnd);
@@ -467,6 +507,7 @@ export class EngineService implements OnDestroy {
       if (this.selectedObject) this.interactionHelperManager.updateHelperPositions(this.selectedObject);
     });
   };
+
   private removeEventListeners = (): void => {
     const controls = this.controlsManager.getControls();
     controls?.removeEventListener('end', this.handleTransformEnd);
@@ -476,9 +517,11 @@ export class EngineService implements OnDestroy {
     window.removeEventListener('keyup', this.onKeyUp);
     this.controlsSubscription?.unsubscribe();
   };
+
   public onWindowResize = () => {
     const parentElement = this.sceneManager.canvas?.parentElement;
     if (!parentElement) return;
+
     const aspect = parentElement.clientWidth / parentElement.clientHeight;
     if (this.sceneManager.editorCamera) {
       this.sceneManager.editorCamera.aspect = aspect;
@@ -488,12 +531,15 @@ export class EngineService implements OnDestroy {
       this.sceneManager.secondaryCamera.aspect = aspect;
       this.sceneManager.secondaryCamera.updateProjectionMatrix();
     }
+
     this.sceneManager.onWindowResize();
     this.interactionHelperManager.updateScale();
+
     if (this.cameraManager.cameraMode$.getValue() === 'orthographic') {
       this.baseOrthoMatrixElement = this.cameraManager.setCameraView(null, undefined);
     }
   };
+
   ngOnDestroy = () => {
     this.removeEventListeners();
     this.interactionHelperManager.cleanupHelpers(this.selectedObject);
@@ -503,10 +549,11 @@ export class EngineService implements OnDestroy {
     this.controlsManager.ngOnDestroy();
     if (this.sceneManager.renderer) this.sceneManager.renderer.dispose();
   };
+
   private updateCameraFrustum(): void {
     const camera = this.sceneManager.activeCamera;
     camera.updateMatrixWorld();
     this.projScreenMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.projScreenMatrix);
-  }  
+  }
 }

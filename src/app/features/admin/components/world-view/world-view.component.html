@@ -59,7 +59,7 @@
         <div class="crosshair-line vertical"></div>
       </div>
       <app-scene [initialObjects]="sceneObjects" (loadingProgress)="handleLoadingProgress($event)"
-        (loadingComplete)="handleLoadingComplete()"
+        (loadingComplete)="handleSceneAssetsLoaded()" 
         [style.visibility]="isRenderingScene ? 'hidden' : 'visible'"></app-scene>
       <app-brujula></app-brujula>
     </div>

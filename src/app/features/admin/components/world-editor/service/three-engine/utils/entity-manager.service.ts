@@ -1,3 +1,5 @@
+// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/entity-manager.service.ts
+
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -20,7 +22,7 @@ export class EntityManagerService {
   private scene!: THREE.Scene;
   private gltfLoader!: GLTFLoader;
   private sceneEntities = new BehaviorSubject<SceneEntity[]>([]);
-  
+
   private unselectableNames = ['Luz Ambiental', 'FocusPivot', 'EditorGrid', 'SelectionProxy'];
   private zeroMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
 
@@ -34,14 +36,13 @@ export class EntityManagerService {
     const loadingManager = new THREE.LoadingManager();
     this.gltfLoader = new GLTFLoader(loadingManager);
   }
-  
+
   public publishSceneEntities(): void {
     const entities: SceneEntity[] = [];
-    
+
     this.scene.children.forEach(object => {
       if (!object.name.endsWith('_helper') && !this.unselectableNames.includes(object.name) && !object.name.startsWith(CELESTIAL_MESH_PREFIX)) {
         const apiType = object.userData['apiType'] as SceneEntity['type'] | undefined;
-        // --- Lógica mejorada para manejar la escena de un modelo GLTF ---
         const objectType = object.type === 'Group' ? 'Model' : apiType; // Los GLTF se cargan como Group
         const finalType = objectType || (object instanceof THREE.PerspectiveCamera ? 'camera' : (object instanceof THREE.Light ? 'directionalLight' : 'Model'));
 
@@ -51,7 +52,7 @@ export class EntityManagerService {
           type: finalType
         });
       }
-      
+
       if (object.name.startsWith(CELESTIAL_MESH_PREFIX)) {
         const allInstanceData: CelestialInstanceData[] = object.userData["celestialData"];
         if (allInstanceData) {
@@ -84,7 +85,7 @@ export class EntityManagerService {
     }
     return null;
   }
-  
+
   public selectObjectByUuid(uuid: string | null, focusPivot: THREE.Object3D): void {
     const existingProxy = this.scene.getObjectByName('SelectionProxy');
     if (existingProxy) {
@@ -104,7 +105,7 @@ export class EntityManagerService {
       this.selectionManager.selectObjects([mainObject]);
       return;
     }
-    
+
     const celestialInstance = this._findCelestialInstance(uuid);
     if (celestialInstance) {
       const { data } = celestialInstance;
@@ -122,11 +123,11 @@ export class EntityManagerService {
 
     this.selectionManager.selectObjects([]);
   }
-  
+
   public setGroupVisibility(uuids: string[], visible: boolean): void {
     if (!this.scene) return;
     const celestialMeshes = this.scene.children.filter(o => o.name.startsWith(CELESTIAL_MESH_PREFIX)) as THREE.InstancedMesh[];
-    
+
     const instanceMapByMesh = new Map<string, Map<string, { data: CelestialInstanceData, index: number }>>();
     celestialMeshes.forEach(mesh => {
       const map = new Map<string, { data: CelestialInstanceData, index: number }>();
@@ -207,11 +208,11 @@ export class EntityManagerService {
       }
 
       if (object.userData['helper']) {
-          this.scene.remove(object.userData['helper']);
+        this.scene.remove(object.userData['helper']);
       }
-      
+
       this.scene.remove(object);
-      
+
       if ((object as THREE.Mesh).isMesh || (object as THREE.InstancedMesh).isInstancedMesh) {
         const mesh = object as THREE.Mesh | THREE.InstancedMesh;
         mesh.geometry?.dispose();
@@ -221,7 +222,7 @@ export class EntityManagerService {
     }
     this.publishSceneEntities();
   }
-  
+
   public updateObjectName(uuid: string, newName: string): void {
     const objectToUpdate = this.getObjectByUuid(uuid);
     if (objectToUpdate) {
@@ -240,13 +241,11 @@ export class EntityManagerService {
 
   public createObjectFromData(objData: SceneObjectResponse): THREE.Object3D | null {
     const obj = this.objectManager.createObjectFromData(this.scene, objData, this.gltfLoader);
-    // Publica después de un breve retraso para dar tiempo a que los modelos asíncronos se carguen.
-    setTimeout(() => this.publishSceneEntities(), 100); 
+    setTimeout(() => this.publishSceneEntities(), 100);
     return obj;
   }
 
   public getLoadingManager(): THREE.LoadingManager { return this.gltfLoader.manager; }
-  // --- ¡NUEVO MÉTODO AÑADIDO! ---
   public getGltfLoader(): GLTFLoader { return this.gltfLoader; }
   public getSceneEntities(): Observable<SceneEntity[]> { return this.sceneEntities.asObservable(); }
   public getObjectByUuid(uuid: string): THREE.Object3D | undefined { return this.scene.getObjectByProperty('uuid', uuid); }
