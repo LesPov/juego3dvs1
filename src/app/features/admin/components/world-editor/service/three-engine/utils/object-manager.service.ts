@@ -1,5 +1,3 @@
-// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/object-manager.service.ts
-
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { GLTFLoader, GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -113,7 +111,8 @@ export class ObjectManagerService {
   private _setupCelestialModel(gltf: GLTF, objData: SceneObjectResponse): void {
     const auraColor = new THREE.Color(sanitizeHexColor(objData.emissiveColor, '#ffffff'));
     const farIntensity = THREE.MathUtils.clamp(objData.emissiveIntensity, 1.0, 7.0);
-    const nearIntensity = 0.5; // El brillo mínimo para los MODELOS está bien en 0.5.
+    // ✅ LÓGICA DE BRILLO: El brillo mínimo para los MODELOS 3D al acercarse es 0.5.
+    const nearIntensity = 0.5;
     gltf.scene.userData['isDynamicCelestialModel'] = true;
     gltf.scene.userData['originalEmissiveIntensity'] = farIntensity;
     gltf.scene.userData['baseEmissiveIntensity'] = nearIntensity;
@@ -166,9 +165,6 @@ export class ObjectManagerService {
     }
     const geometry = new THREE.PlaneGeometry(1, 1);
     
-    // <-- ¡¡¡SOLUCIÓN DEFINITIVA!!! Volvemos a MeshBasicMaterial -->
-    // Este material nos da control TOTAL sobre el color final. El brillo calculado en engine.service
-    // se multiplicará directamente con el color de la textura. Si el brillo calculado es 0, el resultado es NEGRO.
     const material = new THREE.MeshBasicMaterial({
       map: texture,
       transparent: true,
@@ -202,8 +198,9 @@ export class ObjectManagerService {
     const BASE_SCALE = 600.0, DOMINANT_LUMINOSITY_MULTIPLIER = 5.0;
     const MAX_BILLBOARD_INTENSITY = 5.0;
 
-    // El brillo MÍNIMO de las imágenes de cerca es 0.0 para que se apaguen completamente.
-    const NEAR_BILLBOARD_INTENSITY = 0.4;
+    // ✅ LÓGICA DE BRILLO: El brillo MÍNIMO de los billboards (estrellas, galaxias) al acercarse es 1.0.
+    // Esto asegura que sean visibles pero sin el efecto de "bloom" cegador.
+    const NEAR_BILLBOARD_INTENSITY = 1.0;
 
     for (let i = 0; i < objectsData.length; i++) {
       const objData = objectsData[i];
@@ -222,7 +219,7 @@ export class ObjectManagerService {
       celestialData.push({
           originalColor: visualColor.clone(),
           emissiveIntensity: THREE.MathUtils.clamp(objData.emissiveIntensity, 1.0, MAX_BILLBOARD_INTENSITY),
-          baseEmissiveIntensity: NEAR_BILLBOARD_INTENSITY, // <-- ¡Este CERO es la clave!
+          baseEmissiveIntensity: NEAR_BILLBOARD_INTENSITY, // <-- ¡Este es el valor clave para el brillo mínimo!
           position: position.clone(),
           scale: scale.clone(),
           originalMatrix: matrix.clone(),

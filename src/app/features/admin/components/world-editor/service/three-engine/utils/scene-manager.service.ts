@@ -1,5 +1,3 @@
-// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/scene-manager.service.ts
-
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -15,7 +13,7 @@ const UNSELECTABLE_NAMES = ['Luz Ambiental', 'EditorGrid', 'SelectionProxy', 'Fo
 export class SceneManagerService {
 
   public scene!: THREE.Scene;
-  // ✅ SOLUCIÓN: La cámara activa puede ser de perspectiva O ortográfica.
+  // ✅ CORRECCIÓN DE TIPO: La cámara activa puede ser de perspectiva u ortográfica.
   public activeCamera!: THREE.PerspectiveCamera | THREE.OrthographicCamera;
   public editorCamera!: THREE.PerspectiveCamera;
   public secondaryCamera!: THREE.PerspectiveCamera; 
@@ -51,7 +49,7 @@ export class SceneManagerService {
     this.editorCamera.lookAt(0, 0, 0);
     this.editorCamera.name = 'Cámara del Editor';
     this.editorCamera.userData['apiType'] = 'camera'; 
-    this.editorCamera.userData['originalNear'] = nearPlane; // Guardar para clipping dinámico
+    this.editorCamera.userData['originalNear'] = nearPlane;
     this.editorCamera.userData['originalFar'] = farPlane;
     
     this.secondaryCamera = new THREE.PerspectiveCamera(50, width / height, nearPlane, farPlane);
@@ -85,7 +83,7 @@ export class SceneManagerService {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     
     const renderPass = new RenderPass(this.scene, this.activeCamera);
-    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 2.5, 0.6, 0.1);
+    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 1.0, 0.6, 0.1);
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(renderPass);
@@ -129,7 +127,7 @@ export class SceneManagerService {
     const newHeight = container.clientHeight;
 
     if (this.canvas.width !== newWidth || this.canvas.height !== newHeight) {
-      // ✅ SOLUCIÓN: Comprobamos el tipo de cámara antes de acceder a 'aspect'.
+      // ✅ CORRECCIÓN: Comprobamos si la cámara tiene 'aspect' antes de usarlo.
       if ('aspect' in this.activeCamera) {
           this.activeCamera.aspect = newWidth / newHeight;
       }

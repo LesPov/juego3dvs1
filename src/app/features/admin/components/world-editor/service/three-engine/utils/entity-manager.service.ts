@@ -1,5 +1,3 @@
-// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/entity-manager.service.ts
-
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -43,7 +41,7 @@ export class EntityManagerService {
     this.scene.children.forEach(object => {
       if (!object.name.endsWith('_helper') && !this.unselectableNames.includes(object.name) && !object.name.startsWith(CELESTIAL_MESH_PREFIX)) {
         const apiType = object.userData['apiType'] as SceneEntity['type'] | undefined;
-        const objectType = object.type === 'Group' ? 'Model' : apiType; // Los GLTF se cargan como Group
+        const objectType = object.type === 'Group' ? 'Model' : apiType; 
         const finalType = objectType || (object instanceof THREE.PerspectiveCamera ? 'camera' : (object instanceof THREE.Light ? 'directionalLight' : 'Model'));
 
         entities.push({
@@ -71,7 +69,7 @@ export class EntityManagerService {
     setTimeout(() => this.sceneEntities.next(entities));
   }
 
-  private _findCelestialInstance(uuid: string): { mesh: THREE.InstancedMesh, instanceIndex: number, data: CelestialInstanceData } | null {
+  public _findCelestialInstance(uuid: string): { mesh: THREE.InstancedMesh, instanceIndex: number, data: CelestialInstanceData } | null {
     for (const object of this.scene.children) {
       if (object.name.startsWith(CELESTIAL_MESH_PREFIX) && object instanceof THREE.InstancedMesh) {
         const allInstanceData: CelestialInstanceData[] = object.userData["celestialData"];
@@ -85,45 +83,68 @@ export class EntityManagerService {
     }
     return null;
   }
-
+    
+  /**
+   * ✅ LÓGICA CLAVE MEJORADA: Este método orquesta la selección.
+   * Limpia selecciones antiguas, encuentra el nuevo objeto y se lo pasa
+   * al SelectionManager para que aplique el efecto visual.
+   */
   public selectObjectByUuid(uuid: string | null, focusPivot: THREE.Object3D): void {
+    // 1. Limpiamos la selección anterior, eliminando cualquier "proxy" visual que exista.
     const existingProxy = this.scene.getObjectByName('SelectionProxy');
     if (existingProxy) {
       this.scene.remove(existingProxy);
-      (existingProxy as THREE.Mesh).geometry.dispose();
-      ((existingProxy as THREE.Mesh).material as THREE.Material).dispose();
+      if (existingProxy instanceof THREE.Mesh) {
+        existingProxy.geometry.dispose();
+        const material = existingProxy.material as THREE.Material;
+        material.dispose();
+      }
     }
 
+    // 2. Si no hay uuid, es una deselección. Vaciamos el array de objetos a resaltar.
     if (!uuid) {
       this.selectionManager.selectObjects([]);
       return;
     }
 
+    // 3. Buscamos un objeto estándar (Modelo 3D, Luz, etc.).
     const mainObject = this.scene.getObjectByProperty('uuid', uuid);
     if (mainObject) {
-      focusPivot.position.copy(mainObject.position);
+      // Objeto encontrado, lo pasamos al SelectionManager para que le ponga el borde.
       this.selectionManager.selectObjects([mainObject]);
+      // Actualizamos la posición del pivote para que la cámara orbite a su alrededor.
+      const worldPosition = mainObject.getWorldPosition(new THREE.Vector3());
+      focusPivot.position.copy(worldPosition);
       return;
     }
 
+    // 4. Si no es un objeto estándar, buscamos en los objetos "instanciados" (estrellas, etc.).
     const celestialInstance = this._findCelestialInstance(uuid);
     if (celestialInstance) {
       const { data } = celestialInstance;
+      
+      // Creamos un "proxy" invisible que recibirá el borde amarillo en su lugar.
       const selectionProxy = this.objectManager.createSelectionProxy();
       const pos = new THREE.Vector3(), quat = new THREE.Quaternion(), scale = new THREE.Vector3();
       data.originalMatrix.decompose(pos, quat, scale);
+      
       selectionProxy.position.copy(pos);
       selectionProxy.scale.copy(scale).multiplyScalar(PROXY_SCALE_MULTIPLIER);
-      selectionProxy.uuid = data.originalUuid;
+      selectionProxy.uuid = data.originalUuid; 
+      
       this.scene.add(selectionProxy);
+
+      // Pasamos el proxy al SelectionManager para que le ponga el borde.
       this.selectionManager.selectObjects([selectionProxy]);
       focusPivot.position.copy(selectionProxy.position);
       return;
     }
 
+    // 5. Si no se encontró nada, nos aseguramos de que no haya nada seleccionado.
     this.selectionManager.selectObjects([]);
   }
 
+  // --- El resto de tus funciones se mantienen intactas ---
   public setGroupVisibility(uuids: string[], visible: boolean): void {
     if (!this.scene) return;
     const celestialMeshes = this.scene.children.filter(o => o.name.startsWith(CELESTIAL_MESH_PREFIX)) as THREE.InstancedMesh[];

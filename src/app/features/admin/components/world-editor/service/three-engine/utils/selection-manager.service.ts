@@ -1,4 +1,3 @@
-// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/selection-manager.service.ts
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass.js';
@@ -6,14 +5,14 @@ import { CameraMode } from './camera-manager.service';
  
 const PERSPECTIVE_PARAMS = {
   edgeStrength: 10.0,
-  edgeGlow: 1.0,
-  edgeThickness: 3.5,
+  edgeGlow: 1.0, 
+  edgeThickness: 2.5,
 };
 
 const ORTHOGRAPHIC_PARAMS = {
-  edgeStrength: 20.0,
-  edgeGlow: 5.5,
-  edgeThickness: 8.0,
+  edgeStrength: 25.0,
+  edgeGlow: 1.5,
+  edgeThickness: 5.0,
 };
 
 @Injectable({
@@ -21,10 +20,11 @@ const ORTHOGRAPHIC_PARAMS = {
 })
 export class SelectionManagerService {
   private outlinePass!: OutlinePass;
+  private overlayMaterial!: THREE.ShaderMaterial;
 
   constructor() {}
 
-  public init(scene: THREE.Scene, camera: THREE.PerspectiveCamera): void {
+  public init(scene: THREE.Scene, camera: THREE.Camera): void {
     this.outlinePass = new OutlinePass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
       scene,
@@ -33,8 +33,15 @@ export class SelectionManagerService {
 
     this.outlinePass.pulsePeriod = 0;
     this.outlinePass.visibleEdgeColor.set('#ffff00');
-    this.outlinePass.hiddenEdgeColor.set('#444400');
+    this.outlinePass.hiddenEdgeColor.set('#ffff00');
     
+    // ✅ LÓGICA CLAVE: Hacemos que el borde se vea siempre.
+    // Al desactivar la prueba de profundidad, el borde se dibujará por encima
+    // de cualquier otro objeto, sin importar la distancia.
+    this.overlayMaterial = (this.outlinePass as any).overlayMaterial;
+    this.overlayMaterial.depthTest = false;
+    this.overlayMaterial.depthWrite = false;
+
     this.updateOutlineParameters('perspective');
   }
 
@@ -54,6 +61,18 @@ export class SelectionManagerService {
   public selectObjects(objects: THREE.Object3D[]): void {
     if (this.outlinePass) {
       this.outlinePass.selectedObjects = objects;
+    }
+  }
+  
+  public setCamera(camera: THREE.Camera): void {
+    if (this.outlinePass) {
+        this.outlinePass.renderCamera = camera;
+    }
+  }
+
+  public setSize(width: number, height: number): void {
+    if (this.outlinePass) {
+      this.outlinePass.setSize(width, height);
     }
   }
 }

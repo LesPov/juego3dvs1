@@ -1,5 +1,3 @@
-// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/camera-manager.service.ts
-
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject } from 'rxjs';
@@ -81,6 +79,10 @@ export class CameraManagerService {
     const newActiveCamera = this.sceneManager.activeCamera;
     this.controlsManager.setCamera(newActiveCamera);
     (this.sceneManager.composer.passes[0] as RenderPass).camera = newActiveCamera;
+    
+    // ✅ NUEVA LÓGICA: Notificamos al SelectionManager sobre la nueva cámara activa.
+    this.selectionManager.setCamera(newActiveCamera);
+
     this.interactionHelperManager.setCamera(newActiveCamera);
     this.dragInteractionManager.setCamera(newActiveCamera);
     controls.update(); 
@@ -113,11 +115,11 @@ export class CameraManagerService {
 
     const center = box.getCenter(new THREE.Vector3());
 
-    if (this.cameraMode$.getValue() === 'perspective') {
+    if (this.cameraMode$.getValue() === 'perspective' && camera instanceof THREE.PerspectiveCamera) {
       const sphere = box.getBoundingSphere(this.tempSphere);
       const radius = sphere.radius;
       
-      const fov = (camera as THREE.PerspectiveCamera).fov * (Math.PI / 180);
+      const fov = camera.fov * (Math.PI / 180);
       const distance = (radius / Math.sin(fov / 2)) * 1.2;
       
       const direction = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
@@ -195,9 +197,11 @@ export class CameraManagerService {
     this.orthoCamera.updateProjectionMatrix();
 
     this.sceneManager.activeCamera = this.orthoCamera;
-    // ✅ SOLUCIÓN: Ya no se necesita 'as any'
     this.controlsManager.setCamera(this.orthoCamera);
     (this.sceneManager.composer.passes[0] as RenderPass).camera = this.orthoCamera;
+    
+    // ✅ NUEVA LÓGICA: Notificamos al SelectionManager sobre la nueva cámara ortográfica.
+    this.selectionManager.setCamera(this.orthoCamera);
 
     this.controlsManager.exitFlyMode();
     this.controlsManager.isFlyEnabled = false;
@@ -220,6 +224,9 @@ export class CameraManagerService {
     this.sceneManager.activeCamera = this.sceneManager.editorCamera;
     this.controlsManager.setCamera(this.sceneManager.editorCamera);
     (this.sceneManager.composer.passes[0] as RenderPass).camera = this.sceneManager.editorCamera;
+
+    // ✅ NUEVA LÓGICA: Notificamos al SelectionManager sobre la nueva cámara de perspectiva.
+    this.selectionManager.setCamera(this.sceneManager.editorCamera);
     
     if (this.lastPerspectiveState) {
         this.sceneManager.editorCamera.position.copy(this.lastPerspectiveState.position);

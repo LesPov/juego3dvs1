@@ -1,5 +1,3 @@
-// src/app/features/admin/views/world-editor/world-view/service/three-engine/engine.service.ts
-
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
@@ -14,6 +12,8 @@ import { InteractionHelperManagerService } from './utils/interaction-helper.mana
 import { DragInteractionManagerService } from './utils/drag-interaction.manager.service';
 import { CelestialInstanceData } from './utils/object-manager.service';
 import { CameraManagerService, CameraMode } from './utils/camera-manager.service';
+// ✅ NUEVA LÓGICA: Importamos el servicio de selección.
+import { SelectionManagerService } from './utils/selection-manager.service';
 
 const INSTANCES_TO_CHECK_PER_FRAME = 20000000;
 const BASE_VISIBILITY_DISTANCE = 1000000000000;
@@ -22,15 +22,14 @@ const DEEP_SPACE_SCALE_BOOST = 10.0;
 const ORTHO_ZOOM_VISIBILITY_MULTIPLIER = 5.0;
 const ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR = 12.0;
 const BRIGHTNESS_MULTIPLIER = 1.0;
-const MAX_INTENSITY = 8.0; // Aumentado ligeramente para dar más rango
+const MAX_INTENSITY = 8.0; 
 const BRIGHTNESS_FALLOFF_START_DISTANCE = 500_000_000;
 const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
-// Se elimina NEAR_CULLING_THRESHOLD ya que la nueva lógica no lo necesita.
+
 
 @Injectable()
 export class EngineService implements OnDestroy {
 
-  // ... (propiedades del servicio sin cambios) ...
   public onTransformEnd$: Observable<void>;
   public axisLockState$: Observable<'x' | 'y' | 'z' | null>;
   public cameraOrientation$: Observable<THREE.Quaternion>;
@@ -59,7 +58,8 @@ export class EngineService implements OnDestroy {
   private tempBox = new THREE.Box3();
   private tempVec3 = new THREE.Vector3();
   private dynamicCelestialModels: THREE.Group[] = [];
-
+  
+  // ✅ NUEVA LÓGICA: Inyectamos el SelectionManager.
   constructor(
     private sceneManager: SceneManagerService,
     private entityManager: EntityManagerService,
@@ -67,7 +67,8 @@ export class EngineService implements OnDestroy {
     private statsManager: StatsManagerService,
     private interactionHelperManager: InteractionHelperManagerService,
     private dragInteractionManager: DragInteractionManagerService,
-    private cameraManager: CameraManagerService
+    private cameraManager: CameraManagerService,
+    private selectionManager: SelectionManagerService 
   ) {
     this.focusPivot = new THREE.Object3D();
     this.focusPivot.name = 'FocusPivot';
@@ -78,12 +79,12 @@ export class EngineService implements OnDestroy {
     this.cameraPosition$ = this.cameraPositionSubject.asObservable();
     this.cameraMode$ = this.cameraManager.cameraMode$.asObservable();
   }
-
-  // ... (init, animate, updateDynamicCelestialModels, etc. hasta updateVisibleCelestialInstances no cambian) ...
+    
   public init(canvasRef: ElementRef<HTMLCanvasElement>): void {
     const canvas = canvasRef.nativeElement;
     this.sceneManager.setupBasicScene(canvas);
     this.sceneManager.scene.add(this.focusPivot);
+    
     this.entityManager.init(this.sceneManager.scene);
     this.statsManager.init();
     this.controlsManager.init(this.sceneManager.editorCamera, canvas, this.sceneManager.scene, this.focusPivot);
@@ -91,10 +92,63 @@ export class EngineService implements OnDestroy {
     this.interactionHelperManager.init(this.sceneManager.scene, this.sceneManager.editorCamera);
     this.dragInteractionManager.init(this.sceneManager.editorCamera, canvas, this.controlsManager);
     this.cameraManager.initialize();
+    
+    // ⭐ ¡AQUÍ ESTÁ LA NUEVA LÓGICA! ⭐
+    // 1. Inicializamos el gestor de selección con la escena y la cámara activa.
+    this.selectionManager.init(this.sceneManager.scene, this.sceneManager.activeCamera);
+    // 2. Añadimos su "pass" (el efecto de borde) al compositor del renderizador. ESTO ES CLAVE.
+    this.sceneManager.composer.addPass(this.selectionManager.getPass());
+    
+    // 3. Nos suscribimos a los cambios de modo de cámara para ajustar el grosor del borde.
+    this.cameraMode$.subscribe(mode => {
+        this.selectionManager.updateOutlineParameters(mode);
+    });
+
     this.controlsManager.enableNavigation();
     this.addEventListeners();
     this.animate();
   }
+  
+  public onWindowResize = () => {
+    const parentElement = this.sceneManager.canvas?.parentElement;
+    if (!parentElement) return;
+
+    const newWidth = parentElement.clientWidth;
+    const newHeight = parentElement.clientHeight;
+
+    this.sceneManager.onWindowResize();
+    this.interactionHelperManager.updateScale();
+    // ✅ NUEVA LÓGICA: Actualizamos el tamaño del efecto de borde también.
+    this.selectionManager.setSize(newWidth, newHeight); 
+  };
+    
+  public selectObjectByUuid(uuid: string | null): void {
+    this.interactionHelperManager.cleanupHelpers(this.selectedObject);
+    this.dragInteractionManager.stopListening();
+    this.controlsManager.detach();
+    this.axisLock = null;
+    this.dragInteractionManager.setAxisConstraint(null);
+    this.axisLockStateSubject.next(null);
+    this.selectedObject = undefined;
+    
+    // Delegamos la lógica de selección al EntityManager
+    this.entityManager.selectObjectByUuid(uuid, this.focusPivot);
+
+    if (uuid) {
+      // Volvemos a buscar el objeto seleccionado (puede ser el objeto real o el proxy)
+      // para que las herramientas de transformación (mover, rotar) se le puedan adjuntar.
+      this.selectedObject = this.entityManager.getObjectByUuid(uuid);
+      if (!this.selectedObject) {
+        this.selectedObject = this.sceneManager.scene.getObjectByName('SelectionProxy');
+      }
+
+      if (this.selectedObject) {
+        this.setToolMode(this.controlsManager.getCurrentToolMode());
+      }
+    }
+  }
+
+  // --- El resto de tus funciones se mantienen intactas ---
   private animate = () => {
     this.animationFrameId = requestAnimationFrame(this.animate);
     this.statsManager.begin();
@@ -134,6 +188,7 @@ export class EngineService implements OnDestroy {
     this.sceneManager.composer.render();
     this.statsManager.end();
   };
+
   private updateDynamicCelestialModels(delta: number): void {
     this.dynamicCelestialModels.forEach(model => {
       if (!model.userData['isDynamicCelestialModel']) return;
@@ -162,6 +217,7 @@ export class EngineService implements OnDestroy {
       });
     });
   }
+  
   private adjustCameraClippingPlanes = () => {
     const camera = this.sceneManager.activeCamera;
     if (!(camera instanceof THREE.PerspectiveCamera)) return;
@@ -192,6 +248,7 @@ export class EngineService implements OnDestroy {
       camera.updateProjectionMatrix();
     }
   };
+
   public populateScene(objects: SceneObjectResponse[], onProgress: (p: number) => void, onLoaded: () => void): void {
     if (!this.sceneManager.scene) return;
     this.entityManager.clearScene();
@@ -226,8 +283,6 @@ export class EngineService implements OnDestroy {
     }
   }
 
-
-  // <-- ¡¡¡FUNCIÓN COMPLETAMENTE REFACTORIZADA PARA UN BRILLO SUAVE!!! -->
   private updateVisibleCelestialInstances(instancedMesh: THREE.InstancedMesh): void {
     if (!instancedMesh) return;
     const allData: CelestialInstanceData[] = instancedMesh.userData['celestialData'];
@@ -285,29 +340,18 @@ export class EngineService implements OnDestroy {
         }
         continue;
       }
-
-      // <-- ¡NUEVA LÓGICA DE INTENSIDAD UNIFICADA! -->
-      // 1. Definir las distancias de "fade" basadas en el tamaño del objeto, igual que en los modelos 3D.
+      
       const maxScale = Math.max(data.scale.x, data.scale.y, data.scale.z);
       const startFadeDistance = maxScale * 80.0;
       const endFadeDistance = maxScale * 10.0;
-
-      // 2. Interpolar suavemente entre la intensidad lejana y la cercana.
       const fadeFactor = THREE.MathUtils.inverseLerp(startFadeDistance, endFadeDistance, distance);
       const clampedFadeFactor = THREE.MathUtils.clamp(fadeFactor, 0.0, 1.0);
-      // Leemos los valores que guardamos en object-manager
       const targetIntensity = THREE.MathUtils.lerp(data.emissiveIntensity, data.baseEmissiveIntensity, clampedFadeFactor);
-
-      // 3. Combinamos esta intensidad con los falloffs de visibilidad y distancia.
       const visibilityFalloff = 1.0 - THREE.MathUtils.smoothstep(distance, 0, effectiveVisibilityDistance);
       const distanceFalloff = 1.0 - THREE.MathUtils.smoothstep(distance, BRIGHTNESS_FALLOFF_START_DISTANCE, effectiveVisibilityDistance);
       const baseIntensity = targetIntensity * BRIGHTNESS_MULTIPLIER * visibilityFalloff * distanceFalloff;
-      
       const brightnessMultiplier = isOrthographic ? data.brightness : 1.0;
       const finalIntensity = Math.min(baseIntensity, MAX_INTENSITY) * bloomDampeningFactor * brightnessMultiplier;
-
-      // Se eliminó el bloque `if (distance < ...)` porque esta nueva lógica ya cubre
-      // de forma suave y correcta las distancias cortas, evitando el "quemado".
 
       if (finalIntensity > 0.01) {
         if (!data.isVisible) {
@@ -329,32 +373,15 @@ export class EngineService implements OnDestroy {
     }
 
     instancedMesh.userData['updateIndexCounter'] = (startIndex + checkCount) % totalInstances;
-
     if (needsColorUpdate && instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
     if (needsMatrixUpdate) instancedMesh.instanceMatrix.needsUpdate = true;
   }
-
-  // ... (el resto del archivo, toggleActiveCamera, etc., no necesita cambios)
+  
   public toggleActiveCamera(): void { this.cameraManager.toggleActiveCamera(this.selectedObject); }
   public toggleCameraMode(): void { this.cameraManager.toggleCameraMode(); }
   public setCameraView(axisName: string | null): void { this.baseOrthoMatrixElement = this.cameraManager.setCameraView(axisName, undefined); }
   public switchToPerspectiveView(): void { this.cameraManager.switchToPerspectiveView(); }
-  public selectObjectByUuid(uuid: string | null): void {
-    this.interactionHelperManager.cleanupHelpers(this.selectedObject);
-    this.dragInteractionManager.stopListening();
-    this.controlsManager.detach();
-    this.axisLock = null;
-    this.dragInteractionManager.setAxisConstraint(null);
-    this.axisLockStateSubject.next(null);
-    this.selectedObject = undefined;
-    this.entityManager.selectObjectByUuid(uuid, this.focusPivot);
-    if (uuid) {
-      this.selectedObject = this.entityManager.getObjectByUuid(uuid);
-      if (this.selectedObject) {
-        this.setToolMode(this.controlsManager.getCurrentToolMode());
-      }
-    }
-  }
+
   public updateObjectTransform = (uuid: string, path: 'position' | 'rotation' | 'scale', value: { x: number; y: number; z: number; }) => {
     const standardObject = this.entityManager.getObjectByUuid(uuid);
     if (standardObject && standardObject.name !== 'SelectionProxy') {
@@ -362,7 +389,7 @@ export class EngineService implements OnDestroy {
       if (path === 'position') this.interactionHelperManager.updateHelperPositions(standardObject);
       return;
     }
-    const instanceInfo = this.entityManager['_findCelestialInstance'](uuid);
+    const instanceInfo = this.entityManager._findCelestialInstance(uuid);
     if (instanceInfo) {
       const { mesh, instanceIndex, data } = instanceInfo;
       const tempQuaternion = new THREE.Quaternion(), tempScale = new THREE.Vector3();
@@ -467,25 +494,7 @@ export class EngineService implements OnDestroy {
     window.removeEventListener('keyup', this.onKeyUp);
     this.controlsSubscription?.unsubscribe();
   };
-  public onWindowResize = () => {
-    const parentElement = this.sceneManager.canvas?.parentElement;
-    if (!parentElement) return;
-    if (this.cameraManager.cameraMode$.getValue() === 'orthographic') {
-      this.cameraManager.setCameraView(null, undefined);
-    } else {
-        const aspect = parentElement.clientWidth / parentElement.clientHeight;
-        if (this.sceneManager.editorCamera) {
-            this.sceneManager.editorCamera.aspect = aspect;
-            this.sceneManager.editorCamera.updateProjectionMatrix();
-        }
-        if (this.sceneManager.secondaryCamera) {
-            this.sceneManager.secondaryCamera.aspect = aspect;
-            this.sceneManager.secondaryCamera.updateProjectionMatrix();
-        }
-    }
-    this.sceneManager.onWindowResize();
-    this.interactionHelperManager.updateScale();
-  };
+  
   ngOnDestroy = () => {
     this.removeEventListeners();
     this.interactionHelperManager.cleanupHelpers(this.selectedObject);
