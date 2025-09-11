@@ -3,7 +3,6 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { CelestialInstanceData, ObjectManagerService } from './object-manager.service';
-// ✅ 1. Importamos el servicio de selección.
 import { SelectionManagerService } from './selection-manager.service';
 import { SceneObjectResponse } from '../../../../../services/admin.service';
 
@@ -13,7 +12,9 @@ export interface SceneEntity {
   type: SceneObjectResponse['type'] | 'Model' | 'camera' | 'directionalLight';
 }
 
-const PROXY_SCALE_MULTIPLIER = 7.0;
+// ✅ CORRECCIÓN FINAL: Se definen las constantes aquí para que sean accesibles.
+const PROXY_SCALE_MULTIPLIER = 1.1; // 10% más grande para que el aro envuelva bien el objeto.
+const DEEP_SPACE_SCALE_BOOST = 10.0; // Debe ser el MISMO valor que en engine.service.ts
 const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
 
 @Injectable({ providedIn: 'root' })
@@ -27,7 +28,6 @@ export class EntityManagerService {
 
   constructor(
     public objectManager: ObjectManagerService,
-    // ✅ 2. Inyectamos el servicio de selección.
     private selectionManager: SelectionManagerService
   ) { }
 
@@ -74,11 +74,6 @@ export class EntityManagerService {
     return null;
   }
     
-  /**
-   * ⭐ 3. LÓGICA CLAVE MEJORADA: Este método orquesta la selección.
-   * Limpia selecciones antiguas, encuentra el nuevo objeto y se lo pasa
-   * al SelectionManager para que aplique el efecto visual del borde amarillo.
-   */
   public selectObjectByUuid(uuid: string | null, focusPivot: THREE.Object3D): void {
     const existingProxy = this.scene.getObjectByName('SelectionProxy');
     if (existingProxy) {
@@ -89,45 +84,45 @@ export class EntityManagerService {
       }
     }
 
-    // Si no hay uuid, es una deselección. Vaciamos la lista de objetos a resaltar.
     if (!uuid) {
       this.selectionManager.selectObjects([]);
       return;
     }
 
-    // Buscamos un objeto estándar (Modelo 3D, Luz, etc.).
     const mainObject = this.scene.getObjectByProperty('uuid', uuid);
     if (mainObject) {
-      // Objeto encontrado, se lo pasamos al SelectionManager para que le ponga el borde.
       this.selectionManager.selectObjects([mainObject]);
       const worldPosition = mainObject.getWorldPosition(new THREE.Vector3());
       focusPivot.position.copy(worldPosition);
       return;
     }
 
-    // Si no, buscamos en los objetos "instanciados" (estrellas, etc.).
     const celestialInstance = this._findCelestialInstance(uuid);
     if (celestialInstance) {
-      const { data } = celestialInstance;
+      const { data, mesh } = celestialInstance;
       
-      // Creamos un "proxy" invisible que recibirá el borde amarillo en su lugar.
-      const selectionProxy = this.objectManager.createSelectionProxy();
+      const selectionProxy = this.objectManager.createSelectionProxy(mesh.geometry);
+      
       const pos = new THREE.Vector3(), quat = new THREE.Quaternion(), scale = new THREE.Vector3();
       data.originalMatrix.decompose(pos, quat, scale);
       
       selectionProxy.position.copy(pos);
-      selectionProxy.scale.copy(scale).multiplyScalar(PROXY_SCALE_MULTIPLIER);
-      selectionProxy.uuid = data.originalUuid; // Asignamos el UUID original para que las herramientas lo reconozcan
+
+      // ⭐ SOLUCIÓN FINAL: Aplicamos tanto el multiplicador del proxy como el
+      // multiplicador visual (DEEP_SPACE_SCALE_BOOST) para que el tamaño del
+      // proxy coincida con el tamaño del objeto renderizado en pantalla.
+      selectionProxy.scale.copy(scale)
+        .multiplyScalar(PROXY_SCALE_MULTIPLIER)
+        .multiplyScalar(DEEP_SPACE_SCALE_BOOST);
+
+      selectionProxy.uuid = data.originalUuid;
       
       this.scene.add(selectionProxy);
-
-      // Pasamos el proxy al SelectionManager para que le ponga el borde.
       this.selectionManager.selectObjects([selectionProxy]);
       focusPivot.position.copy(selectionProxy.position);
       return;
     }
 
-    // Si no se encontró nada, nos aseguramos de que no haya nada seleccionado.
     this.selectionManager.selectObjects([]);
   }
 

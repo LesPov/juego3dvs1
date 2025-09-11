@@ -38,6 +38,12 @@ export class ObjectManagerService {
   private textureLoader = new THREE.TextureLoader();
   private textureCache = new Map<string, THREE.Texture>();
   private glowTexture: THREE.CanvasTexture | null = null;
+  
+  // ✅ SOLUCIÓN AL ARO AMARILLO: Geometrías compartidas para los billboards.
+  // Las creamos una sola vez y las reutilizamos para el InstancedMesh y para el SelectionProxy,
+  // asegurando que siempre coincidan y ahorrando memoria.
+  private sharedPlaneGeometry = new THREE.PlaneGeometry(1, 1);
+  private sharedCircleGeometry = new THREE.CircleGeometry(6.0, 32);
 
   public createObjectFromData(scene: THREE.Scene, objData: SceneObjectResponse, loader: GLTFLoader): THREE.Object3D | null {
     let createdObject: THREE.Object3D | null = null;
@@ -111,8 +117,6 @@ export class ObjectManagerService {
   private _setupCelestialModel(gltf: GLTF, objData: SceneObjectResponse): void {
     const auraColor = new THREE.Color(sanitizeHexColor(objData.emissiveColor, '#ffffff'));
     const farIntensity = THREE.MathUtils.clamp(objData.emissiveIntensity, 1.0, 7.0);
-    // ✅ OPTIMIZACIÓN DE FPS: El brillo mínimo para los MODELOS 3D al acercarse es 0.5.
-    // Esto evita que el efecto de "bloom" sea excesivo y consuma recursos cuando la cámara está cerca.
     const nearIntensity = 0.5;
     gltf.scene.userData['isDynamicCelestialModel'] = true;
     gltf.scene.userData['originalEmissiveIntensity'] = farIntensity;
@@ -164,9 +168,10 @@ export class ObjectManagerService {
       texture.colorSpace = THREE.SRGBColorSpace;
       this.textureCache.set(textureUrl, texture);
     }
-    const geometry = new THREE.PlaneGeometry(1, 1);
+    
     const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
-    const instancedMesh = new THREE.InstancedMesh(geometry, material, objectsData.length);
+    const instancedMesh = new THREE.InstancedMesh(this.sharedPlaneGeometry, material, objectsData.length);
+    
     instancedMesh.name = `CelestialObjects_Texture_${texturePath.replace(/[^a-zA-Z0-9]/g, '_')}`;
     instancedMesh.frustumCulled = false;
     this._populateInstanceData(instancedMesh, objectsData);
@@ -174,9 +179,9 @@ export class ObjectManagerService {
   }
 
   private _createDefaultGlowInstancedMesh(scene: THREE.Scene, objectsData: SceneObjectResponse[]): void {
-    const geometry = new THREE.CircleGeometry(6.0, 32);
     const material = new THREE.MeshBasicMaterial({ map: this._createGlowTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
-    const instancedMesh = new THREE.InstancedMesh(geometry, material, objectsData.length);
+    const instancedMesh = new THREE.InstancedMesh(this.sharedCircleGeometry, material, objectsData.length);
+
     instancedMesh.name = 'CelestialObjects_Default';
     instancedMesh.frustumCulled = false;
     this._populateInstanceData(instancedMesh, objectsData);
@@ -190,9 +195,6 @@ export class ObjectManagerService {
     const matrix = new THREE.Matrix4(), position = new THREE.Vector3(), quaternion = new THREE.Quaternion(), scale = new THREE.Vector3();
     const BASE_SCALE = 600.0, DOMINANT_LUMINOSITY_MULTIPLIER = 5.0;
     const MAX_BILLBOARD_INTENSITY = 5.0;
-
-    // ✅ OPTIMIZACIÓN DE FPS: El brillo MÍNIMO de los billboards (estrellas, galaxias) al acercarse es 1.0.
-    // Esto asegura que sigan siendo visibles pero sin el efecto de "bloom" cegador que consume FPS.
     const NEAR_BILLBOARD_INTENSITY = 1.0;
 
     for (let i = 0; i < objectsData.length; i++) {
@@ -280,12 +282,17 @@ export class ObjectManagerService {
     return mesh;
   }
 
-  public createSelectionProxy(): THREE.Mesh {
-    const proxyGeometry = new THREE.SphereGeometry(1.1, 16, 8);
-    const proxyMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0, depthWrite: true });
-    const proxyMesh = new THREE.Mesh(proxyGeometry, proxyMaterial);
+  public createSelectionProxy(geometry: THREE.BufferGeometry = new THREE.SphereGeometry(1.1, 16, 8)): THREE.Mesh {
+    const proxyMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0, depthWrite: false });
+    const proxyMesh = new THREE.Mesh(geometry, proxyMaterial);
     proxyMesh.name = 'SelectionProxy';
     return proxyMesh;
+  }
+
+  // ✅ NUEVO MÉTODO PÚBLICO para comprobar si una geometría es una de las compartidas.
+  // Esto es crucial para evitar "liberar" una geometría que todavía está en uso.
+  public isSharedGeometry(geometry: THREE.BufferGeometry): boolean {
+    return geometry === this.sharedCircleGeometry || geometry === this.sharedPlaneGeometry;
   }
 
   private _createGlowTexture(): THREE.CanvasTexture {
