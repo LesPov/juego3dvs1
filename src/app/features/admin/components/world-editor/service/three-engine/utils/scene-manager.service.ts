@@ -13,7 +13,6 @@ const UNSELECTABLE_NAMES = ['Luz Ambiental', 'EditorGrid', 'SelectionProxy', 'Fo
 export class SceneManagerService {
 
   public scene!: THREE.Scene;
-  // ✅ CORRECCIÓN DE TIPO: La cámara activa puede ser de perspectiva u ortográfica.
   public activeCamera!: THREE.PerspectiveCamera | THREE.OrthographicCamera;
   public editorCamera!: THREE.PerspectiveCamera;
   public secondaryCamera!: THREE.PerspectiveCamera; 
@@ -73,17 +72,25 @@ export class SceneManagerService {
 
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
-      antialias: true,
+      // ⭐ OPTIMIZACIÓN #1: Desactivamos el antialiasing por defecto del renderizador.
+      // Es muy costoso y el post-procesado ya suaviza la imagen.
+      // Este es el cambio más importante para ganar FPS.
+      antialias: false,
       powerPreference: 'high-performance',
       precision: 'highp'
     });
     this.renderer.setSize(width, height);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // ⭐ OPTIMIZACIÓN #3: Limitamos el pixel ratio a 1.5.
+    // Esto reduce drásticamente la carga en pantallas de alta resolución (Retina/4K)
+    // con una pérdida de calidad visual mínima.
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     
     const renderPass = new RenderPass(this.scene, this.activeCamera);
-    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 1.0, 0.6, 0.1);
+
+    // Mantenemos la optimización del bloom del paso anterior.
+    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 1.0, 0.6, 0.85);
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(renderPass);
@@ -97,12 +104,10 @@ export class SceneManagerService {
   public getSceneBoundingBox(): THREE.Box3 {
     const box = new THREE.Box3();
     if (!this.scene) return box;
-
     this.scene.children.forEach(object => {
       if (!object.visible || UNSELECTABLE_NAMES.includes(object.name) || object.name.endsWith('_helper')) {
         return;
       }
-      
       if (object.name.startsWith(CELESTIAL_MESH_PREFIX)) {
         const allInstanceData: CelestialInstanceData[] = object.userData["celestialData"];
         if (allInstanceData) {
@@ -114,7 +119,6 @@ export class SceneManagerService {
         box.expandByObject(object);
       }
     });
-
     return box;
   }
 
@@ -127,7 +131,6 @@ export class SceneManagerService {
     const newHeight = container.clientHeight;
 
     if (this.canvas.width !== newWidth || this.canvas.height !== newHeight) {
-      // ✅ CORRECCIÓN: Comprobamos si la cámara tiene 'aspect' antes de usarlo.
       if ('aspect' in this.activeCamera) {
           this.activeCamera.aspect = newWidth / newHeight;
       }
@@ -138,18 +141,16 @@ export class SceneManagerService {
       if (this.bloomPass) {
         this.bloomPass.setSize(newWidth, newHeight);
       }
-      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     }
   }
 
   public frameScene(sceneWidth: number, sceneHeight: number): void {
     if (!this.activeCamera || !this.controls || !('fov' in this.activeCamera)) return;
-
     const fovRad = THREE.MathUtils.degToRad(this.activeCamera.fov);
     const effectiveHeight = Math.max(sceneHeight, sceneWidth / this.activeCamera.aspect);
     const distance = (effectiveHeight / 2) / Math.tan(fovRad / 2);
     const finalZ = distance * 1.2; 
-
     this.activeCamera.position.set(0, 0, finalZ);
     this.activeCamera.lookAt(0, 0, 0);
     this.controls.target.set(0, 0, 0);

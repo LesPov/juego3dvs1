@@ -12,10 +12,9 @@ import { InteractionHelperManagerService } from './utils/interaction-helper.mana
 import { DragInteractionManagerService } from './utils/drag-interaction.manager.service';
 import { CelestialInstanceData } from './utils/object-manager.service';
 import { CameraManagerService, CameraMode } from './utils/camera-manager.service';
-// ✅ NUEVA LÓGICA: Importamos el servicio de selección.
 import { SelectionManagerService } from './utils/selection-manager.service';
 
-const INSTANCES_TO_CHECK_PER_FRAME = 20000000;
+const INSTANCES_TO_CHECK_PER_FRAME = 100000; 
 const BASE_VISIBILITY_DISTANCE = 1000000000000;
 const MAX_PERCEPTUAL_DISTANCE = 10000000000000;
 const DEEP_SPACE_SCALE_BOOST = 10.0;
@@ -25,7 +24,6 @@ const BRIGHTNESS_MULTIPLIER = 1.0;
 const MAX_INTENSITY = 8.0; 
 const BRIGHTNESS_FALLOFF_START_DISTANCE = 500_000_000;
 const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
-
 
 @Injectable()
 export class EngineService implements OnDestroy {
@@ -59,7 +57,6 @@ export class EngineService implements OnDestroy {
   private tempVec3 = new THREE.Vector3();
   private dynamicCelestialModels: THREE.Group[] = [];
   
-  // ✅ NUEVA LÓGICA: Inyectamos el SelectionManager.
   constructor(
     private sceneManager: SceneManagerService,
     private entityManager: EntityManagerService,
@@ -93,13 +90,12 @@ export class EngineService implements OnDestroy {
     this.dragInteractionManager.init(this.sceneManager.editorCamera, canvas, this.controlsManager);
     this.cameraManager.initialize();
     
-    // ⭐ ¡AQUÍ ESTÁ LA NUEVA LÓGICA! ⭐
-    // 1. Inicializamos el gestor de selección con la escena y la cámara activa.
     this.selectionManager.init(this.sceneManager.scene, this.sceneManager.activeCamera);
-    // 2. Añadimos su "pass" (el efecto de borde) al compositor del renderizador. ESTO ES CLAVE.
     this.sceneManager.composer.addPass(this.selectionManager.getPass());
+
+    // ⭐ OPTIMIZACIÓN #2: Forzar pre-compilación de shaders para eliminar el lag inicial.
+    this.precompileShaders();
     
-    // 3. Nos suscribimos a los cambios de modo de cámara para ajustar el grosor del borde.
     this.cameraMode$.subscribe(mode => {
         this.selectionManager.updateOutlineParameters(mode);
     });
@@ -107,6 +103,30 @@ export class EngineService implements OnDestroy {
     this.controlsManager.enableNavigation();
     this.addEventListeners();
     this.animate();
+  }
+
+  /**
+   * ✅ NUEVO MÉTODO: Crea un objeto temporal, lo selecciona, renderiza un fotograma
+   * y lo elimina. Esto fuerza a la GPU a compilar el shader del OutlinePass
+   * antes de que el usuario interactúe, eliminando el lag de la primera selección.
+   */
+  private precompileShaders(): void {
+    const dummyGeometry = new THREE.BoxGeometry(0.001, 0.001, 0.001);
+    const dummyMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
+    const dummyMesh = new THREE.Mesh(dummyGeometry, dummyMaterial);
+    dummyMesh.position.set(Infinity, Infinity, Infinity); // Colocarlo fuera de la vista
+    this.sceneManager.scene.add(dummyMesh);
+
+    // Seleccionar, renderizar y deseleccionar para compilar
+    this.selectionManager.selectObjects([dummyMesh]);
+    this.sceneManager.composer.render();
+    this.selectionManager.selectObjects([]);
+
+    // Limpiar
+    this.sceneManager.scene.remove(dummyMesh);
+    dummyGeometry.dispose();
+    dummyMaterial.dispose();
+    console.log('✨ Shaders de selección pre-compilados.');
   }
   
   public onWindowResize = () => {
@@ -118,7 +138,6 @@ export class EngineService implements OnDestroy {
 
     this.sceneManager.onWindowResize();
     this.interactionHelperManager.updateScale();
-    // ✅ NUEVA LÓGICA: Actualizamos el tamaño del efecto de borde también.
     this.selectionManager.setSize(newWidth, newHeight); 
   };
     
@@ -131,12 +150,9 @@ export class EngineService implements OnDestroy {
     this.axisLockStateSubject.next(null);
     this.selectedObject = undefined;
     
-    // Delegamos la lógica de selección al EntityManager
     this.entityManager.selectObjectByUuid(uuid, this.focusPivot);
 
     if (uuid) {
-      // Volvemos a buscar el objeto seleccionado (puede ser el objeto real o el proxy)
-      // para que las herramientas de transformación (mover, rotar) se le puedan adjuntar.
       this.selectedObject = this.entityManager.getObjectByUuid(uuid);
       if (!this.selectedObject) {
         this.selectedObject = this.sceneManager.scene.getObjectByName('SelectionProxy');
@@ -148,7 +164,6 @@ export class EngineService implements OnDestroy {
     }
   }
 
-  // --- El resto de tus funciones se mantienen intactas ---
   private animate = () => {
     this.animationFrameId = requestAnimationFrame(this.animate);
     this.statsManager.begin();
@@ -264,9 +279,7 @@ export class EngineService implements OnDestroy {
     const loadingManager = this.entityManager.getLoadingManager();
     loadingManager.onProgress = (_, loaded, total) => onProgress((loaded / total) * 100);
     loadingManager.onLoad = () => {
-      console.log("Assets descargados. Pre-compilando shaders...");
       this.sceneManager.renderer.compile(this.sceneManager.scene, this.sceneManager.activeCamera);
-      console.log("¡Shaders compilados!");
       onLoaded();
       this.entityManager.publishSceneEntities();
       this.sceneManager.scene.traverse(obj => {

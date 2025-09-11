@@ -111,7 +111,8 @@ export class ObjectManagerService {
   private _setupCelestialModel(gltf: GLTF, objData: SceneObjectResponse): void {
     const auraColor = new THREE.Color(sanitizeHexColor(objData.emissiveColor, '#ffffff'));
     const farIntensity = THREE.MathUtils.clamp(objData.emissiveIntensity, 1.0, 7.0);
-    // ✅ LÓGICA DE BRILLO: El brillo mínimo para los MODELOS 3D al acercarse es 0.5.
+    // ✅ OPTIMIZACIÓN DE FPS: El brillo mínimo para los MODELOS 3D al acercarse es 0.5.
+    // Esto evita que el efecto de "bloom" sea excesivo y consuma recursos cuando la cámara está cerca.
     const nearIntensity = 0.5;
     gltf.scene.userData['isDynamicCelestialModel'] = true;
     gltf.scene.userData['originalEmissiveIntensity'] = farIntensity;
@@ -164,15 +165,7 @@ export class ObjectManagerService {
       this.textureCache.set(textureUrl, texture);
     }
     const geometry = new THREE.PlaneGeometry(1, 1);
-    
-    const material = new THREE.MeshBasicMaterial({
-      map: texture,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
-    
+    const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
     const instancedMesh = new THREE.InstancedMesh(geometry, material, objectsData.length);
     instancedMesh.name = `CelestialObjects_Texture_${texturePath.replace(/[^a-zA-Z0-9]/g, '_')}`;
     instancedMesh.frustumCulled = false;
@@ -198,8 +191,8 @@ export class ObjectManagerService {
     const BASE_SCALE = 600.0, DOMINANT_LUMINOSITY_MULTIPLIER = 5.0;
     const MAX_BILLBOARD_INTENSITY = 5.0;
 
-    // ✅ LÓGICA DE BRILLO: El brillo MÍNIMO de los billboards (estrellas, galaxias) al acercarse es 1.0.
-    // Esto asegura que sean visibles pero sin el efecto de "bloom" cegador.
+    // ✅ OPTIMIZACIÓN DE FPS: El brillo MÍNIMO de los billboards (estrellas, galaxias) al acercarse es 1.0.
+    // Esto asegura que sigan siendo visibles pero sin el efecto de "bloom" cegador que consume FPS.
     const NEAR_BILLBOARD_INTENSITY = 1.0;
 
     for (let i = 0; i < objectsData.length; i++) {
@@ -219,7 +212,7 @@ export class ObjectManagerService {
       celestialData.push({
           originalColor: visualColor.clone(),
           emissiveIntensity: THREE.MathUtils.clamp(objData.emissiveIntensity, 1.0, MAX_BILLBOARD_INTENSITY),
-          baseEmissiveIntensity: NEAR_BILLBOARD_INTENSITY, // <-- ¡Este es el valor clave para el brillo mínimo!
+          baseEmissiveIntensity: NEAR_BILLBOARD_INTENSITY,
           position: position.clone(),
           scale: scale.clone(),
           originalMatrix: matrix.clone(),

@@ -3,12 +3,14 @@ import * as THREE from 'three';
 import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass.js';
 import { CameraMode } from './camera-manager.service';
  
+// Parámetros para un borde más sutil en vista de perspectiva.
 const PERSPECTIVE_PARAMS = {
   edgeStrength: 10.0,
   edgeGlow: 1.0, 
   edgeThickness: 2.5,
 };
 
+// Parámetros para un borde más grueso y visible en vistas ortográficas.
 const ORTHOGRAPHIC_PARAMS = {
   edgeStrength: 25.0,
   edgeGlow: 1.5,
@@ -31,13 +33,13 @@ export class SelectionManagerService {
       camera
     );
 
-    this.outlinePass.pulsePeriod = 0;
-    this.outlinePass.visibleEdgeColor.set('#ffff00');
-    this.outlinePass.hiddenEdgeColor.set('#ffff00');
+    this.outlinePass.pulsePeriod = 0; // Desactiva el efecto de pulso.
+    this.outlinePass.visibleEdgeColor.set('#ffff00'); // Color amarillo para el borde.
+    this.outlinePass.hiddenEdgeColor.set('#ffff00'); // Mismo color si el objeto está ocluido.
     
-    // ✅ LÓGICA CLAVE: Hacemos que el borde se vea siempre.
+    // ⭐ LÓGICA CLAVE: Hacemos que el borde se vea siempre.
     // Al desactivar la prueba de profundidad, el borde se dibujará por encima
-    // de cualquier otro objeto, sin importar la distancia.
+    // de cualquier otro objeto, sin importar si está lejos o detrás de algo.
     this.overlayMaterial = (this.outlinePass as any).overlayMaterial;
     this.overlayMaterial.depthTest = false;
     this.overlayMaterial.depthWrite = false;

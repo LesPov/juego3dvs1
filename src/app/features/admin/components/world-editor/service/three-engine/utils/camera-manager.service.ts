@@ -4,6 +4,7 @@ import { BehaviorSubject } from 'rxjs';
 import { SceneManagerService } from './scene-manager.service';
 import { ControlsManagerService } from './controls-manager.service';
 import { EntityManagerService } from './entity-manager.service';
+// ✅ 1. Importamos el servicio de selección.
 import { SelectionManagerService } from './selection-manager.service';
 import { InteractionHelperManagerService } from './interaction-helper.manager.service';
 import { DragInteractionManagerService } from './drag-interaction.manager.service';
@@ -33,6 +34,7 @@ export class CameraManagerService {
     private sceneManager: SceneManagerService,
     private controlsManager: ControlsManagerService,
     private entityManager: EntityManagerService,
+    // ✅ 2. Inyectamos el servicio de selección.
     private selectionManager: SelectionManagerService,
     private interactionHelperManager: InteractionHelperManagerService,
     private dragInteractionManager: DragInteractionManagerService,
@@ -80,7 +82,7 @@ export class CameraManagerService {
     this.controlsManager.setCamera(newActiveCamera);
     (this.sceneManager.composer.passes[0] as RenderPass).camera = newActiveCamera;
     
-    // ✅ NUEVA LÓGICA: Notificamos al SelectionManager sobre la nueva cámara activa.
+    // ⭐ 3. Notificamos al SelectionManager sobre la nueva cámara activa.
     this.selectionManager.setCamera(newActiveCamera);
 
     this.interactionHelperManager.setCamera(newActiveCamera);
@@ -200,7 +202,7 @@ export class CameraManagerService {
     this.controlsManager.setCamera(this.orthoCamera);
     (this.sceneManager.composer.passes[0] as RenderPass).camera = this.orthoCamera;
     
-    // ✅ NUEVA LÓGICA: Notificamos al SelectionManager sobre la nueva cámara ortográfica.
+    // ⭐ 4. Notificamos al SelectionManager sobre la nueva cámara ortográfica.
     this.selectionManager.setCamera(this.orthoCamera);
 
     this.controlsManager.exitFlyMode();
@@ -225,7 +227,7 @@ export class CameraManagerService {
     this.controlsManager.setCamera(this.sceneManager.editorCamera);
     (this.sceneManager.composer.passes[0] as RenderPass).camera = this.sceneManager.editorCamera;
 
-    // ✅ NUEVA LÓGICA: Notificamos al SelectionManager sobre la nueva cámara de perspectiva.
+    // ⭐ 5. Notificamos al SelectionManager sobre la nueva cámara de perspectiva.
     this.selectionManager.setCamera(this.sceneManager.editorCamera);
     
     if (this.lastPerspectiveState) {

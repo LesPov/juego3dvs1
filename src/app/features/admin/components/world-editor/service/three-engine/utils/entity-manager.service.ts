@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { CelestialInstanceData, ObjectManagerService } from './object-manager.service';
+// ✅ 1. Importamos el servicio de selección.
 import { SelectionManagerService } from './selection-manager.service';
 import { SceneObjectResponse } from '../../../../../services/admin.service';
 
@@ -26,6 +27,7 @@ export class EntityManagerService {
 
   constructor(
     public objectManager: ObjectManagerService,
+    // ✅ 2. Inyectamos el servicio de selección.
     private selectionManager: SelectionManagerService
   ) { }
 
@@ -37,34 +39,22 @@ export class EntityManagerService {
 
   public publishSceneEntities(): void {
     const entities: SceneEntity[] = [];
-
     this.scene.children.forEach(object => {
       if (!object.name.endsWith('_helper') && !this.unselectableNames.includes(object.name) && !object.name.startsWith(CELESTIAL_MESH_PREFIX)) {
         const apiType = object.userData['apiType'] as SceneEntity['type'] | undefined;
         const objectType = object.type === 'Group' ? 'Model' : apiType; 
         const finalType = objectType || (object instanceof THREE.PerspectiveCamera ? 'camera' : (object instanceof THREE.Light ? 'directionalLight' : 'Model'));
-
-        entities.push({
-          uuid: object.uuid,
-          name: object.name,
-          type: finalType
-        });
+        entities.push({ uuid: object.uuid, name: object.name, type: finalType });
       }
-
       if (object.name.startsWith(CELESTIAL_MESH_PREFIX)) {
         const allInstanceData: CelestialInstanceData[] = object.userData["celestialData"];
         if (allInstanceData) {
           allInstanceData.forEach(instance => {
-            entities.push({
-              uuid: instance.originalUuid,
-              name: instance.originalName,
-              type: instance.type as SceneObjectResponse['type']
-            });
+            entities.push({ uuid: instance.originalUuid, name: instance.originalName, type: instance.type as SceneObjectResponse['type'] });
           });
         }
       }
     });
-
     entities.sort((a, b) => a.name.localeCompare(b.name));
     setTimeout(() => this.sceneEntities.next(entities));
   }
@@ -85,40 +75,37 @@ export class EntityManagerService {
   }
     
   /**
-   * ✅ LÓGICA CLAVE MEJORADA: Este método orquesta la selección.
+   * ⭐ 3. LÓGICA CLAVE MEJORADA: Este método orquesta la selección.
    * Limpia selecciones antiguas, encuentra el nuevo objeto y se lo pasa
-   * al SelectionManager para que aplique el efecto visual.
+   * al SelectionManager para que aplique el efecto visual del borde amarillo.
    */
   public selectObjectByUuid(uuid: string | null, focusPivot: THREE.Object3D): void {
-    // 1. Limpiamos la selección anterior, eliminando cualquier "proxy" visual que exista.
     const existingProxy = this.scene.getObjectByName('SelectionProxy');
     if (existingProxy) {
       this.scene.remove(existingProxy);
       if (existingProxy instanceof THREE.Mesh) {
         existingProxy.geometry.dispose();
-        const material = existingProxy.material as THREE.Material;
-        material.dispose();
+        (existingProxy.material as THREE.Material).dispose();
       }
     }
 
-    // 2. Si no hay uuid, es una deselección. Vaciamos el array de objetos a resaltar.
+    // Si no hay uuid, es una deselección. Vaciamos la lista de objetos a resaltar.
     if (!uuid) {
       this.selectionManager.selectObjects([]);
       return;
     }
 
-    // 3. Buscamos un objeto estándar (Modelo 3D, Luz, etc.).
+    // Buscamos un objeto estándar (Modelo 3D, Luz, etc.).
     const mainObject = this.scene.getObjectByProperty('uuid', uuid);
     if (mainObject) {
-      // Objeto encontrado, lo pasamos al SelectionManager para que le ponga el borde.
+      // Objeto encontrado, se lo pasamos al SelectionManager para que le ponga el borde.
       this.selectionManager.selectObjects([mainObject]);
-      // Actualizamos la posición del pivote para que la cámara orbite a su alrededor.
       const worldPosition = mainObject.getWorldPosition(new THREE.Vector3());
       focusPivot.position.copy(worldPosition);
       return;
     }
 
-    // 4. Si no es un objeto estándar, buscamos en los objetos "instanciados" (estrellas, etc.).
+    // Si no, buscamos en los objetos "instanciados" (estrellas, etc.).
     const celestialInstance = this._findCelestialInstance(uuid);
     if (celestialInstance) {
       const { data } = celestialInstance;
@@ -130,7 +117,7 @@ export class EntityManagerService {
       
       selectionProxy.position.copy(pos);
       selectionProxy.scale.copy(scale).multiplyScalar(PROXY_SCALE_MULTIPLIER);
-      selectionProxy.uuid = data.originalUuid; 
+      selectionProxy.uuid = data.originalUuid; // Asignamos el UUID original para que las herramientas lo reconozcan
       
       this.scene.add(selectionProxy);
 
@@ -140,11 +127,10 @@ export class EntityManagerService {
       return;
     }
 
-    // 5. Si no se encontró nada, nos aseguramos de que no haya nada seleccionado.
+    // Si no se encontró nada, nos aseguramos de que no haya nada seleccionado.
     this.selectionManager.selectObjects([]);
   }
 
-  // --- El resto de tus funciones se mantienen intactas ---
   public setGroupVisibility(uuids: string[], visible: boolean): void {
     if (!this.scene) return;
     const celestialMeshes = this.scene.children.filter(o => o.name.startsWith(CELESTIAL_MESH_PREFIX)) as THREE.InstancedMesh[];
@@ -221,19 +207,15 @@ export class EntityManagerService {
   public clearScene(): void {
     if (!this.scene) return;
     const objectsToKeep = ['Cámara del Editor', 'Cámara Principal'];
-
     for (let i = this.scene.children.length - 1; i >= 0; i--) {
       const object = this.scene.children[i];
       if (this.unselectableNames.includes(object.name) || objectsToKeep.includes(object.name) || object.name.endsWith('_helper')) {
         continue;
       }
-
       if (object.userData['helper']) {
         this.scene.remove(object.userData['helper']);
       }
-
       this.scene.remove(object);
-
       if ((object as THREE.Mesh).isMesh || (object as THREE.InstancedMesh).isInstancedMesh) {
         const mesh = object as THREE.Mesh | THREE.InstancedMesh;
         mesh.geometry?.dispose();
