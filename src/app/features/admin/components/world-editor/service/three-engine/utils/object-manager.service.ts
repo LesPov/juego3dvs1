@@ -9,6 +9,7 @@ import { SceneObjectResponse } from '../../../../../services/admin.service';
 export interface CelestialInstanceData {
   originalColor: THREE.Color;
   emissiveIntensity: number;
+  baseEmissiveIntensity: number;
   position: THREE.Vector3;
   originalMatrix: THREE.Matrix4;
   originalUuid: string;
@@ -39,7 +40,7 @@ export class ObjectManagerService {
   private textureLoader = new THREE.TextureLoader();
   private textureCache = new Map<string, THREE.Texture>();
   private glowTexture: THREE.CanvasTexture | null = null;
-  
+
   public createObjectFromData(scene: THREE.Scene, objData: SceneObjectResponse, loader: GLTFLoader): THREE.Object3D | null {
     let createdObject: THREE.Object3D | null = null;
     switch (objData.type) {
@@ -54,12 +55,7 @@ export class ObjectManagerService {
            if(objData.properties?.['is_black_hole']) createdObject = this.createBlackHolePrimitive(scene, objData);
         }
         break;
-      
-      case 'cube':
-      case 'sphere':
-      case 'cone':
-      case 'torus':
-      case 'floor':
+      case 'cube': case 'sphere': case 'cone': case 'torus': case 'floor':
         createdObject = this.createStandardPrimitive(scene, objData);
         break;
       case 'camera':
@@ -68,24 +64,20 @@ export class ObjectManagerService {
       case 'directionalLight':
         createdObject = this.createDirectionalLight(scene, objData);
         break;
-
       default:
         console.warn(`[ObjectManager] Tipo '${objData.type}' no manejado y será ignorado.`);
         break;
     }
     return createdObject;
   }
-  
+
   public createCelestialObjectsInstanced(scene: THREE.Scene, objectsData: SceneObjectResponse[], loader: GLTFLoader): void {
     if (!objectsData.length) return;
-
     const modelBasedCelestials = objectsData.filter(obj => obj.asset?.type === 'model_glb');
     const billboardCelestials = objectsData.filter(obj => obj.asset?.type !== 'model_glb');
-
     if (modelBasedCelestials.length > 0) {
       modelBasedCelestials.forEach(objData => this.loadGltfModel(scene, objData, loader));
     }
-
     if (billboardCelestials.length > 0) {
       const groupedObjects = new Map<string, SceneObjectResponse[]>();
       groupedObjects.set('__DEFAULT__', []);
@@ -111,105 +103,59 @@ export class ObjectManagerService {
       return;
     };
     const modelUrl = `${this.backendUrl}${objData.asset.path}`;
-    
-    loader.load(
-        modelUrl, 
-        (gltf) => {
-            this._setupCelestialModel(gltf, objData);
-            this.applyTransformations(gltf.scene, objData);
-            scene.add(gltf.scene);
-            console.log(`[ObjectManager] ✅ Modelo '${objData.name}' cargado.`, {
-                scene: gltf.scene,
-                animations: gltf.animations.length
-            });
-        },
-        undefined, 
-        (error) => {
-            console.error(`[ObjectManager] Error al cargar ${modelUrl}:`, error);
-        }
-    );
+    loader.load( modelUrl, (gltf) => {
+      this._setupCelestialModel(gltf, objData);
+      this.applyTransformations(gltf.scene, objData);
+      scene.add(gltf.scene);
+    });
   }
-  
-  // <-- ¡¡¡FUNCIÓN DE MATERIALES REFINADA!!! -->
-  private _setupCelestialModel(gltf: GLTF, objData: SceneObjectResponse): void {
-    const emissiveColor = new THREE.Color(sanitizeHexColor(objData.emissiveColor, '#ffffff'));
-      
-    const farIntensity = THREE.MathUtils.clamp(objData.emissiveIntensity, 1.0, 7.0);
-    const nearIntensity = 0.5;
 
+  private _setupCelestialModel(gltf: GLTF, objData: SceneObjectResponse): void {
+    const auraColor = new THREE.Color(sanitizeHexColor(objData.emissiveColor, '#ffffff'));
+    const farIntensity = THREE.MathUtils.clamp(objData.emissiveIntensity, 1.0, 7.0);
+    const nearIntensity = 0.5; // El brillo mínimo para los MODELOS está bien en 0.5.
     gltf.scene.userData['isDynamicCelestialModel'] = true;
     gltf.scene.userData['originalEmissiveIntensity'] = farIntensity;
     gltf.scene.userData['baseEmissiveIntensity'] = nearIntensity;
-      
     gltf.scene.traverse(child => {
-      if (child instanceof THREE.Mesh) {
-        // Los objetos opacos importantes deben renderizarse primero
+      if (child instanceof THREE.Mesh && child.material) {
         child.renderOrder = 1;
-
-        if (child.material) {
-          const processMaterial = (material: THREE.Material): THREE.Material => {
-            const newMaterial = material.clone();
-
-            // <-- LÓGICA DE TRANSPARENCIA MEJORADA -->
-            // Solo activa la transparencia si el material original ya era transparente.
-            // Si no, forzar `transparent = true` en un material opaco puede causar problemas.
-            if (newMaterial.transparent) {
-                newMaterial.blending = THREE.AdditiveBlending; // Mejor para efectos de brillo
-                newMaterial.depthWrite = false; // <-- Los objetos transparentes no suelen escribir en el z-buffer
-            } else {
-                newMaterial.transparent = false;
-                newMaterial.depthWrite = true; // <-- Los objetos opacos DEBEN escribir en el z-buffer
-            }
-
-            // `alphaTest` crea un corte brusco. Para brillos o atmósferas, es mejor no usarlo.
-            // Lo dejamos en 0 a menos que sepas que necesitas un corte duro.
-            newMaterial.alphaTest = 0.0;
-
-            // `DoubleSide` es costoso. Úsalo solo si es necesario (ej. planos, telas).
-            // Para modelos cerrados como esferas, `FrontSide` es más eficiente.
-            // Mantenemos DoubleSide por si tus modelos lo necesitan, pero es un punto a optimizar.
-            newMaterial.side = THREE.DoubleSide;
-
-            if (newMaterial instanceof THREE.MeshStandardMaterial || newMaterial instanceof THREE.MeshPhysicalMaterial) {
-              newMaterial.emissive = emissiveColor;
-              newMaterial.emissiveMap = newMaterial.map; 
-              newMaterial.emissiveIntensity = farIntensity;
-              newMaterial.toneMapped = true; 
-
-              if (newMaterial.map) {
-                // Esto es una excelente práctica para mejorar la calidad de las texturas en ángulos
-                newMaterial.map.anisotropy = 32; // 16 es un valor excelente y más estándar que 32
-                newMaterial.map.needsUpdate = true;
-              }
-            }
-            
-            newMaterial.needsUpdate = true;
-            return newMaterial;
-          };
-          child.material = Array.isArray(child.material) ? child.material.map(processMaterial) : processMaterial(child.material);
-        }
+        const processMaterial = (material: THREE.Material): THREE.Material => {
+          const newMaterial = material.clone();
+          if (newMaterial.transparent) {
+            newMaterial.blending = THREE.AdditiveBlending;
+            newMaterial.depthWrite = false;
+          } else {
+            newMaterial.depthWrite = true;
+          }
+          newMaterial.side = THREE.DoubleSide;
+          if (newMaterial instanceof THREE.MeshStandardMaterial || newMaterial instanceof THREE.MeshPhysicalMaterial) {
+            newMaterial.emissive = new THREE.Color(0xffffff);
+            newMaterial.emissiveMap = newMaterial.map;
+            newMaterial.emissiveIntensity = farIntensity;
+            if (newMaterial.map) newMaterial.map.anisotropy = 16;
+          }
+          return newMaterial;
+        };
+        child.material = Array.isArray(child.material) ? child.material.map(processMaterial) : processMaterial(child.material);
       }
     });
-      
     const lightPower = objData.emissiveIntensity * 20.0;
     const lightDistance = Math.max(objData.scale.x, objData.scale.y, objData.scale.z) * 50;
-    const coreLight = new THREE.PointLight(emissiveColor, lightPower, lightDistance);
+    const coreLight = new THREE.PointLight(auraColor, lightPower, lightDistance);
     coreLight.name = `${objData.name}_CoreLight`;
     gltf.scene.add(coreLight);
-      
     this._setupAnimations(gltf);
   }
-  
+
   private _setupAnimations(gltf: GLTF): void {
     if (gltf.animations && gltf.animations.length > 0) {
       const mixer = new THREE.AnimationMixer(gltf.scene);
-      const action = mixer.clipAction(gltf.animations[0]);
-      action.play();
+      gltf.animations.forEach(clip => mixer.clipAction(clip).play());
       gltf.scene.userData['animationMixer'] = mixer;
-      console.log(`[ObjectManager] Animación '${gltf.animations[0].name}' iniciada para ${gltf.scene.name}.`);
     }
   }
-  
+
   private _createTexturedInstancedMesh(scene: THREE.Scene, objectsData: SceneObjectResponse[], texturePath: string): void {
     const textureUrl = `${this.backendUrl}${texturePath}`;
     let texture = this.textureCache.get(textureUrl);
@@ -219,16 +165,27 @@ export class ObjectManagerService {
       this.textureCache.set(textureUrl, texture);
     }
     const geometry = new THREE.PlaneGeometry(1, 1);
-    const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    
+    // <-- ¡¡¡SOLUCIÓN DEFINITIVA!!! Volvemos a MeshBasicMaterial -->
+    // Este material nos da control TOTAL sobre el color final. El brillo calculado en engine.service
+    // se multiplicará directamente con el color de la textura. Si el brillo calculado es 0, el resultado es NEGRO.
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    
     const instancedMesh = new THREE.InstancedMesh(geometry, material, objectsData.length);
     instancedMesh.name = `CelestialObjects_Texture_${texturePath.replace(/[^a-zA-Z0-9]/g, '_')}`;
     instancedMesh.frustumCulled = false;
     this._populateInstanceData(instancedMesh, objectsData);
     scene.add(instancedMesh);
   }
-  
+
   private _createDefaultGlowInstancedMesh(scene: THREE.Scene, objectsData: SceneObjectResponse[]): void {
-    const geometry = new THREE.CircleGeometry(6.0, 32); 
+    const geometry = new THREE.CircleGeometry(6.0, 32);
     const material = new THREE.MeshBasicMaterial({ map: this._createGlowTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
     const instancedMesh = new THREE.InstancedMesh(geometry, material, objectsData.length);
     instancedMesh.name = 'CelestialObjects_Default';
@@ -236,31 +193,36 @@ export class ObjectManagerService {
     this._populateInstanceData(instancedMesh, objectsData);
     scene.add(instancedMesh);
   }
-  
+
   private _populateInstanceData(instancedMesh: THREE.InstancedMesh, objectsData: SceneObjectResponse[]): void {
     const celestialData: CelestialInstanceData[] = [];
     instancedMesh.userData['celestialData'] = celestialData;
 
     const matrix = new THREE.Matrix4(), position = new THREE.Vector3(), quaternion = new THREE.Quaternion(), scale = new THREE.Vector3();
     const BASE_SCALE = 600.0, DOMINANT_LUMINOSITY_MULTIPLIER = 5.0;
+    const MAX_BILLBOARD_INTENSITY = 5.0;
+
+    // El brillo MÍNIMO de las imágenes de cerca es 0.0 para que se apaguen completamente.
+    const NEAR_BILLBOARD_INTENSITY = 0.4;
 
     for (let i = 0; i < objectsData.length; i++) {
       const objData = objectsData[i];
       const visualColor = new THREE.Color(sanitizeHexColor(objData.emissiveColor));
-      
+
       position.set(objData.position.x, objData.position.y, objData.position.z);
       quaternion.identity();
       scale.set(objData.scale.x, objData.scale.y, objData.scale.z);
       matrix.compose(position, quaternion, scale);
       instancedMesh.setMatrixAt(i, matrix);
       instancedMesh.setColorAt(i, new THREE.Color(0x000000));
-      
+
       const scaleLuminosity = Math.max(1.0, objData.scale.x / BASE_SCALE);
       const dominantBoost = (objData.isDominant ?? false) ? DOMINANT_LUMINOSITY_MULTIPLIER : 1.0;
-      
+
       celestialData.push({
           originalColor: visualColor.clone(),
-          emissiveIntensity: objData.emissiveIntensity,
+          emissiveIntensity: THREE.MathUtils.clamp(objData.emissiveIntensity, 1.0, MAX_BILLBOARD_INTENSITY),
+          baseEmissiveIntensity: NEAR_BILLBOARD_INTENSITY, // <-- ¡Este CERO es la clave!
           position: position.clone(),
           scale: scale.clone(),
           originalMatrix: matrix.clone(),
@@ -277,7 +239,7 @@ export class ObjectManagerService {
     instancedMesh.instanceMatrix.needsUpdate = true;
     if (instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
   }
-  
+
   private createCamera(scene: THREE.Scene, objData: SceneObjectResponse): THREE.PerspectiveCamera {
     const props = objData.properties || {};
     const camera = new THREE.PerspectiveCamera(props['fov'] ?? 50, 16 / 9, props['near'] ?? 0.1, props['far'] ?? 1000);
@@ -288,7 +250,7 @@ export class ObjectManagerService {
     scene.add(camera, helper);
     return camera;
   }
-  
+
   private createDirectionalLight(scene: THREE.Scene, objData: SceneObjectResponse): THREE.DirectionalLight {
     const props = objData.properties || {};
     const light = new THREE.DirectionalLight(new THREE.Color(sanitizeHexColor(props['color'])), props['intensity'] ?? 1.0);
@@ -299,7 +261,7 @@ export class ObjectManagerService {
     scene.add(light, helper);
     return light;
   }
-  
+
   private createStandardPrimitive(scene: THREE.Scene, objData: SceneObjectResponse): THREE.Mesh {
     const properties = objData.properties || {};
     const color = new THREE.Color(sanitizeHexColor(properties['color']));
@@ -318,7 +280,7 @@ export class ObjectManagerService {
     scene.add(mesh);
     return mesh;
   }
-  
+
   private createBlackHolePrimitive(scene: THREE.Scene, objData: SceneObjectResponse): THREE.Mesh {
     const geometry = new THREE.SphereGeometry(0.5, 32, 16);
     const material = new THREE.MeshBasicMaterial({ color: 0x000000 });
@@ -327,7 +289,7 @@ export class ObjectManagerService {
     scene.add(mesh);
     return mesh;
   }
-      
+
   public createSelectionProxy(): THREE.Mesh {
     const proxyGeometry = new THREE.SphereGeometry(1.1, 16, 8);
     const proxyMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0, depthWrite: true });
@@ -335,7 +297,7 @@ export class ObjectManagerService {
     proxyMesh.name = 'SelectionProxy';
     return proxyMesh;
   }
-  
+
   private _createGlowTexture(): THREE.CanvasTexture {
     if (this.glowTexture) return this.glowTexture;
     const canvas = document.createElement('canvas');
@@ -353,7 +315,7 @@ export class ObjectManagerService {
     this.glowTexture.needsUpdate = true;
     return this.glowTexture;
   }
-  
+
   private applyTransformations(object: THREE.Object3D, data: SceneObjectResponse): void {
     object.name = data.name;
     object.uuid = data.id.toString();
