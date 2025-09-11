@@ -58,6 +58,8 @@ export class EngineService implements OnDestroy {
   private boundingSphere = new THREE.Sphere();
   private tempScale = new THREE.Vector3();
   private tempColor = new THREE.Color();
+  private tempBox = new THREE.Box3(); // <-- NUEVO: Para cálculos de tamaño de objeto
+  private tempVec3 = new THREE.Vector3(); // <-- NUEVO: Vector temporal
 
   private dynamicCelestialModels: THREE.Group[] = [];
 
@@ -184,30 +186,54 @@ export class EngineService implements OnDestroy {
     });
   }
   
+  // <-- ¡¡¡FUNCIÓN CORREGIDA Y MEJORADA!!! -->
   private adjustCameraClippingPlanes = () => {
-    if (this.sceneManager.activeCamera.type !== 'PerspectiveCamera') return;
+    const camera = this.sceneManager.activeCamera;
+    if (!(camera instanceof THREE.PerspectiveCamera)) return;
 
-    const camera = this.sceneManager.activeCamera as THREE.PerspectiveCamera;
     const controls = this.controlsManager.getControls();
-    if (!camera || !controls || !camera.userData['originalNear']) return;
+    if (!controls) return;
 
+    // Constantes para definir límites seguros
+    const minNear = 0.1;
+    const maxFar = 1e15; // Un valor enorme pero finito para el espacio profundo
+
+    // Distancia desde la cámara hasta el punto donde está mirando (el pivote de órbita)
     const distanceToTarget = camera.position.distanceTo(controls.target);
-    const originalNear = camera.userData['originalNear'];
-    const originalFar = camera.userData['originalFar'];
 
-    const DYNAMIC_CLIPPING_THRESHOLD = 500_000_000;
-    let newNear, newFar;
-
-    if (distanceToTarget < DYNAMIC_CLIPPING_THRESHOLD) {
-      newNear = Math.max(10, distanceToTarget / 1000);
-      newFar = distanceToTarget * 10;
-    } else {
-      newNear = originalNear;
-      newFar = originalFar;
+    let objectSize = 0;
+    // Si hay un objeto seleccionado, usamos su tamaño para un cálculo más preciso
+    if (this.selectedObject) {
+        this.tempBox.setFromObject(this.selectedObject, true);
+        objectSize = this.tempBox.getSize(this.tempVec3).length();
+    }
+    
+    // Si no hay objeto seleccionado o el tamaño es 0, usamos una heurística basada en la distancia
+    if (objectSize === 0) {
+        objectSize = distanceToTarget * 0.1; // Asumimos un tamaño de objeto del 10% de la distancia
     }
 
-    newFar = Math.max(newFar, newNear * 2);
+    // Calculamos el plano cercano. Debe ser muy pequeño cuando nos acercamos.
+    // Usamos el tamaño del objeto o una fracción de la distancia, lo que sea más pequeño,
+    // para evitar que el 'near' se vuelva demasiado grande al alejarnos.
+    // El factor 1000 es un buen punto de partida.
+    let newNear = Math.min(distanceToTarget / 1000, objectSize / 10);
+    
+    // Aplicamos los límites de seguridad. Nunca debe ser menor que minNear.
+    newNear = THREE.MathUtils.clamp(newNear, minNear, 1000); // <-- Límite superior para evitar problemas al alejarse mucho
 
+    // Calculamos el plano lejano. Lo basamos en el 'originalFar' que configuraste
+    // al inicio, asegurando que siempre podamos ver el fondo de tu escena.
+    const originalFar = camera.userData['originalFar'] || maxFar;
+    let newFar = Math.max(distanceToTarget * 2, originalFar); // <-- Asegura que vemos más allá del target
+    newFar = Math.min(newFar, maxFar); // <-- Aplicamos el límite máximo
+
+    // Por seguridad, el plano lejano siempre debe ser mayor que el cercano.
+    if (newFar <= newNear) {
+      newFar = newNear * 2;
+    }
+
+    // Solo actualizamos si los valores han cambiado para evitar recálculos innecesarios.
     if (camera.near !== newNear || camera.far !== newFar) {
       camera.near = newNear;
       camera.far = newFar;

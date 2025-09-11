@@ -130,11 +130,12 @@ export class ObjectManagerService {
     );
   }
   
+  // <-- ¡¡¡FUNCIÓN DE MATERIALES REFINADA!!! -->
   private _setupCelestialModel(gltf: GLTF, objData: SceneObjectResponse): void {
     const emissiveColor = new THREE.Color(sanitizeHexColor(objData.emissiveColor, '#ffffff'));
       
     const farIntensity = THREE.MathUtils.clamp(objData.emissiveIntensity, 1.0, 7.0);
-    const nearIntensity = 0.25;
+    const nearIntensity = 0.5;
 
     gltf.scene.userData['isDynamicCelestialModel'] = true;
     gltf.scene.userData['originalEmissiveIntensity'] = farIntensity;
@@ -142,15 +143,31 @@ export class ObjectManagerService {
       
     gltf.scene.traverse(child => {
       if (child instanceof THREE.Mesh) {
+        // Los objetos opacos importantes deben renderizarse primero
         child.renderOrder = 1;
 
         if (child.material) {
-          const processMaterial = (material: THREE.Material) => {
+          const processMaterial = (material: THREE.Material): THREE.Material => {
             const newMaterial = material.clone();
-            newMaterial.transparent = true;
-            newMaterial.depthWrite = true;
-            newMaterial.alphaTest = 0.1;
-            newMaterial.blending = THREE.NormalBlending;
+
+            // <-- LÓGICA DE TRANSPARENCIA MEJORADA -->
+            // Solo activa la transparencia si el material original ya era transparente.
+            // Si no, forzar `transparent = true` en un material opaco puede causar problemas.
+            if (newMaterial.transparent) {
+                newMaterial.blending = THREE.AdditiveBlending; // Mejor para efectos de brillo
+                newMaterial.depthWrite = false; // <-- Los objetos transparentes no suelen escribir en el z-buffer
+            } else {
+                newMaterial.transparent = false;
+                newMaterial.depthWrite = true; // <-- Los objetos opacos DEBEN escribir en el z-buffer
+            }
+
+            // `alphaTest` crea un corte brusco. Para brillos o atmósferas, es mejor no usarlo.
+            // Lo dejamos en 0 a menos que sepas que necesitas un corte duro.
+            newMaterial.alphaTest = 0.0;
+
+            // `DoubleSide` es costoso. Úsalo solo si es necesario (ej. planos, telas).
+            // Para modelos cerrados como esferas, `FrontSide` es más eficiente.
+            // Mantenemos DoubleSide por si tus modelos lo necesitan, pero es un punto a optimizar.
             newMaterial.side = THREE.DoubleSide;
 
             if (newMaterial instanceof THREE.MeshStandardMaterial || newMaterial instanceof THREE.MeshPhysicalMaterial) {
@@ -160,10 +177,8 @@ export class ObjectManagerService {
               newMaterial.toneMapped = true; 
 
               if (newMaterial.map) {
-                // --- ¡SOLUCIÓN A LA DISTORSIÓN DE TEXTURA! ---
-                // Activa el filtrado anisotrópico para mejorar la nitidez de la textura en ángulos extremos.
-                // 16 es un valor estándar de alta calidad.
-                newMaterial.map.anisotropy = 16;
+                // Esto es una excelente práctica para mejorar la calidad de las texturas en ángulos
+                newMaterial.map.anisotropy = 32; // 16 es un valor excelente y más estándar que 32
                 newMaterial.map.needsUpdate = true;
               }
             }
