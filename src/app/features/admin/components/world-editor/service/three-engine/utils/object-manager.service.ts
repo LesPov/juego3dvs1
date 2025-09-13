@@ -49,10 +49,10 @@ export class ObjectManagerService {
     let createdObject: THREE.Object3D | null = null;
     switch (objData.type) {
       case 'model':
-      case 'star':
-      case 'galaxy':
-      case 'supernova':
-      case 'diffraction_star':
+      case 'galaxy_normal':
+      case 'galaxy_bright':
+      case 'galaxy_medium':
+      case 'galaxy_far':
         if (objData.asset?.type === 'model_glb') {
             this.loadGltfModel(scene, objData, loader);
         } else if (objData.type !== 'model' || objData.properties?.['is_black_hole']) {

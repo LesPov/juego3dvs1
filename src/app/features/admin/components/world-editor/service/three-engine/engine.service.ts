@@ -268,7 +268,7 @@ export class EngineService implements OnDestroy {
     if (!this.sceneManager.scene) return;
     this.entityManager.clearScene();
     this.dynamicCelestialModels = [];
-    const celestialTypes = ['star', 'galaxy', 'meteor', 'supernova', 'diffraction_star', 'model'];
+    const celestialTypes = ['galaxy_normal', 'galaxy_bright', 'meteor', 'galaxy_far', 'galaxy_medium', 'model'];
     const celestialObjectsData = objects.filter(o => celestialTypes.includes(o.type));
     const standardObjectsData = objects.filter(o => !celestialTypes.includes(o.type));
     this.entityManager.objectManager.createCelestialObjectsInstanced(
