@@ -1,4 +1,3 @@
-// src/app/features/admin/views/world-editor/world-view/service/three-engine/engine.service.ts
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
@@ -264,26 +263,31 @@ export class EngineService implements OnDestroy {
     }
   }
 
-  // ==========================================================
-  // --- ¡CORRECCIÓN FINAL AÑADIDA AQUÍ! ---
-  // ==========================================================
   private onCanvasMouseDown = (event: MouseEvent) => {
+    // Solo actuar en click izquierdo y si hay un objeto preseleccionado (hover)
     if (event.button === 0 && this.preselectedObject) {
       event.preventDefault();
       
-      const selectedUuid = this.preselectedObject.uuid;
-
-      // 1. Limpiar inmediatamente el estado de preselección visual.
+      const hoveredUuid = this.preselectedObject.uuid;
+  
+      // --- NUEVA LÓGICA DE TOGGLE ---
+      // Comprobar si el objeto clickeado es el mismo que ya está seleccionado
+      const isDeselecting = this.selectedObject?.uuid === hoveredUuid;
+  
+      // Siempre limpiar el estado de preselección (aro azul)
       this.selectionManager.setHoveredObjects([]);
       this.entityManager.removeHoverProxy();
       this.preselectedObject = null; 
-
-      // 2. Notificar al WorldView para que actualice la UI.
-      this.onObjectSelected$.next(selectedUuid);
-
-      // 3. ¡PASO CLAVE QUE FALTABA!
-      //    Ordenar al motor que aplique la selección final (aro amarillo).
-      this.setActiveSelectionByUuid(selectedUuid);
+  
+      if (isDeselecting) {
+        // Si es el mismo, deseleccionar
+        this.onObjectSelected$.next(null); // Notificar a la UI que no hay nada seleccionado
+        this.setActiveSelectionByUuid(null); // Quitar el aro amarillo en el motor
+      } else {
+        // Si es uno nuevo, seleccionar
+        this.onObjectSelected$.next(hoveredUuid); // Notificar a la UI la nueva selección
+        this.setActiveSelectionByUuid(hoveredUuid); // Poner el aro amarillo en el nuevo objeto
+      }
     }
   };
 

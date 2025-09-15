@@ -1,4 +1,3 @@
-// src/app/features/admin/views/world-editor/world-view/world-view.component.ts
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
@@ -98,6 +97,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   private propertyUpdate$ = new Subject<PropertyUpdate>();
   private subscriptions = new Subscription();
   private allEntities$ = new BehaviorSubject<SceneEntity[]>([]);
+  private selectedEntityUuid$ = new BehaviorSubject<string | null>(null);
 
   private isSceneAssetsLoaded = false;
   private isThumbnailAssetLoaded = false;
@@ -114,9 +114,27 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     this.isFlyModeActive$ = this.engineService.isFlyModeActive$;
     this.displayGroups$ = combineLatest([
       this.allEntities$,
-      this.searchFilter$.pipe(debounceTime(200), startWith(''))
+      this.searchFilter$.pipe(debounceTime(200), startWith('')),
+      this.selectedEntityUuid$
     ]).pipe(
-      map(([allEntities, filter]) => this.processEntities(allEntities, filter))
+      map(([allEntities, filter, selectedUuid]) => {
+        if (selectedUuid) {
+          const selectedEntity = allEntities.find(e => e.uuid === selectedUuid);
+          if (selectedEntity) {
+            const singleGroup: EntityGroup = {
+              type: selectedEntity.type,
+              visibleEntities: [selectedEntity],
+              isExpanded: true,
+              totalCount: 1,
+              isGroupVisible: true,
+              brightness: this.groupBrightnessState.get(selectedEntity.type) || 1.0,
+            };
+            this.totalFilteredEntityCount = 1;
+            return [singleGroup];
+          }
+        }
+        return this.processEntities(allEntities, filter);
+      })
     );
   }
 
@@ -268,12 +286,28 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     const cameraModeSub = this.engineService.cameraMode$.subscribe(mode => { if (mode === 'perspective') { let stateChanged = false; for (const key of this.groupBrightnessState.keys()) { if (this.groupBrightnessState.get(key) !== 1.0) { this.groupBrightnessState.set(key, 1.0); stateChanged = true; } } if (stateChanged) this.allEntities$.next([...this.allEntities]); } });
     
     const finalSelectionSub = this.engineService.onObjectSelected$.subscribe(uuid => {
-      if (uuid) {
-        const entityFromList = this.allEntities.find(e => e.uuid === uuid);
-        if (entityFromList) {
-          this.onEntitySelect(entityFromList);
+        if (uuid) {
+            const entityFromList = this.allEntities.find(e => e.uuid === uuid);
+            if (entityFromList) {
+                // --- CORRECCIÓN ---
+                // Primero buscamos el objeto para asegurarnos de que no es undefined
+                const foundObject = this.sceneObjects.find(o => o.id.toString() === uuid);
+
+                // --- CORRECCIÓN ---
+                // Solo si se encontró el objeto, actualizamos el estado.
+                if (foundObject) {
+                    this.selectedEntityUuid = entityFromList.uuid;
+                    this.selectedObject = { ...foundObject }; // Ahora es seguro hacer la copia.
+                    this.selectPropertiesTab('object');
+                    this.selectedEntityUuid$.next(this.selectedEntityUuid);
+                } else {
+                    // Si por alguna razón no se encuentra, deseleccionar para evitar un estado inconsistente.
+                    this.deselectObject();
+                }
+            }
+        } else {
+            this.deselectObject();
         }
-      }
     });
 
     this.subscriptions.add(transformSub); 
@@ -329,10 +363,6 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     }
   }
 
-  // =============================================================
-  // --- ¡LÓGICA CORREGIDA Y SIMPLIFICADA! ---
-  // =============================================================
-
   onEntitySelect(entity: SceneEntity): void { 
     if (entity.uuid.startsWith('placeholder-')) {
         this.isAddObjectModalVisible = true;
@@ -345,28 +375,25 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     } else {
         const foundObject = this.sceneObjects.find(o => o.id.toString() === entity.uuid);
         if (foundObject) {
-            // Actualizar el estado de la UI (variables locales)
             this.selectedEntityUuid = entity.uuid;
             this.selectedObject = { ...foundObject };
             this.selectPropertiesTab('object');
             
-            // Notificar al motor que establezca esta selección como la activa (aro amarillo)
             this.engineService.setActiveSelectionByUuid(entity.uuid);
+            this.selectedEntityUuid$.next(this.selectedEntityUuid);
         } else {
-            // Si el objeto no se encuentra, deseleccionar todo
             this.deselectObject();
         }
     } 
   }
   
   deselectObject(): void {
-    // Actualizar el estado de la UI
     this.selectedEntityUuid = null; 
     this.selectedObject = null;
     this.selectPropertiesTab('scene');
 
-    // Notificar al motor que elimine la selección activa
     this.engineService.setActiveSelectionByUuid(null); 
+    this.selectedEntityUuid$.next(null);
   }
 
   createSceneObject(data: NewSceneObjectData): void { if (!this.episodeId) return; this.sceneObjectService.createSceneObject(this.episodeId, data).subscribe({ next: newObj => { this.closeAddObjectModal(); this.engineService.addObjectToScene(newObj); this.sceneObjects = [...this.sceneObjects, newObj]; }, error: err => console.error(err) }); }

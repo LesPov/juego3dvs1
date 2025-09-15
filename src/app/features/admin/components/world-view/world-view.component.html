@@ -68,42 +68,49 @@
   <!-- PANEL 1: LISTA DE OBJETOS -->
   <div class="panel p-scene-list">
     <div class="panel-header">
-      <span class="panel-title">Lista de Objetos</span>
+      <!-- Título dinámico si hay algo seleccionado -->
+      <span class="panel-title">{{ selectedEntityUuid ? 'Objeto Seleccionado' : 'Lista de Objetos' }}</span>
       <button class="panel-toggle-icon" (click)="togglePanel('sceneListVisible')"
         title="Ocultar/Mostrar Panel"><span></span></button>
     </div>
-    <div class="search-bar-container"><input type="text" class="search-input" placeholder=" Buscar por nombre..."
-        [ngModel]="searchFilter" (ngModelChange)="onSearchChange($event)"></div>
+    <!-- Ocultar la barra de búsqueda si hay algo seleccionado -->
+    <div class="search-bar-container" *ngIf="!selectedEntityUuid">
+      <input type="text" class="search-input" placeholder=" Buscar por nombre..."
+        [ngModel]="searchFilter" (ngModelChange)="onSearchChange($event)">
+    </div>
     <div class="panel-content scrollable" cdkDropListGroup>
       <ng-container *ngIf="displayGroups$ | async as groups">
         <div *ngIf="groups.length > 0; else noResults">
           <div *ngFor="let group of groups; trackBy: trackByGroupType" class="object-group">
-            <div class="group-header" (click)="toggleGroup(group)" [class.group-hidden]="!group.isGroupVisible">
-              <span class="group-toggle-icon">{{ group.isExpanded ? '▼' : '▶' }}</span><span class="group-name">{{
-                group.type }}</span><span class="group-count">({{ group.totalCount }})</span>
-              <button class="group-visibility-toggle" (click)="toggleGroupVisibility(group, $event)"
-                [title]="group.isGroupVisible ? 'Ocultar grupo' : 'Mostrar grupo'"><span *ngIf="group.isGroupVisible"
-                  class="icon-eye-open"></span><span *ngIf="!group.isGroupVisible"
-                  class="icon-eye-closed"></span></button>
+            <!-- Ocultar controles de grupo si hay algo seleccionado -->
+            <div class="group-header" (click)="!selectedEntityUuid && toggleGroup(group)" [class.group-hidden]="!group.isGroupVisible" [class.no-hover]="selectedEntityUuid">
+              <span class="group-toggle-icon" *ngIf="!selectedEntityUuid">{{ group.isExpanded ? '▼' : '▶' }}</span>
+              <span class="group-name">{{ group.type }}</span>
+              <span class="group-count" *ngIf="!selectedEntityUuid">({{ group.totalCount }})</span>
+              <button *ngIf="!selectedEntityUuid" class="group-visibility-toggle" (click)="toggleGroupVisibility(group, $event)"
+                [title]="group.isGroupVisible ? 'Ocultar grupo' : 'Mostrar grupo'">
+                <span *ngIf="group.isGroupVisible" class="icon-eye-open"></span>
+                <span *ngIf="!group.isGroupVisible" class="icon-eye-closed"></span>
+              </button>
             </div>
             <ng-container *ngIf="group.isExpanded">
-              <div class="group-controls"><span class="brightness-icon"></span><input type="range"
-                  class="brightness-slider" min="0" max="1" step="0.01" [value]="group.brightness"
-                  (input)="onGroupBrightnessChange(group, $event)" (click)="$event.stopPropagation()"></div>
+              <div class="group-controls" *ngIf="!selectedEntityUuid">
+                <span class="brightness-icon"></span>
+                <input type="range" class="brightness-slider" min="0" max="1" step="0.01" [value]="group.brightness" (input)="onGroupBrightnessChange(group, $event)" (click)="$event.stopPropagation()">
+              </div>
               <ul class="scene-object-list" cdkDropList [cdkDropListData]="group.visibleEntities"
                 (cdkDropListDropped)="onDrop($event)">
                 <li *ngFor="let e of group.visibleEntities; trackBy: trackByEntity" cdkDrag class="scene-object-item"
                   [class.selected]="e.uuid === selectedEntityUuid" [ngClass]="getColorClassForEntity(e)"
                   (click)="onEntitySelect(e)">
-                  <!-- ✅ CORREGIDO: Se usa 'camera' (minúscula) y una comprobación más robusta para las luces. -->
                   <span class="object-icon">{{ e.type === 'camera' ? '📷' :
                     e.type.includes('Light') ? '💡': (e.type === 'Model' ? '📦' : '●') }}</span>
                   <span class="object-name">{{ e.name }}</span>
                 </li>
               </ul>
-              <div class="list-loader" *ngIf="group.visibleEntities.length < group.totalCount"><button
-                  (click)="showMoreInGroup(group)" class="show-more-button">Cargar Más ({{ group.visibleEntities.length
-                  }} / {{ group.totalCount }})</button></div>
+              <div class="list-loader" *ngIf="!selectedEntityUuid && group.visibleEntities.length < group.totalCount">
+                <button (click)="showMoreInGroup(group)" class="show-more-button">Cargar Más ({{ group.visibleEntities.length }} / {{ group.totalCount }})</button>
+              </div>
             </ng-container>
           </div>
         </div>
@@ -113,7 +120,8 @@
           <div *ngIf="!searchFilter && allEntities.length === 0" class="empty-state">La escena está vacía.</div>
         </ng-template>
       </ng-container>
-      <ul class="scene-object-list" *ngIf="!searchFilter">
+      <!-- Ocultar placeholder si hay algo seleccionado -->
+      <ul class="scene-object-list" *ngIf="!searchFilter && !selectedEntityUuid">
         <li *ngFor="let e of placeholderEntities" class="scene-object-item placeholder-item"
           (click)="onEntitySelect(e)">{{ e.name }}</li>
       </ul>

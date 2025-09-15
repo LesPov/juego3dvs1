@@ -1,4 +1,3 @@
-// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/entity-manager.service.ts
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
