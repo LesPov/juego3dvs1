@@ -1,3 +1,4 @@
+// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/scene-manager.service.ts
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -6,8 +7,9 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { CelestialInstanceData } from './object-manager.service';
 
+// --- NUEVO: Se añade el nombre del proxy de hover para ignorarlo en el raycast ---
 const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
-const UNSELECTABLE_NAMES = ['Luz Ambiental', 'EditorGrid', 'SelectionProxy', 'FocusPivot'];
+const UNSELECTABLE_NAMES = ['Luz Ambiental', 'EditorGrid', 'SelectionProxy', 'HoverProxy', 'FocusPivot'];
 
 @Injectable({ providedIn: 'root' })
 export class SceneManagerService {
@@ -72,35 +74,26 @@ export class SceneManagerService {
 
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
-      // ⭐ OPTIMIZACIÓN #1: Desactivamos el antialiasing por defecto del renderizador.
-      // Es muy costoso y el post-procesado ya suaviza la imagen.
-      // Este es el cambio más importante para ganar FPS.
       antialias: false,
       powerPreference: 'high-performance',
       precision: 'highp'
     });
     this.renderer.setSize(width, height);
-    // ⭐ OPTIMIZACIÓN #3: Limitamos el pixel ratio a 1.5.
-    // Esto reduce drásticamente la carga en pantallas de alta resolución (Retina/4K)
-    // con una pérdida de calidad visual mínima.
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     
     const renderPass = new RenderPass(this.scene, this.activeCamera);
-
-    // Mantenemos la optimización del bloom del paso anterior.
     this.bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 1.0, 0.6, 0.85);
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(renderPass);
     this.composer.addPass(this.bloomPass);
   }
+  
+  // (El resto del servicio no cambia...)
 
-  public setControls(controls: OrbitControls): void {
-    this.controls = controls;
-  }
-
+  public setControls(controls: OrbitControls): void { this.controls = controls; }
   public getSceneBoundingBox(): THREE.Box3 {
     const box = new THREE.Box3();
     if (!this.scene) return box;
@@ -110,32 +103,24 @@ export class SceneManagerService {
       }
       if (object.name.startsWith(CELESTIAL_MESH_PREFIX)) {
         const allInstanceData: CelestialInstanceData[] = object.userData["celestialData"];
-        if (allInstanceData) {
-          allInstanceData.forEach(instance => {
-            box.expandByPoint(instance.position);
-          });
-        }
+        if (allInstanceData) { allInstanceData.forEach(instance => { box.expandByPoint(instance.position); }); }
       } else {
         box.expandByObject(object);
       }
     });
     return box;
   }
-
   public onWindowResize(): void {
     if (!this.canvas || !this.renderer || !this.activeCamera) return;
     const container = this.canvas.parentElement;
     if (!container) return;
-
     const newWidth = container.clientWidth;
     const newHeight = container.clientHeight;
-
     if (this.canvas.width !== newWidth || this.canvas.height !== newHeight) {
       if ('aspect' in this.activeCamera) {
           this.activeCamera.aspect = newWidth / newHeight;
       }
       this.activeCamera.updateProjectionMatrix();
-
       this.renderer.setSize(newWidth, newHeight);
       this.composer.setSize(newWidth, newHeight);
       if (this.bloomPass) {
@@ -144,7 +129,6 @@ export class SceneManagerService {
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     }
   }
-
   public frameScene(sceneWidth: number, sceneHeight: number): void {
     if (!this.activeCamera || !this.controls || !('fov' in this.activeCamera)) return;
     const fovRad = THREE.MathUtils.degToRad(this.activeCamera.fov);

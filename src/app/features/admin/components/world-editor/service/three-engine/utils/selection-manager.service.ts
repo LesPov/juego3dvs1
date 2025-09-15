@@ -1,3 +1,4 @@
+// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/selection-manager.service.ts
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass.js';
@@ -19,66 +20,81 @@ const ORTHOGRAPHIC_PARAMS = {
   providedIn: 'root'
 })
 export class SelectionManagerService {
-  private outlinePass!: OutlinePass;
-  private overlayMaterial!: THREE.ShaderMaterial;
+  private hoverOutlinePass!: OutlinePass;   // <-- NUEVO para el aro azul
+  private selectOutlinePass!: OutlinePass;  // <-- Antes se llamaba outlinePass
+  
+  public init(scene: THREE.Scene, camera: THREE.Camera, initialSize: THREE.Vector2): void {
+    // --- Configuración del pase de PRE-SELECCIÓN (Hover - Azul) ---
+    this.hoverOutlinePass = new OutlinePass(initialSize, scene, camera);
+    this.hoverOutlinePass.pulsePeriod = 0;
+    this.hoverOutlinePass.visibleEdgeColor.set('#00aaff'); // Color azul
+    this.hoverOutlinePass.hiddenEdgeColor.set('#00aaff');
+    this.hoverOutlinePass.enabled = false; // Empieza desactivado
 
-  constructor() {}
-
-  public init(scene: THREE.Scene, camera: THREE.Camera): void {
-    this.outlinePass = new OutlinePass(
-      new THREE.Vector2(window.innerWidth, window.innerHeight),
-      scene,
-      camera
-    );
-
-    this.outlinePass.pulsePeriod = 0;
-    this.outlinePass.visibleEdgeColor.set('#ffff00');
-    this.outlinePass.hiddenEdgeColor.set('#ffff00');
-    
-    this.overlayMaterial = (this.outlinePass as any).overlayMaterial;
-    this.overlayMaterial.depthTest = false;
-    this.overlayMaterial.depthWrite = false;
-
-    // ⭐ OPTIMIZACIÓN PARA 120+ FPS: El pase de selección empieza desactivado.
-    // Solo se activará cuando realmente haya un objeto seleccionado.
-    this.outlinePass.enabled = false;
+    // --- Configuración del pase de SELECCIÓN (Click - Amarillo) ---
+    this.selectOutlinePass = new OutlinePass(initialSize, scene, camera);
+    this.selectOutlinePass.pulsePeriod = 0;
+    this.selectOutlinePass.visibleEdgeColor.set('#ffff00'); // Color amarillo
+    this.selectOutlinePass.hiddenEdgeColor.set('#ffff00');
+    this.selectOutlinePass.enabled = false; // Empieza desactivado
 
     this.updateOutlineParameters('perspective');
   }
 
-  public getPass(): OutlinePass {
-    return this.outlinePass;
+  // Devuelve ambos pases para que el SceneManager los añada
+  public getPasses(): OutlinePass[] {
+    return [this.hoverOutlinePass, this.selectOutlinePass];
   }
   
   public updateOutlineParameters(mode: CameraMode): void {
-    if (!this.outlinePass) return;
+    if (!this.hoverOutlinePass || !this.selectOutlinePass) return;
+    
     const params = mode === 'orthographic' ? ORTHOGRAPHIC_PARAMS : PERSPECTIVE_PARAMS;
     
-    this.outlinePass.edgeStrength = params.edgeStrength;
-    this.outlinePass.edgeGlow = params.edgeGlow;
-    this.outlinePass.edgeThickness = params.edgeThickness;
+    // Aplicar a ambos pases
+    [this.hoverOutlinePass, this.selectOutlinePass].forEach(pass => {
+        pass.edgeStrength = params.edgeStrength;
+        pass.edgeGlow = params.edgeGlow;
+        pass.edgeThickness = params.edgeThickness;
+    });
   }
 
-  /**
-   * ✅ MÉTODO ACTUALIZADO: Activa o desactiva el OutlinePass.
-   * Si hay objetos, se activa. Si el array está vacío, se desactiva para ahorrar FPS.
-   */
-  public selectObjects(objects: THREE.Object3D[]): void {
-    if (this.outlinePass) {
-      this.outlinePass.selectedObjects = objects;
-      this.outlinePass.enabled = objects.length > 0;
+  // --- NUEVA Lógica para Preseleccionar (Hover) ---
+  public setHoveredObjects(objects: THREE.Object3D[]): void {
+    if (!this.hoverOutlinePass) return;
+    // No mostrar hover azul si el objeto ya está seleccionado en amarillo
+    const currentlySelectedUuid = this.selectOutlinePass.selectedObjects[0]?.uuid;
+    const isHoveringSelected = objects.length > 0 && objects[0].uuid === currentlySelectedUuid;
+    
+    if (objects.length > 0 && !isHoveringSelected) {
+      this.hoverOutlinePass.selectedObjects = objects;
+      this.hoverOutlinePass.enabled = true;
+    } else {
+      this.hoverOutlinePass.selectedObjects = [];
+      this.hoverOutlinePass.enabled = false;
     }
+  }
+
+  // --- Lógica ACTUALIZADA para Seleccionar (Click) ---
+  public setSelectedObjects(objects: THREE.Object3D[]): void {
+    if (!this.selectOutlinePass) return;
+
+    // Si seleccionamos algo, quitamos el hover azul
+    if (objects.length > 0) {
+      this.setHoveredObjects([]);
+    }
+
+    this.selectOutlinePass.selectedObjects = objects;
+    this.selectOutlinePass.enabled = objects.length > 0;
   }
   
   public setCamera(camera: THREE.Camera): void {
-    if (this.outlinePass) {
-        this.outlinePass.renderCamera = camera;
-    }
+    if (this.hoverOutlinePass) this.hoverOutlinePass.renderCamera = camera;
+    if (this.selectOutlinePass) this.selectOutlinePass.renderCamera = camera;
   }
 
   public setSize(width: number, height: number): void {
-    if (this.outlinePass) {
-      this.outlinePass.setSize(width, height);
-    }
+    if (this.hoverOutlinePass) this.hoverOutlinePass.setSize(width, height);
+    if (this.selectOutlinePass) this.selectOutlinePass.setSize(width, height);
   }
 }

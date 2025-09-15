@@ -15,6 +15,11 @@ import { CelestialInstanceData } from './utils/object-manager.service';
 import { CameraManagerService, CameraMode } from './utils/camera-manager.service';
 import { SelectionManagerService } from './utils/selection-manager.service';
 
+export interface IntersectedObjectInfo {
+    uuid: string;
+    object: THREE.Object3D;
+}
+
 const INSTANCES_TO_CHECK_PER_FRAME = 100000; 
 const BASE_VISIBILITY_DISTANCE = 1000000000000;
 const MAX_PERCEPTUAL_DISTANCE = 10000000000000;
@@ -35,11 +40,16 @@ export class EngineService implements OnDestroy {
   public cameraPosition$: Observable<THREE.Vector3>;
   public isFlyModeActive$: Observable<boolean>;
   public cameraMode$: Observable<CameraMode>;
+  public onObjectSelected$ = new Subject<string | null>();
+
   private transformEndSubject = new Subject<void>();
   private axisLockStateSubject = new BehaviorSubject<'x' | 'y' | 'z' | null>(null);
   private cameraOrientationSubject = new BehaviorSubject<THREE.Quaternion>(new THREE.Quaternion());
   private cameraPositionSubject = new BehaviorSubject<THREE.Vector3>(new THREE.Vector3());
+  
   private selectedObject?: THREE.Object3D;
+  private preselectedObject: IntersectedObjectInfo | null = null;
+  
   private clock = new THREE.Clock();
   private animationFrameId?: number;
   private keyMap = new Map<string, boolean>();
@@ -47,6 +57,10 @@ export class EngineService implements OnDestroy {
   private baseOrthoMatrixElement: number = 0;
   private controlsSubscription?: Subscription;
   private focusPivot: THREE.Object3D;
+  
+  private raycaster = new THREE.Raycaster();
+  private centerScreen = new THREE.Vector2(0, 0);
+
   private tempQuaternion = new THREE.Quaternion();
   private tempMatrix = new THREE.Matrix4();
   private frustum = new THREE.Frustum();
@@ -91,8 +105,12 @@ export class EngineService implements OnDestroy {
     this.dragInteractionManager.init(this.sceneManager.editorCamera, canvas, this.controlsManager);
     this.cameraManager.initialize();
     
-    this.selectionManager.init(this.sceneManager.scene, this.sceneManager.activeCamera);
-    this.sceneManager.composer.addPass(this.selectionManager.getPass());
+    const parent = this.sceneManager.canvas.parentElement!;
+    const initialSize = new THREE.Vector2(parent.clientWidth, parent.clientHeight);
+    this.selectionManager.init(this.sceneManager.scene, this.sceneManager.activeCamera, initialSize);
+    this.selectionManager.getPasses().forEach(pass => {
+        this.sceneManager.composer.addPass(pass);
+    });
 
     this.precompileShaders();
     
@@ -112,9 +130,9 @@ export class EngineService implements OnDestroy {
     dummyMesh.position.set(Infinity, Infinity, Infinity);
     this.sceneManager.scene.add(dummyMesh);
 
-    this.selectionManager.selectObjects([dummyMesh]);
+    this.selectionManager.setSelectedObjects([dummyMesh]);
     this.sceneManager.composer.render();
-    this.selectionManager.selectObjects([]);
+    this.selectionManager.setSelectedObjects([]);
 
     this.sceneManager.scene.remove(dummyMesh);
     dummyGeometry.dispose();
@@ -134,7 +152,8 @@ export class EngineService implements OnDestroy {
     this.selectionManager.setSize(newWidth, newHeight); 
   };
     
-  public selectObjectByUuid(uuid: string | null): void {
+  public setActiveSelectionByUuid(uuid: string | null): void {
+    this.selectionManager.setSelectedObjects([]);
     this.interactionHelperManager.cleanupHelpers(this.selectedObject);
     this.dragInteractionManager.stopListening();
     this.controlsManager.detach();
@@ -152,6 +171,7 @@ export class EngineService implements OnDestroy {
       }
 
       if (this.selectedObject) {
+        this.selectionManager.setSelectedObjects([this.selectedObject]);
         this.setToolMode(this.controlsManager.getCurrentToolMode());
       }
     }
@@ -161,7 +181,10 @@ export class EngineService implements OnDestroy {
     this.animationFrameId = requestAnimationFrame(this.animate);
     this.statsManager.begin();
     const delta = this.clock.getDelta();
+
+    this.updateHoverEffect();
     this.adjustCameraClippingPlanes();
+
     if (this.cameraManager.activeCameraType === 'secondary') {
       const controls = this.controlsManager.getControls();
       this.sceneManager.editorCamera.getWorldPosition(controls.target);
@@ -195,6 +218,73 @@ export class EngineService implements OnDestroy {
     });
     this.sceneManager.composer.render();
     this.statsManager.end();
+  };
+
+  private updateHoverEffect(): void {
+    if (this.controlsManager.getCurrentToolMode() !== 'select' || this.cameraManager.cameraMode$.getValue() === 'orthographic') {
+      this.selectionManager.setHoveredObjects([]);
+      this.preselectedObject = null;
+      this.entityManager.removeHoverProxy();
+      return;
+    }
+  
+    this.raycaster.setFromCamera(this.centerScreen, this.sceneManager.activeCamera);
+    const intersects = this.raycaster.intersectObjects(this.sceneManager.scene.children, true);
+    
+    const firstValidHit = intersects.find(hit => 
+        !hit.object.name.endsWith('_helper') && 
+        hit.object.name !== '' && 
+        hit.object.visible &&
+        !['SelectionProxy', 'HoverProxy', 'EditorGrid', 'FocusPivot'].includes(hit.object.name)
+    );
+
+    if (firstValidHit) {
+      const hitObject = firstValidHit.object;
+      let targetUuid: string;
+      let proxyObject: THREE.Object3D;
+      
+      if ((hitObject as THREE.InstancedMesh).isInstancedMesh && firstValidHit.instanceId !== undefined) {
+          proxyObject = this.entityManager.createOrUpdateHoverProxy(hitObject as THREE.InstancedMesh, firstValidHit.instanceId);
+          targetUuid = proxyObject.uuid;
+      } else {
+        proxyObject = hitObject;
+        targetUuid = hitObject.uuid;
+      }
+
+      if (this.preselectedObject?.uuid !== targetUuid) {
+        this.preselectedObject = { uuid: targetUuid, object: proxyObject };
+        this.selectionManager.setHoveredObjects([this.preselectedObject.object]);
+      }
+    } else {
+      if (this.preselectedObject) {
+        this.preselectedObject = null;
+        this.selectionManager.setHoveredObjects([]);
+        this.entityManager.removeHoverProxy();
+      }
+    }
+  }
+
+  // ==========================================================
+  // --- ¡CORRECCIÓN FINAL AÑADIDA AQUÍ! ---
+  // ==========================================================
+  private onCanvasMouseDown = (event: MouseEvent) => {
+    if (event.button === 0 && this.preselectedObject) {
+      event.preventDefault();
+      
+      const selectedUuid = this.preselectedObject.uuid;
+
+      // 1. Limpiar inmediatamente el estado de preselección visual.
+      this.selectionManager.setHoveredObjects([]);
+      this.entityManager.removeHoverProxy();
+      this.preselectedObject = null; 
+
+      // 2. Notificar al WorldView para que actualice la UI.
+      this.onObjectSelected$.next(selectedUuid);
+
+      // 3. ¡PASO CLAVE QUE FALTABA!
+      //    Ordenar al motor que aplique la selección final (aro amarillo).
+      this.setActiveSelectionByUuid(selectedUuid);
+    }
   };
 
   private updateDynamicCelestialModels(delta: number): void {
@@ -437,10 +527,6 @@ export class EngineService implements OnDestroy {
     }
   }
 
-  // --- ¡NUEVO MÉTODO PARA LA SOLUCIÓN! ---
-  /**
-   * Permite que el exterior consulte qué herramienta de transformación está activa.
-   */
   public getCurrentToolMode = (): ToolMode => this.controlsManager.getCurrentToolMode();
   
   public setGroupVisibility = (uuids: string[], visible: boolean): void => this.entityManager.setGroupVisibility(uuids, visible);
@@ -497,6 +583,7 @@ export class EngineService implements OnDestroy {
       this.handleTransformEnd();
       if (this.selectedObject) this.interactionHelperManager.updateHelperPositions(this.selectedObject);
     });
+    this.sceneManager.canvas.addEventListener('mousedown', this.onCanvasMouseDown, false);
   };
   private removeEventListeners = (): void => {
     const controls = this.controlsManager.getControls();
@@ -506,6 +593,7 @@ export class EngineService implements OnDestroy {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     this.controlsSubscription?.unsubscribe();
+    this.sceneManager.canvas.removeEventListener('mousedown', this.onCanvasMouseDown, false);
   };
   
   ngOnDestroy = () => {

@@ -1,3 +1,4 @@
+// src/app/features/admin/views/world-editor/world-view/service/three-engine/utils/entity-manager.service.ts
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -12,9 +13,8 @@ export interface SceneEntity {
   type: SceneObjectResponse['type'] | 'Model' | 'camera' | 'directionalLight';
 }
 
-// ✅ CORRECCIÓN FINAL: Se definen las constantes aquí para que sean accesibles.
-const PROXY_SCALE_MULTIPLIER = 1.1; // 10% más grande para que el aro envuelva bien el objeto.
-const DEEP_SPACE_SCALE_BOOST = 10.0; // Debe ser el MISMO valor que en engine.service.ts
+const PROXY_SCALE_MULTIPLIER = 1.1; 
+const DEEP_SPACE_SCALE_BOOST = 10.0;
 const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
 
 @Injectable({ providedIn: 'root' })
@@ -23,7 +23,8 @@ export class EntityManagerService {
   private gltfLoader!: GLTFLoader;
   private sceneEntities = new BehaviorSubject<SceneEntity[]>([]);
 
-  private unselectableNames = ['Luz Ambiental', 'FocusPivot', 'EditorGrid', 'SelectionProxy'];
+  private hoverProxy: THREE.Mesh | null = null;
+  private unselectableNames = ['Luz Ambiental', 'FocusPivot', 'EditorGrid', 'SelectionProxy', 'HoverProxy'];
   private zeroMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
 
   constructor(
@@ -79,19 +80,21 @@ export class EntityManagerService {
     if (existingProxy) {
       this.scene.remove(existingProxy);
       if (existingProxy instanceof THREE.Mesh) {
-        existingProxy.geometry.dispose();
+        if (!this.objectManager.isSharedGeometry(existingProxy.geometry)) {
+            existingProxy.geometry.dispose();
+        }
         (existingProxy.material as THREE.Material).dispose();
       }
     }
 
     if (!uuid) {
-      this.selectionManager.selectObjects([]);
+      this.selectionManager.setSelectedObjects([]);
       return;
     }
 
     const mainObject = this.scene.getObjectByProperty('uuid', uuid);
     if (mainObject) {
-      this.selectionManager.selectObjects([mainObject]);
+      this.selectionManager.setSelectedObjects([mainObject]);
       const worldPosition = mainObject.getWorldPosition(new THREE.Vector3());
       focusPivot.position.copy(worldPosition);
       return;
@@ -107,23 +110,48 @@ export class EntityManagerService {
       data.originalMatrix.decompose(pos, quat, scale);
       
       selectionProxy.position.copy(pos);
-
-      // ⭐ SOLUCIÓN FINAL: Aplicamos tanto el multiplicador del proxy como el
-      // multiplicador visual (DEEP_SPACE_SCALE_BOOST) para que el tamaño del
-      // proxy coincida con el tamaño del objeto renderizado en pantalla.
       selectionProxy.scale.copy(scale)
         .multiplyScalar(PROXY_SCALE_MULTIPLIER)
         .multiplyScalar(DEEP_SPACE_SCALE_BOOST);
-
       selectionProxy.uuid = data.originalUuid;
       
       this.scene.add(selectionProxy);
-      this.selectionManager.selectObjects([selectionProxy]);
+      this.selectionManager.setSelectedObjects([selectionProxy]);
       focusPivot.position.copy(selectionProxy.position);
       return;
     }
 
-    this.selectionManager.selectObjects([]);
+    this.selectionManager.setSelectedObjects([]);
+  }
+  
+  public createOrUpdateHoverProxy(instancedMesh: THREE.InstancedMesh, instanceId: number): THREE.Mesh {
+    if (!this.hoverProxy) {
+        this.hoverProxy = this.objectManager.createSelectionProxy(instancedMesh.geometry);
+        this.hoverProxy.name = 'HoverProxy';
+        this.scene.add(this.hoverProxy);
+    }
+
+    const allData: CelestialInstanceData[] = instancedMesh.userData['celestialData'];
+    const data = allData[instanceId];
+    if (data) {
+        const pos = new THREE.Vector3(), quat = new THREE.Quaternion(), scale = new THREE.Vector3();
+        data.originalMatrix.decompose(pos, quat, scale);
+        
+        this.hoverProxy.position.copy(pos);
+        this.hoverProxy.scale.copy(scale)
+            .multiplyScalar(PROXY_SCALE_MULTIPLIER)
+            .multiplyScalar(DEEP_SPACE_SCALE_BOOST);
+        
+        this.hoverProxy.uuid = data.originalUuid; 
+    }
+    return this.hoverProxy;
+  }
+
+  public removeHoverProxy(): void {
+    if (this.hoverProxy) {
+      this.scene.remove(this.hoverProxy);
+      this.hoverProxy = null;
+    }
   }
 
   public setGroupVisibility(uuids: string[], visible: boolean): void {
@@ -201,6 +229,7 @@ export class EntityManagerService {
 
   public clearScene(): void {
     if (!this.scene) return;
+    this.removeHoverProxy();
     const objectsToKeep = ['Cámara del Editor', 'Cámara Principal'];
     for (let i = this.scene.children.length - 1; i >= 0; i--) {
       const object = this.scene.children[i];
@@ -213,7 +242,9 @@ export class EntityManagerService {
       this.scene.remove(object);
       if ((object as THREE.Mesh).isMesh || (object as THREE.InstancedMesh).isInstancedMesh) {
         const mesh = object as THREE.Mesh | THREE.InstancedMesh;
-        mesh.geometry?.dispose();
+        if (!this.objectManager.isSharedGeometry(mesh.geometry)) {
+            mesh.geometry?.dispose();
+        }
         const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
         materials.forEach(m => m?.dispose());
       }
