@@ -1,3 +1,4 @@
+// src/app/features/admin/views/world-editor/world-view/world-view.component.ts
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
@@ -5,17 +6,18 @@ import { FormsModule } from '@angular/forms';
 import { Observable, Subject, Subscription, BehaviorSubject, combineLatest } from 'rxjs';
 import { switchMap, tap, debounceTime, map, startWith } from 'rxjs/operators';
 import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
-import { SceneComponent } from '../world-editor/scene/scene.component';
+import { environment } from '../../../../../environments/environment';
+import { SceneObjectResponse, AdminService } from '../../services/admin.service';
 import { SceneObjectService } from '../../services/scene-object.service';
 import { AddObjectModalComponent, NewSceneObjectData } from '../world-editor/add-object-modal/add-object-modal.component';
+import { BrujulaComponent } from '../world-editor/brujula/brujula.component';
 import { PropertiesPanelComponent, PropertyUpdate } from '../world-editor/properties-panel/properties-panel.component';
 import { SceneSettingsPanelComponent } from '../world-editor/scene-settings-panel/scene-settings-panel.component';
+import { SceneComponent } from '../world-editor/scene/scene.component';
+import { EngineService } from '../world-editor/service/three-engine/engine.service';
 import { SceneEntity } from '../world-editor/service/three-engine/utils/entity-manager.service';
 import { ToolbarComponent } from '../world-editor/toolbar/toolbar.component';
-import { SceneObjectResponse, AdminService } from '../../services/admin.service';
-import { BrujulaComponent } from '../world-editor/brujula/brujula.component';
-import { EngineService } from '../world-editor/service/three-engine/engine.service';
-import { environment } from '../../../../../environments/environment';
+ 
 
 export interface EntityGroup {
   type: string;
@@ -98,7 +100,6 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   private subscriptions = new Subscription();
   private allEntities$ = new BehaviorSubject<SceneEntity[]>([]);
 
-  // Banderas para controlar el estado de carga de forma precisa
   private isSceneAssetsLoaded = false;
   private isThumbnailAssetLoaded = false;
 
@@ -145,42 +146,35 @@ export class WorldViewComponent implements OnInit, OnDestroy {
         this.episodeThumbnailUrl = this.buildFullThumbnailUrl(response.episode.thumbnailUrl);
         this.sceneObjects = response.sceneObjects || [];
 
-        // ¡LÓGICA CORREGIDA! Determinar si hay assets que cargar
         const hasSceneAssetsToLoad = this.sceneObjects.some(o => o.asset?.path);
         const hasThumbnailToLoad = !!this.episodeThumbnailUrl;
 
-        // Iniciar la pantalla de carga
         this.isLoadingData = false;
         this.isRenderingScene = true;
 
-        // 1. Manejar la carga del Thumbnail
         if (hasThumbnailToLoad) {
           this.isThumbnailAssetLoaded = false;
           const img = new Image();
           img.onload = () => {
             this.isThumbnailLoaded = true;
             this.isThumbnailAssetLoaded = true;
-            console.log("✅ Thumbnail cargado.");
             this.cdr.detectChanges();
             this.checkAndFinalizeLoading();
           };
           img.onerror = () => {
             this.isThumbnailLoaded = true;
             this.isThumbnailAssetLoaded = true;
-            console.warn("⚠️ Thumbnail no se pudo cargar, continuando.");
             this.checkAndFinalizeLoading();
           };
           img.src = this.episodeThumbnailUrl!;
         } else {
-          this.isThumbnailAssetLoaded = true; // No hay thumbnail, se considera "cargado".
+          this.isThumbnailAssetLoaded = true;
         }
 
-        // 2. Manejar la carga de los assets de la escena
         if (!hasSceneAssetsToLoad) {
-          this.isSceneAssetsLoaded = true; // No hay assets 3D, se considera "cargado".
+          this.isSceneAssetsLoaded = true;
         }
         
-        // 3. Comprobar si ya podemos finalizar la carga (caso sin assets y sin thumbnail)
         this.checkAndFinalizeLoading();
       },
       error: (err) => {
@@ -191,15 +185,11 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ¡LÓGICA CORREGIDA! Este es el único punto que puede finalizar la carga.
   private checkAndFinalizeLoading(): void {
-    // Solo finaliza si AMBOS han terminado.
     if (this.isSceneAssetsLoaded && this.isThumbnailAssetLoaded) {
-      console.log("🏁 Ambos, escena y thumbnail, están listos. Finalizando carga.");
       this.loadingProgress = 100;
       this.cdr.detectChanges();
       
-      // Pequeño delay para una transición de salida suave
       setTimeout(() => {
         this.isRenderingScene = false;
         this.cdr.detectChanges();
@@ -207,22 +197,16 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     }
   }
   
-  // Este método es llamado por el componente <app-scene> cuando Three.js termina.
   public handleSceneAssetsLoaded(): void {
     this.isSceneAssetsLoaded = true;
-    console.log("✅ Assets de la escena 3D cargados.");
     this.checkAndFinalizeLoading();
   }
 
-  // Este método es llamado por el componente <app-scene> para actualizar la barra.
   public handleLoadingProgress(progress: number): void {
-    // La barra avanza hasta 99% y se queda ahí hasta que checkAndFinalizeLoading() la ponga en 100%.
     this.loadingProgress = Math.min(progress, 99);
     this.cdr.detectChanges();
   }
 
-  // --- El resto del componente es idéntico y no necesita cambios ---
-  
   onMaximizeToggle(): void {
     const goingToMaximized = !this.layoutState.isMaximized;
     if (goingToMaximized) {
@@ -287,7 +271,53 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   trackByEntity(index: number, entity: SceneEntity): string { return entity.uuid; }
   handleObjectUpdate(update: PropertyUpdate): void { if (!this.selectedObject) return; if (['position', 'rotation', 'scale'].includes(update.path)) { this.engineService.updateObjectTransform(this.selectedObject.id.toString(), update.path as any, update.value as any); } else if (update.path === 'name') { this.engineService.updateObjectName(this.selectedObject.id.toString(), update.value as string); } this.updateLocalSelectedObject({ [update.path]: update.value }); this.propertyUpdate$.next(update); }
   private handlePropertySave(update: PropertyUpdate): Observable<SceneObjectResponse> { if (!this.episodeId || !this.selectedObject) return new Observable(obs => obs.error(new Error("EpisodeID or SelectedObject is null"))); const dataToUpdate: Partial<SceneObjectResponse> = { [update.path]: update.value }; return this.sceneObjectService.updateSceneObject(this.episodeId, this.selectedObject.id, dataToUpdate).pipe(tap(updatedObj => { this.updateLocalSelectedObject(updatedObj); console.log("Guardado exitoso:", updatedObj); })); }
-  private handleTransformEnd(): void { const transformedObject = this.engineService.getGizmoAttachedObject(); if (!transformedObject || !this.selectedObject || !this.episodeId) return; const newPosition = { x: transformedObject.position.x, y: transformedObject.position.y, z: transformedObject.position.z }; const newRotation = { x: transformedObject.rotation.x, y: transformedObject.rotation.y, z: transformedObject.rotation.z }; const newScale = { x: transformedObject.scale.x, y: transformedObject.scale.y, z: transformedObject.scale.z }; this.updateLocalSelectedObject({ position: newPosition, rotation: newRotation, scale: newScale }); const dataToSave: Partial<SceneObjectResponse> = { position: newPosition, rotation: newRotation, scale: newScale }; this.sceneObjectService.updateSceneObject(this.episodeId, this.selectedObject.id, dataToSave).subscribe({ next: updatedObj => this.updateLocalSelectedObject(updatedObj), error: err => console.error("[WorldView] Error al guardar tras transformación:", err) }); }
+  
+  // =========================================================================
+  // --- ¡LÓGICA CENTRAL CORREGIDA Y MEJORADA! ---
+  // =========================================================================
+  private handleTransformEnd(): void {
+    const transformedObject = this.engineService.getGizmoAttachedObject();
+    if (!transformedObject || !this.selectedObject || !this.episodeId) return;
+
+    // Obtenemos qué herramienta se estaba usando.
+    const currentTool = this.engineService.getCurrentToolMode();
+    const dataToSave: Partial<SceneObjectResponse> = {};
+    let hasChanges = false;
+
+    // Solo leemos y guardamos la propiedad que corresponde a la herramienta activa.
+    // Esto evita que cambios visuales del proxy (como la escala) se guarden por error.
+    switch(currentTool) {
+        case 'move':
+            const newPosition = { x: transformedObject.position.x, y: transformedObject.position.y, z: transformedObject.position.z };
+            this.updateLocalSelectedObject({ position: newPosition });
+            dataToSave.position = newPosition;
+            hasChanges = true;
+            break;
+
+        case 'rotate':
+            const newRotation = { x: transformedObject.rotation.x, y: transformedObject.rotation.y, z: transformedObject.rotation.z };
+            this.updateLocalSelectedObject({ rotation: newRotation });
+            dataToSave.rotation = newRotation;
+            hasChanges = true;
+            break;
+            
+        case 'scale':
+            const newScale = { x: transformedObject.scale.x, y: transformedObject.scale.y, z: transformedObject.scale.z };
+            this.updateLocalSelectedObject({ scale: newScale });
+            dataToSave.scale = newScale;
+            hasChanges = true;
+            break;
+    }
+    
+    // Si hubo cambios reales, guardamos en la base de datos.
+    if (hasChanges) {
+      this.sceneObjectService.updateSceneObject(this.episodeId, this.selectedObject.id, dataToSave).subscribe({
+        next: updatedObj => this.updateLocalSelectedObject(updatedObj),
+        error: err => console.error("[WorldView] Error al guardar tras transformación:", err)
+      });
+    }
+  }
+
   onEntitySelect(entity: SceneEntity): void { if (entity.uuid.startsWith('placeholder-')) { this.isAddObjectModalVisible = true; this.deselectObject(); return; } if (this.selectedEntityUuid === entity.uuid) { this.deselectObject(); } else { this.selectedEntityUuid = entity.uuid; const foundObject = this.sceneObjects.find(o => o.id.toString() === entity.uuid); if (foundObject) { this.selectedObject = { ...foundObject }; this.engineService.selectObjectByUuid(entity.uuid); this.selectPropertiesTab('object'); } else { this.deselectObject(); } } }
   deselectObject(): void { this.selectedEntityUuid = null; this.selectedObject = null; this.engineService.selectObjectByUuid(null); this.selectPropertiesTab('scene'); }
   createSceneObject(data: NewSceneObjectData): void { if (!this.episodeId) return; this.sceneObjectService.createSceneObject(this.episodeId, data).subscribe({ next: newObj => { this.closeAddObjectModal(); this.engineService.addObjectToScene(newObj); this.sceneObjects = [...this.sceneObjects, newObj]; }, error: err => console.error(err) }); }

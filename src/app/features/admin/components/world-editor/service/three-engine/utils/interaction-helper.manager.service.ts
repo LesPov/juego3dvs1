@@ -13,31 +13,33 @@ function isGeometyObject(object: THREE.Object3D): object is THREE.Mesh | THREE.G
 })
 export class InteractionHelperManagerService {
   private scene!: THREE.Scene;
-  private camera!: THREE.PerspectiveCamera;
+  private camera!: THREE.Camera; // <-- Cambiado a THREE.Camera genérico
 
   // Helpers
   private interactionSphere?: THREE.Mesh;
-  private centerPivotHelper?: THREE.Group; 
-  private pivotPoint?: THREE.Mesh;       
+  private centerPivotHelper?: THREE.Group;
+  private pivotPoint?: THREE.Mesh;
   private axesHelper?: THREE.AxesHelper;
 
   // Estado
   private objectBaseSize = 1.0;
   private isSpecialObject = false;
-  private readonly AXES_SCREEN_SCALE_FACTOR = 0.08;
-  private readonly AXES_OBJECT_SIZE_MULTIPLIER = 2.5;
+  // --- ¡LÓGICA MEJORADA! ---
+  // Ajustamos los factores para un comportamiento menos agresivo.
+  private readonly AXES_SCREEN_SCALE_FACTOR = 0.07; // Ligeramente más pequeño
+  private readonly AXES_OBJECT_SIZE_MULTIPLIER = 1.5; // Menos multiplicador sobre el objeto
+  private readonly PIVOT_SCALE_RATIO = 0.08; // El punto central será el 8% del tamaño de los ejes
 
   private originalMaterials = new Map<string, THREE.Material | THREE.Material[]>();
 
   constructor() { }
 
-  public init(scene: THREE.Scene, camera: THREE.PerspectiveCamera): void {
+  public init(scene: THREE.Scene, camera: THREE.Camera): void { // <-- Cambiado
     this.scene = scene;
     this.camera = camera;
   }
 
-  // ✅ ¡CORREGIDO! Método para actualizar la cámara que faltaba
-  public setCamera(newCamera: THREE.PerspectiveCamera): void {
+  public setCamera(newCamera: THREE.Camera): void { // <-- Cambiado
     this.camera = newCamera;
   }
 
@@ -74,22 +76,22 @@ export class InteractionHelperManagerService {
     (this.axesHelper.material as THREE.LineBasicMaterial).depthTest = false;
     (this.axesHelper.material as THREE.LineBasicMaterial).transparent = true;
     (this.axesHelper.material as THREE.LineBasicMaterial).opacity = 0.8;
-    this.axesHelper.renderOrder = 999; 
+    this.axesHelper.renderOrder = 999;
     this.centerPivotHelper.add(this.axesHelper);
 
-    const sphereGeo = new THREE.SphereGeometry(5, 16, 16); 
-    const sphereMat = new THREE.MeshBasicMaterial({ 
-        color: 0xffff00, 
-        depthTest: false, 
-        transparent: true, 
-        opacity: 0.9 
+    const sphereGeo = new THREE.SphereGeometry(5, 16, 16);
+    const sphereMat = new THREE.MeshBasicMaterial({
+      color: 0xffff00,
+      depthTest: false,
+      transparent: true,
+      opacity: 0.9
     });
     this.pivotPoint = new THREE.Mesh(sphereGeo, sphereMat);
-    this.pivotPoint.position.copy(center);
+    // Ya no se posiciona aquí, lo hace updateHelperPositions
     this.pivotPoint.renderOrder = 1000;
-    this.scene.add(this.pivotPoint);
-    
-    const interactionGeo = new THREE.SphereGeometry(interactionRadius * 1.2, 16, 16); 
+    this.centerPivotHelper.add(this.pivotPoint); // ¡NUEVO! Es hijo del pivote principal
+
+    const interactionGeo = new THREE.SphereGeometry(interactionRadius * 1.2, 16, 16);
     const interactionMat = new THREE.MeshBasicMaterial({ visible: false, depthTest: false });
     this.interactionSphere = new THREE.Mesh(interactionGeo, interactionMat);
     this.interactionSphere.position.copy(center);
@@ -100,7 +102,7 @@ export class InteractionHelperManagerService {
 
   public cleanupHelpers(object?: THREE.Object3D): void {
     if (object) this.restoreObjectMaterial(object);
-    
+
     if (this.interactionSphere) {
       this.interactionSphere.geometry.dispose();
       (this.interactionSphere.material as THREE.Material).dispose();
@@ -108,12 +110,8 @@ export class InteractionHelperManagerService {
       this.interactionSphere = undefined;
     }
     
-    if (this.pivotPoint) {
-      this.pivotPoint.geometry.dispose();
-      (this.pivotPoint.material as THREE.Material).dispose();
-      this.scene.remove(this.pivotPoint);
-      this.pivotPoint = undefined;
-    }
+    // pivotPoint se elimina cuando se elimina su padre (centerPivotHelper)
+    this.pivotPoint = undefined;
 
     if (this.centerPivotHelper) {
       this.axesHelper?.dispose();
@@ -122,42 +120,60 @@ export class InteractionHelperManagerService {
     }
     this.isSpecialObject = false;
   }
-
+  
+  // =========================================================================
+  // --- ¡LÓGICA CENTRAL CORREGIDA! ---
+  // Este método ha sido reescrito para manejar correctamente ambas cámaras.
+  // =========================================================================
   public updateScale(): void {
-    const distance = this.camera.position.distanceTo(
-        this.centerPivotHelper?.position || this.pivotPoint?.position || new THREE.Vector3()
-    );
+    if (!this.centerPivotHelper) return; // Guard clause unificado
 
-    if (this.centerPivotHelper) {
-      const perspectiveScale = distance * this.AXES_SCREEN_SCALE_FACTOR;
-      const objectRelativeScale = this.objectBaseSize * this.AXES_OBJECT_SIZE_MULTIPLIER;
-      const finalScale = Math.max(objectRelativeScale, perspectiveScale);
-      this.centerPivotHelper.scale.set(finalScale, finalScale, finalScale);
+    const targetPosition = this.centerPivotHelper.position;
+    let screenSpaceDerivedScale: number;
+
+    // Distinguir entre cámara ortográfica y de perspectiva
+    if ((this.camera as THREE.OrthographicCamera).isOrthographicCamera) {
+      const orthoCam = this.camera as THREE.OrthographicCamera;
+      // La "escala" en vista 2D depende del ancho visible (zoom)
+      const viewHeight = orthoCam.top - orthoCam.bottom;
+      screenSpaceDerivedScale = viewHeight * this.AXES_SCREEN_SCALE_FACTOR;
+    } else {
+      // La escala en vista 3D depende de la distancia
+      const distance = this.camera.position.distanceTo(targetPosition);
+      screenSpaceDerivedScale = distance * this.AXES_SCREEN_SCALE_FACTOR;
     }
-    
+
+    // El helper nunca será más pequeño que un tamaño relativo al objeto mismo
+    const objectRelativeScale = this.objectBaseSize * this.AXES_OBJECT_SIZE_MULTIPLIER;
+    const finalAxesScale = Math.max(objectRelativeScale, screenSpaceDerivedScale);
+
+    // Aplicar la escala calculada a todo el grupo de helpers
+    this.centerPivotHelper.scale.set(finalAxesScale, finalAxesScale, finalAxesScale);
+
+    // ¡NUEVO! El pivote central ahora tiene una escala relativa a los ejes
     if (this.pivotPoint) {
-      const finalScale = this.objectBaseSize;
-      this.pivotPoint.scale.set(finalScale, finalScale, finalScale);
+      this.pivotPoint.scale.setScalar(this.PIVOT_SCALE_RATIO);
     }
 
+    // La esfera de interacción invisible (usada para el clic) también se escala
     if (this.isSpecialObject && this.interactionSphere) {
-      const interactionScale = Math.max(distance * 0.15, this.objectBaseSize * 1.2);
+      const interactionScale = Math.max(screenSpaceDerivedScale, this.objectBaseSize * 1.2);
       this.interactionSphere.scale.set(interactionScale, interactionScale, interactionScale);
     }
   }
 
-  public updateHelperPositions(object: THREE.Object3D): void { 
+  public updateHelperPositions(object: THREE.Object3D): void {
     let center: THREE.Vector3;
     if (isGeometyObject(object)) {
-      const box = new THREE.Box3().setFromObject(object); 
-      center = new THREE.Vector3(); 
-      box.getCenter(center); 
+      const box = new THREE.Box3().setFromObject(object);
+      center = new THREE.Vector3();
+      box.getCenter(center);
     } else {
       center = object.position.clone();
     }
-    
+
     if (this.centerPivotHelper) this.centerPivotHelper.position.copy(center);
-    if (this.pivotPoint) this.pivotPoint.position.copy(center);
+    // La esfera de interacción se mueve por separado porque no es hija del helper
     if (this.interactionSphere) this.interactionSphere.position.copy(center);
   }
 
@@ -172,11 +188,11 @@ export class InteractionHelperManagerService {
     object.traverse(child => { if (child instanceof THREE.Mesh && this.originalMaterials.has(child.uuid)) { child.material = this.originalMaterials.get(child.uuid)!; } });
     this.originalMaterials.clear();
   }
-  
+
   public getInteractionSphere(): THREE.Mesh | undefined {
     return this.interactionSphere;
   }
-  
+
   public getPivotPoint(): THREE.Mesh | undefined {
     return this.pivotPoint;
   }

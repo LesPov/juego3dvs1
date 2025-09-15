@@ -1,3 +1,4 @@
+// src/app/features/admin/views/world-editor/world-view/service/three-engine/engine.service.ts
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
@@ -93,7 +94,6 @@ export class EngineService implements OnDestroy {
     this.selectionManager.init(this.sceneManager.scene, this.sceneManager.activeCamera);
     this.sceneManager.composer.addPass(this.selectionManager.getPass());
 
-    // ⭐ OPTIMIZACIÓN #2: Forzar pre-compilación de shaders para eliminar el lag inicial.
     this.precompileShaders();
     
     this.cameraMode$.subscribe(mode => {
@@ -105,24 +105,17 @@ export class EngineService implements OnDestroy {
     this.animate();
   }
 
-  /**
-   * ✅ NUEVO MÉTODO: Crea un objeto temporal, lo selecciona, renderiza un fotograma
-   * y lo elimina. Esto fuerza a la GPU a compilar el shader del OutlinePass
-   * antes de que el usuario interactúe, eliminando el lag de la primera selección.
-   */
   private precompileShaders(): void {
     const dummyGeometry = new THREE.BoxGeometry(0.001, 0.001, 0.001);
     const dummyMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
     const dummyMesh = new THREE.Mesh(dummyGeometry, dummyMaterial);
-    dummyMesh.position.set(Infinity, Infinity, Infinity); // Colocarlo fuera de la vista
+    dummyMesh.position.set(Infinity, Infinity, Infinity);
     this.sceneManager.scene.add(dummyMesh);
 
-    // Seleccionar, renderizar y deseleccionar para compilar
     this.selectionManager.selectObjects([dummyMesh]);
     this.sceneManager.composer.render();
     this.selectionManager.selectObjects([]);
 
-    // Limpiar
     this.sceneManager.scene.remove(dummyMesh);
     dummyGeometry.dispose();
     dummyMaterial.dispose();
@@ -443,6 +436,13 @@ export class EngineService implements OnDestroy {
       }
     }
   }
+
+  // --- ¡NUEVO MÉTODO PARA LA SOLUCIÓN! ---
+  /**
+   * Permite que el exterior consulte qué herramienta de transformación está activa.
+   */
+  public getCurrentToolMode = (): ToolMode => this.controlsManager.getCurrentToolMode();
+  
   public setGroupVisibility = (uuids: string[], visible: boolean): void => this.entityManager.setGroupVisibility(uuids, visible);
   public setGroupBrightness = (uuids: string[], brightness: number): void => this.entityManager.setGroupBrightness(uuids, brightness);
   public addObjectToScene = (objData: SceneObjectResponse) => this.entityManager.createObjectFromData(objData);
