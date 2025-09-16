@@ -14,24 +14,12 @@
 /* === ESTRUCTURA DE LAYOUT CON GRID ADAPTATIVO Y FLUIDO === */
 /* ========================================================= */
 .editor-layout {
-  
-    width: 100%;
-    height: 100%;
-    display: grid
-;
-    padding: 8px;
-    gap: 8px;
-    box-sizing: border-box;
-    --left-col-width: 320px;
-    --right-col-width: 280px;
-    --bottom-row-height: 120px;
+    width: 100%; height: 100%; display: grid; padding: 8px; gap: 8px; box-sizing: border-box;
+    --left-col-width: 320px; --right-col-width: 280px; --bottom-row-height: 120px;
     grid-template-columns: var(--left-col-width) repeat(5, 1fr) var(--right-col-width);
     grid-template-rows: 50px repeat(10, 1fr) var(--bottom-row-height);
-    transition: grid-template-columns 0.35s 
-ease, grid-template-rows 0.35s 
-ease;
+    transition: grid-template-columns 0.35s ease, grid-template-rows 0.35s ease;
 }
-
 .editor-layout.left-collapsed { --left-col-width: 0px; }
 .editor-layout.right-collapsed { --right-col-width: 0px; }
 .editor-layout.bottom-collapsed { --bottom-row-height: 0px; }
@@ -50,33 +38,21 @@ ease;
   display: flex; flex-direction: column; background-color: var(--c-bg-panel);
   border: 1px solid var(--c-border); border-radius: 8px; overflow: hidden;
   transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s linear;
-
-  /* ✨ MEJORA DE RENDIMIENTO FPS: Indica al navegador que optimice las animaciones para este elemento */
   will-change: transform, opacity;
   contain: layout style paint;
 }
 
-/* LÓGICA DE OCULTAR PANELES INDIVIDUALES CON TRANSFORM (FLUIDO) */
 .editor-layout.scene-list-hidden .p-scene-list,
-.editor-layout.properties-hidden .p-properties {
-  transform: translateX(calc(-100% - 8px)); opacity: 0; pointer-events: none;
-}
+.editor-layout.properties-hidden .p-properties { transform: translateX(calc(-100% - 8px)); opacity: 0; pointer-events: none; }
 .editor-layout.image-hidden .p-episode-image,
 .editor-layout.assets-hidden .p-episode-assets,
-.editor-layout.performance-hidden .p-performance {
-  transform: translateX(calc(100% + 8px)); opacity: 0; pointer-events: none;
-}
-.editor-layout.description-hidden .p-description {
-  transform: translateY(calc(100% + 8px)); opacity: 0; pointer-events: none;
-}
+.editor-layout.performance-hidden .p-performance { transform: translateX(calc(100% + 8px)); opacity: 0; pointer-events: none; }
+.editor-layout.description-hidden .p-description { transform: translateY(calc(100% + 8px)); opacity: 0; pointer-events: none; }
 
-/* LÓGICA DE MAXIMIZADO */
 .editor-layout.maximized { 
   --left-col-width: 0px; --right-col-width: 0px; --bottom-row-height: 0px; padding: 0; gap: 0; 
 }
-.editor-layout.maximized .p-viewport { 
-  grid-area: 1 / 1 / -1 / -1; border-radius: 0; border: none; 
-}
+.editor-layout.maximized .p-viewport { grid-area: 1 / 1 / -1 / -1; border-radius: 0; border: none; }
 .editor-layout.maximized .p-viewport .scene-render-area { border-radius: 0; }
 .editor-layout.maximized .p-header, .editor-layout.maximized .panel-toggle-tab { display: none; }
 
@@ -92,9 +68,16 @@ ease;
 .panel-toggle-icon:hover span { background-color: var(--c-accent-highlight); }
 
 .p-header { flex-direction: row; justify-content: center; }
-.p-viewport { padding: 0; box-shadow: 0 0 15px rgba(0,0,0,0.5), inset 0 0 8px rgba(0,0,0,0.4); }
-.panel-content { flex-grow: 1; overflow-y: auto; position: relative; }
 
+/* -- MODIFICACIÓN PARA CONTENER LA NUEVA BARRA -- */
+.p-viewport { 
+  padding: 0; 
+  box-shadow: 0 0 15px rgba(0,0,0,0.5), inset 0 0 8px rgba(0,0,0,0.4); 
+  display: flex; 
+  flex-direction: column;
+}
+
+.panel-content { flex-grow: 1; overflow-y: auto; position: relative; }
 .panel-toggle-tab { position: fixed; z-index: 1001; background-color: var(--c-bg-panel-header); border: 1px solid var(--c-border); color: var(--c-text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease-in-out; }
 .panel-toggle-tab:hover { background-color: var(--c-accent-select); color: #fff; }
 .toggle-scene-list, .toggle-properties { left: 8px; width: 20px; height: 40px; border-top-right-radius: 6px; border-bottom-right-radius: 6px; border-left: none; }
@@ -107,7 +90,7 @@ ease;
 .toggle-description { bottom: 8px; left: 50%; transform: translateX(-50%); width: 60px; height: 20px; border-top-left-radius: 6px; border-top-right-radius: 6px; border-bottom: none; }
 
 .episode-title { font-size: 1.2rem; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
-.scene-render-area { flex-grow: 1; position: relative; overflow: hidden; background: #000; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
+.scene-render-area { flex-grow: 1; position: relative; overflow: hidden; background: #000; }
 .scene-container-header { flex-shrink: 0; background-color: var(--c-bg-panel); border-bottom: 1px solid var(--c-border); display: flex; align-items: center; justify-content: space-between; padding: 0 10px; }
 .scene-tabs-container { display: flex; align-items: center; padding: 6px 0 0 0; }
 .scene-tab-button { padding: 8px 20px; border: 1px solid var(--c-border); border-bottom: none; border-top-left-radius: 6px; border-top-right-radius: 6px; cursor: pointer; margin-right: 4px; background: var(--c-bg-interactive); color: var(--c-text-secondary); font-weight: 500; transition: all 0.2s ease-in-out; position: relative; top: 1px; }
@@ -198,3 +181,84 @@ app-brujula { position: absolute; top: 15px; right: 15px; width: 150px; height: 
 .placeholder-item:hover { background-color: rgba(255, 255, 255, 0.05); }
 .object-icon { width: 16px; text-align: center; opacity: 0.7; font-size: 14px; }
 .object-name { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ========================================================= */
+/* ===         ✨ NUEVOS ESTILOS PARA LA BARRA ✨        === */
+/* ========================================================= */
+
+/* ✨ NUEVO: Definición de la animación de entrada */
+@keyframes slideInUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.scene-bottom-toolbar {
+  flex-shrink: 0;
+  width: 100%;
+  height: 44px;
+  background-color: var(--c-bg-panel);
+  border-top: 1px solid var(--c-border);
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  z-index: 20;
+  pointer-events: all;
+  
+  /* ✨ NUEVO: Aplicamos la animación */
+  animation: slideInUp 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.toolbar-section {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--c-text-secondary);
+  font-size: 13px;
+  border-left: 1px solid var(--c-border-dark);
+}
+
+.toolbar-section:first-child {
+  border-left: none;
+}
+
+.toolbar-section.center {
+  flex-grow: 0;
+  padding: 0 20px;
+}
+
+/* ✨ NUEVO: Renombramos y estilizamos el nuevo botón */
+.focus-button {
+  padding: 6px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  background-color: var(--c-accent-select);
+  border: 1px solid #3c6cac;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+
+.focus-button:hover {
+  background-color: #5a93d9;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+.focus-button:active {
+  transform: translateY(0px);
+  background-color: #3e73b4;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}

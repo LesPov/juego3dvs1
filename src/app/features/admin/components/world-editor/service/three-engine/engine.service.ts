@@ -32,6 +32,7 @@ const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
 
 @Injectable()
 export class EngineService implements OnDestroy {
+  private isCameraAnimating = false;
 
   public onTransformEnd$: Observable<void>;
   public axisLockState$: Observable<'x' | 'y' | 'z' | null>;
@@ -59,6 +60,12 @@ export class EngineService implements OnDestroy {
   
   private raycaster = new THREE.Raycaster();
   private centerScreen = new THREE.Vector2(0, 0);
+
+  // ✨ NUEVO: Variables para la animación de la cámara
+  private cameraAnimationTarget: { position: THREE.Vector3, target: THREE.Vector3 } | null = null;
+  private cameraInitialState: { position: THREE.Vector3, target: THREE.Vector3 } | null = null;
+  private cameraAnimationStartTime: number | null = null;
+  private readonly cameraAnimationDuration = 1500; // 1.5 segundos
 
   private tempQuaternion = new THREE.Quaternion();
   private tempMatrix = new THREE.Matrix4();
@@ -121,7 +128,6 @@ export class EngineService implements OnDestroy {
     this.addEventListeners();
     this.animate();
   }
-
   private precompileShaders(): void {
     const dummyGeometry = new THREE.BoxGeometry(0.001, 0.001, 0.001);
     const dummyMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
@@ -176,11 +182,63 @@ export class EngineService implements OnDestroy {
     }
   }
 
+// ✨ NUEVO: Función pública para iniciar la animación de cámara
+  // ✨ CORRECCIÓN: Función focusOnObject mejorada
+  public focusOnObject(uuid: string): void {
+    if (this.isCameraAnimating) return; // Prevenir iniciar una animación si otra ya está en curso
+
+    const object = this.entityManager.getObjectByUuid(uuid);
+    if (!object) return;
+  
+    const controls = this.controlsManager.getControls();
+    const camera = this.sceneManager.activeCamera;
+
+    this.tempBox.setFromObject(object, true); // Usar true para obtener el bounding box del objeto y sus hijos
+    if (this.tempBox.isEmpty()) {
+      // Si el objeto no tiene geometría (ej. un grupo vacío), usa su posición
+      this.tempBox.setFromCenterAndSize(object.position, new THREE.Vector3(1, 1, 1));
+    }
+    
+    const targetPoint = this.tempBox.getCenter(new THREE.Vector3());
+    const objectSize = this.tempBox.getSize(new THREE.Vector3()).length();
+  
+    // Calcula una distancia segura, asegurando un valor mínimo
+    const distance = Math.max(objectSize * 2.0, 10);
+    
+    // Obtener la dirección desde la cámara hacia el target actual
+    const cameraDirection = new THREE.Vector3()
+      .subVectors(camera.position, controls.target)
+      .normalize();
+
+    // Posición final de la cámara: desde el centro del objeto, muévete hacia atrás
+    // en la dirección en la que ya estaba la cámara
+    const finalCamPos = new THREE.Vector3()
+        .copy(targetPoint)
+        .addScaledVector(cameraDirection, distance);
+  
+    // Iniciar animación
+    this.isCameraAnimating = true;
+    this.cameraAnimationStartTime = this.clock.getElapsedTime();
+    this.cameraInitialState = {
+      position: camera.position.clone(),
+      target: controls.target.clone()
+    };
+    this.cameraAnimationTarget = {
+      position: finalCamPos,
+      target: targetPoint,
+    };
+
+    controls.enabled = false; // Desactivar controles durante la animación
+    this.controlsManager.exitFlyMode(); // Salir del modo vuelo si estaba activo
+  }
   private animate = () => {
     this.animationFrameId = requestAnimationFrame(this.animate);
     this.statsManager.begin();
     const delta = this.clock.getDelta();
-
+    
+    // ✨ NUEVO: Llamar a la función que actualiza la animación en cada frame
+    this.updateCameraAnimation();
+    
     this.updateHoverEffect();
     this.adjustCameraClippingPlanes();
 
@@ -193,11 +251,16 @@ export class EngineService implements OnDestroy {
     } else {
       this.sceneManager.editorCamera.userData['helper']?.update();
     }
-    const cameraMoved = this.controlsManager.update(delta, this.keyMap);
-    if (cameraMoved) {
-      this.interactionHelperManager.updateScale();
-      this.cameraPositionSubject.next(this.sceneManager.activeCamera.position);
+    
+    // Solo actualizar controles si no hay animación
+    if (!this.cameraAnimationTarget) {
+      const cameraMoved = this.controlsManager.update(delta, this.keyMap);
+      if (cameraMoved) {
+        this.interactionHelperManager.updateScale();
+        this.cameraPositionSubject.next(this.sceneManager.activeCamera.position);
+      }
     }
+    
     this.sceneManager.activeCamera.getWorldQuaternion(this.tempQuaternion);
     if (!this.tempQuaternion.equals(this.cameraOrientationSubject.getValue())) {
       this.cameraOrientationSubject.next(this.tempQuaternion.clone());
@@ -218,6 +281,41 @@ export class EngineService implements OnDestroy {
     this.sceneManager.composer.render();
     this.statsManager.end();
   };
+
+  // ✨ NUEVO: Lógica de interpolación para la animación de la cámara
+  private updateCameraAnimation(): void {
+    if (!this.cameraAnimationTarget || !this.cameraInitialState || this.cameraAnimationStartTime === null) {
+      return;
+    }
+
+    const elapsedTime = this.clock.getElapsedTime() - this.cameraAnimationStartTime;
+    const progress = Math.min(elapsedTime / (this.cameraAnimationDuration / 1000), 1);
+    
+    // Easing suave (salida y entrada cuadrática) para el efecto "galáctico"
+    const alpha = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+    const camera = this.sceneManager.activeCamera;
+    const controls = this.controlsManager.getControls();
+    
+    // Interpolar posición y target
+    camera.position.lerpVectors(this.cameraInitialState.position, this.cameraAnimationTarget.position, alpha);
+    controls.target.lerpVectors(this.cameraInitialState.target, this.cameraAnimationTarget.target, alpha);
+    controls.update();
+
+    // Cuando la animación termina
+    if (progress >= 1) {
+      camera.position.copy(this.cameraAnimationTarget.position);
+      controls.target.copy(this.cameraAnimationTarget.target);
+      controls.enabled = true; // Reactivar controles
+      controls.update();
+
+      // Limpiar estado de animación
+      this.cameraAnimationTarget = null;
+      this.cameraInitialState = null;
+      this.cameraAnimationStartTime = null;
+    }
+  }
+
 
   private updateHoverEffect(): void {
     if (this.controlsManager.getCurrentToolMode() !== 'select' || this.cameraManager.cameraMode$.getValue() === 'orthographic') {

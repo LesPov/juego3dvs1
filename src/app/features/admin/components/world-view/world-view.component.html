@@ -63,6 +63,22 @@
         [style.visibility]="isRenderingScene ? 'hidden' : 'visible'"></app-scene>
       <app-brujula></app-brujula>
     </div>
+
+    <!-- ============================================================== -->
+    <!-- ✨ NUEVO: BARRA DE HERRAMIENTAS INFERIOR CONTEXTUAL CON *ngIf ✨ -->
+    <!-- ============================================================== -->
+    <div *ngIf="selectedEntityUuid" class="scene-bottom-toolbar">
+      <div class="toolbar-section">Sección 1</div>
+      <div class="toolbar-section">Sección 2</div>
+      <div class="toolbar-section center">
+        <!-- ✨ NUEVO: Botón actualizado con nueva clase, texto y evento (click) -->
+        <button class="focus-button" (click)="onFocusObject()">Acercarse</button>
+      </div>
+      <div class="toolbar-section">Sección 4</div>
+      <div class="toolbar-section">Sección 5</div>
+    </div>
+    <!-- ============================================================== -->
+
   </main>
 
   <!-- PANEL 1: LISTA DE OBJETOS -->
@@ -128,7 +144,7 @@
     </div>
   </div>
 
-  <!-- PANEL 2: PROPIEDADES -->
+  <!-- EL RESTO DE PANELES (SIN CAMBIOS) -->
   <div class="panel p-properties">
     <div class="panel-header">
       <span class="panel-title">Propiedades</span>
@@ -161,7 +177,6 @@
     </div>
   </div>
 
-  <!-- PANEL 3: IMAGEN DEL EPISODIO -->
   <div class="panel p-episode-image">
     <div class="panel-header">
       <span class="panel-title">Imagen del Episodio</span>
@@ -185,7 +200,6 @@
     </div>
   </div>
 
-  <!-- PANEL 4: ASSETS DEL EPISODIO -->
   <div class="panel p-episode-assets">
     <div class="panel-header">
       <span class="panel-title">Assets del Episodio</span>
@@ -199,7 +213,6 @@
     </div>
   </div>
 
-  <!-- PANEL 5: RENDIMIENTO -->
   <div class="panel p-performance">
     <div class="panel-header">
       <span class="panel-title">Rendimiento</span>
@@ -213,7 +226,6 @@
     </div>
   </div>
 
-  <!-- PANEL 6: DESCRIPCIÓN DEL OBJETO -->
   <div class="panel p-description">
     <div class="panel-header">
       <span class="panel-title">Descripción del Objeto</span>
@@ -231,7 +243,6 @@
     </div>
   </div>
 
-  <!-- BOTONES PARA MOSTRAR PANELES OCULTOS -->
   <button class="panel-toggle-tab toggle-scene-list" *ngIf="!layoutState.sceneListVisible"
     (click)="togglePanel('sceneListVisible')"><span>&#9654;</span></button>
   <button class="panel-toggle-tab toggle-properties" *ngIf="!layoutState.propertiesVisible"
