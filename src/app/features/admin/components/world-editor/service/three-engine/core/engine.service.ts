@@ -1,3 +1,5 @@
+// src/app/features/admin/views/world-editor/world-view/service/three-engine/core/engine.service.ts
+
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
@@ -15,15 +17,10 @@ import { CameraManagerService, CameraMode } from '../managers/camera-manager.ser
 import { SelectionManagerService } from '../interactions/selection-manager.service';
 import { EventManagerService } from '../interactions/event-manager.service';
 
-// =============================================================================
-// --- INTERFACES Y CONSTANTES INTERNAS ---
-// =============================================================================
-
 export interface IntersectedObjectInfo {
     uuid: string;
     object: THREE.Object3D;
 }
-
 
 const INSTANCES_TO_CHECK_PER_FRAME = 100000;
 const BASE_VISIBILITY_DISTANCE = 1000000000000;
@@ -34,20 +31,8 @@ const ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR = 12.0;
 const MAX_INTENSITY = 8.0;
 const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
 
-/**
- * @Injectable
- * @description
- * El EngineService actúa como la fachada principal y orquestador para todas las operaciones de Three.js.
- * Centraliza la lógica de renderizado, interacción, selección y gestión de la escena,
- * exponiendo una API simplificada al resto de la aplicación Angular.
- * Este servicio es el corazón del editor 3D.
- */
 @Injectable()
 export class EngineService implements OnDestroy {
-
-  // =============================================================================
-  // --- PROPIEDADES PÚBLICAS Y OBSERVABLES (API del Servicio) ---
-  // =============================================================================
 
   public onTransformEnd$: Observable<void>;
   public axisLockState$: Observable<'x' | 'y' | 'z' | null>;
@@ -56,10 +41,6 @@ export class EngineService implements OnDestroy {
   public isFlyModeActive$: Observable<boolean>;
   public cameraMode$: Observable<CameraMode>;
   public onObjectSelected$ = new Subject<string | null>();
-
-  // =============================================================================
-  // --- PROPIEDADES PRIVADAS DE ESTADO Y GESTIÓN ---
-  // =============================================================================
 
   private transformEndSubject = new Subject<void>();
   private axisLockStateSubject = new BehaviorSubject<'x' | 'y' | 'z' | null>(null);
@@ -87,10 +68,6 @@ export class EngineService implements OnDestroy {
   private tempVec3 = new THREE.Vector3();
   private dynamicCelestialModels: THREE.Group[] = [];
   
-  // =============================================================================
-  // --- CONSTRUCTOR E INICIALIZACIÓN ---
-  // =============================================================================
-
   constructor(
     private sceneManager: SceneManagerService,
     private entityManager: EntityManagerService,
@@ -116,7 +93,6 @@ export class EngineService implements OnDestroy {
     const canvas = canvasRef.nativeElement;
     this.sceneManager.setupBasicScene(canvas);
     this.sceneManager.scene.add(this.focusPivot);
-
     this.entityManager.init(this.sceneManager.scene);
     this.statsManager.init();
     this.controlsManager.init(this.sceneManager.editorCamera, canvas, this.sceneManager.scene, this.focusPivot);
@@ -125,16 +101,12 @@ export class EngineService implements OnDestroy {
     this.dragInteractionManager.init(this.sceneManager.editorCamera, canvas, this.controlsManager);
     this.cameraManager.initialize();
     this.eventManager.init(canvas);
-
     const parent = this.sceneManager.canvas.parentElement!;
     const initialSize = new THREE.Vector2(parent.clientWidth, parent.clientHeight);
     this.selectionManager.init(this.sceneManager.scene, this.sceneManager.activeCamera, initialSize);
     this.selectionManager.getPasses().forEach(pass => this.sceneManager.composer.addPass(pass));
-
     this.precompileShaders();
-    
     this.subscribeToEvents();
-    
     this.controlsManager.enableNavigation();
     this.animate();
   }
@@ -153,26 +125,19 @@ export class EngineService implements OnDestroy {
     dummyMaterial.dispose();
   }
   
-  // =============================================================================
-  // --- BUCLE PRINCIPAL DE RENDERIZADO Y ACTUALIZACIONES POR FRAME ---
-  // =============================================================================
-
   private animate = () => {
     this.animationFrameId = requestAnimationFrame(this.animate);
     this.statsManager.begin();
     const delta = this.clock.getDelta();
-
     const isCameraAnimating = this.cameraManager.update(delta);
     this.updateHoverEffect();
     this.adjustCameraClippingPlanes();
-
     if (this.cameraManager.activeCameraType === 'secondary') {
       const controls = this.controlsManager.getControls();
       this.sceneManager.editorCamera.getWorldPosition(controls.target);
     }
     this.sceneManager.secondaryCamera.userData['helper']?.update();
     this.sceneManager.editorCamera.userData['helper']?.update();
-
     if (!isCameraAnimating) {
       const cameraMoved = this.controlsManager.update(delta, this.eventManager.keyMap);
       if (cameraMoved) {
@@ -184,23 +149,16 @@ export class EngineService implements OnDestroy {
     if (!this.tempQuaternion.equals(this.cameraOrientationSubject.getValue())) {
       this.cameraOrientationSubject.next(this.tempQuaternion.clone());
     }
-
     const selectionProxy = this.sceneManager.scene.getObjectByName('SelectionProxy');
     if (selectionProxy) selectionProxy.quaternion.copy(this.sceneManager.activeCamera.quaternion);
-
     this.updateDynamicCelestialModels(delta);
     this.sceneManager.scene.children.forEach(object => {
       if (object.name.startsWith(CELESTIAL_MESH_PREFIX)) this.updateVisibleCelestialInstances(object as THREE.InstancedMesh);
       if (object.userData['animationMixer']) object.userData['animationMixer'].update(delta);
     });
-
     this.sceneManager.composer.render();
     this.statsManager.end();
   };
-
-  // =============================================================================
-  // --- GESTIÓN DE SELECCIÓN E INTERACCIÓN ---
-  // =============================================================================
 
   public setActiveSelectionByUuid(uuid: string | null): void {
     const currentUuid = this.selectedObject?.uuid;
@@ -235,7 +193,6 @@ export class EngineService implements OnDestroy {
       this.entityManager.removeHoverProxy();
       return;
     }
-
     this.raycaster.setFromCamera(this.centerScreen, this.sceneManager.activeCamera);
     const intersects = this.raycaster.intersectObjects(this.sceneManager.scene.children, true);
     const firstValidHit = intersects.find(hit => !hit.object.name.endsWith('_helper') && hit.object.visible && !['SelectionProxy', 'HoverProxy', 'EditorGrid', 'FocusPivot'].includes(hit.object.name));
@@ -256,27 +213,17 @@ export class EngineService implements OnDestroy {
       this.entityManager.removeHoverProxy();
     }
   }
-  
-  // =============================================================================
-  // --- POBLACIÓN DE ESCENA Y OPTIMIZACIÓN DE RENDER ---
-  
-  // =============================================================================
-  // --- POBLACIÓN DE ESCENA Y OPTIMIZACIÓN DE RENDER ---
-  // =============================================================================
-  
+
   public populateScene(objects: SceneObjectResponse[], onProgress: (p: number) => void, onLoaded: () => void): void {
     if (!this.sceneManager.scene) return;
     this.entityManager.clearScene();
     this.dynamicCelestialModels = [];
-    
     const celestialTypes = ['galaxy_normal', 'galaxy_bright', 'meteor', 'galaxy_far', 'galaxy_medium', 'model'];
     const celestialObjectsData = objects.filter(o => celestialTypes.includes(o.type));
     const standardObjectsData = objects.filter(o => !celestialTypes.includes(o.type));
-    
     this.entityManager.objectManager.createCelestialObjectsInstanced(
       this.sceneManager.scene, celestialObjectsData, this.entityManager.getGltfLoader()
     );
-    
     const loadingManager = this.entityManager.getLoadingManager();
     loadingManager.onProgress = (_, loaded, total) => onProgress((loaded / total) * 100);
     loadingManager.onLoad = () => {
@@ -287,7 +234,6 @@ export class EngineService implements OnDestroy {
         if (obj.userData['isDynamicCelestialModel']) this.dynamicCelestialModels.push(obj as THREE.Group);
       });
     };
-    
     standardObjectsData.forEach(o => this.entityManager.createObjectFromData(o));
     const hasModelsToLoad = standardObjectsData.some(o => o.type === 'model' && o.asset?.path) ||
                             celestialObjectsData.some(o => o.asset?.type === 'model_glb');
@@ -297,19 +243,14 @@ export class EngineService implements OnDestroy {
   private adjustCameraClippingPlanes = () => {
     const camera = this.sceneManager.activeCamera as THREE.PerspectiveCamera;
     if (!camera.isPerspectiveCamera) return;
-    
     const controls = this.controlsManager.getControls();
     if (!controls) return;
-
     const distanceToTarget = camera.position.distanceTo(controls.target);
     this.tempBox.setFromObject(this.selectedObject ?? this.focusPivot, true);
     const objectSize = this.tempBox.getSize(this.tempVec3).length() || distanceToTarget * 0.1;
-    
     let newNear = THREE.MathUtils.clamp(Math.min(distanceToTarget / 1000, objectSize / 10), 0.1, 1000);
     let newFar = Math.max(distanceToTarget * 2, camera.userData['originalFar'] || 1e15);
-
     if (newFar <= newNear) newFar = newNear * 2;
-
     if (camera.near !== newNear || camera.far !== newFar) {
       camera.near = newNear;
       camera.far = newFar;
@@ -351,7 +292,11 @@ export class EngineService implements OnDestroy {
           const finalIntensity = this._calculateInstanceIntensity(data, camera, isOrthographic, bloomDampeningFactor);
           if (finalIntensity < 0.01) {
             isVisible = false;
-          } else if (data.isVisible !== isVisible) {
+          } else {
+             // ✅ LÓGICA DE BRILLO CORREGIDA (Paso 2):
+             // En lugar de actualizar el color SOLO cuando la visibilidad cambia,
+             // lo actualizamos SIEMPRE para las instancias visibles que estamos procesando en este frame.
+             // Esto asegura que cualquier cambio (como el brillo) se refleje inmediatamente.
             this.tempMatrix.compose(data.position, camera.quaternion, this.tempScale.copy(data.scale).multiplyScalar(DEEP_SPACE_SCALE_BOOST));
             instancedMesh.setMatrixAt(idx, this.tempMatrix);
             instancedMesh.setColorAt(idx, this.tempColor.copy(data.originalColor).multiplyScalar(finalIntensity));
@@ -390,7 +335,13 @@ export class EngineService implements OnDestroy {
     const maxScale = Math.max(data.scale.x, data.scale.y, data.scale.z);
     const falloff = THREE.MathUtils.clamp(THREE.MathUtils.inverseLerp(maxScale * 80.0, maxScale * 10.0, distance), 0.0, 1.0);
     const targetIntensity = THREE.MathUtils.lerp(data.emissiveIntensity, data.baseEmissiveIntensity, falloff);
-    const brightness = isOrthographic ? data.brightness : 1.0;
+    
+    // ✅ LÓGICA DE BRILLO CORREGIDA (Paso 1):
+    // Eliminamos la condición que solo aplicaba el brillo en modo ortográfico.
+    // Ahora, el valor de 'data.brightness' (controlado por el slider de la UI)
+    // se aplicará como un multiplicador en AMBAS vistas (2D y 3D).
+    const brightness = data.brightness;
+
     return Math.min(targetIntensity, MAX_INTENSITY) * bloomDampeningFactor * brightness;
   }
 
@@ -406,7 +357,7 @@ export class EngineService implements OnDestroy {
           
           model.traverse(child => {
               if (child instanceof THREE.Mesh) {
-                const material = child.material as THREE.MeshStandardMaterial; // Use a specific type
+                const material = child.material as THREE.MeshStandardMaterial;
                 if (material.emissiveIntensity !== undefined) {
                     material.emissiveIntensity = THREE.MathUtils.lerp(material.emissiveIntensity, targetIntensity, delta * 5);
                 }
@@ -414,10 +365,6 @@ export class EngineService implements OnDestroy {
           });
       });
   }
-
-  // =============================================================================
-  // --- MÉTODOS PÚBLICOS DELEGADOS Y DE UTILIDAD ---
-  // =============================================================================
 
   public onWindowResize = () => this.sceneManager.onWindowResize();
   public toggleActiveCamera(): void { this.cameraManager.toggleActiveCamera(this.selectedObject); }
@@ -441,13 +388,11 @@ export class EngineService implements OnDestroy {
       if (path === 'position') this.interactionHelperManager.updateHelperPositions(standardObject);
       return;
     }
-
     const instanceInfo = this.entityManager._findCelestialInstance(uuid);
     if (instanceInfo) {
       const { mesh, instanceIndex, data } = instanceInfo;
       const tempQuaternion = new THREE.Quaternion(), tempScale = new THREE.Vector3();
       data.originalMatrix.decompose(new THREE.Vector3(), tempQuaternion, tempScale);
-
       switch (path) {
         case 'position': data.position.set(value.x, value.y, value.z); break;
         case 'rotation': tempQuaternion.setFromEuler(new THREE.Euler(value.x, value.y, value.z)); break;
@@ -472,7 +417,6 @@ export class EngineService implements OnDestroy {
     this.axisLock = null;
     this.dragInteractionManager.setAxisConstraint(null);
     this.axisLockStateSubject.next(null);
-
     if (this.selectedObject) {
       switch (mode) {
         case 'move':
@@ -486,10 +430,6 @@ export class EngineService implements OnDestroy {
     }
   }
 
-  // =============================================================================
-  // --- GESTIÓN DE EVENTOS Y LIMPIEZA ---
-  // =============================================================================
-  
   private handleTransformEnd = () => {
     if (!this.selectedObject) return;
     if (this.selectedObject.name === 'SelectionProxy') {
@@ -521,20 +461,15 @@ export class EngineService implements OnDestroy {
 
   private subscribeToEvents(): void {
     this.cameraMode$.subscribe(mode => this.selectionManager.updateOutlineParameters(mode));
-
     const controls = this.controlsManager.getControls();
     controls.addEventListener('end', this.handleTransformEnd);
     controls.addEventListener('change', this.onControlsChange);
-
     this.eventManager.windowResize$.subscribe(this.onWindowResize);
-
     this.eventManager.keyDown$.subscribe(this.onKeyDown);
-
     this.controlsSubscription = this.dragInteractionManager.onDragEnd$.subscribe(() => {
       this.handleTransformEnd();
       if (this.selectedObject) this.interactionHelperManager.updateHelperPositions(this.selectedObject);
     });
-
     this.eventManager.canvasMouseDown$.subscribe(this.onCanvasMouseDown);
   }
 
@@ -544,12 +479,10 @@ export class EngineService implements OnDestroy {
         this.controlsManager.exitFlyMode();
         return;
     }
-    
     if (key === 'c' && !(e.target instanceof HTMLInputElement)) {
       e.preventDefault();
       this.toggleActiveCamera();
     }
-    
     if (this.controlsManager.getCurrentToolMode() === 'move' && ['x', 'y', 'z'].includes(key)) {
       this.axisLock = this.axisLock === key ? null : (key as 'x' | 'y' | 'z');
       this.dragInteractionManager.setAxisConstraint(this.axisLock);
@@ -563,11 +496,9 @@ export class EngineService implements OnDestroy {
     if (e.button === 0 && this.preselectedObject) {
       e.preventDefault();
       const hoveredUuid = this.preselectedObject.uuid;
-
       this.selectionManager.setHoveredObjects([]);
       this.entityManager.removeHoverProxy();
       this.preselectedObject = null;
-
       const newUuid = this.selectedObject?.uuid === hoveredUuid ? null : hoveredUuid;
       this.setActiveSelectionByUuid(newUuid);
     }
