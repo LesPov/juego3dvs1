@@ -3,8 +3,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { CelestialInstanceData, ObjectManagerService } from './object-manager.service';
-import { SelectionManagerService } from './selection-manager.service';
 import { SceneObjectResponse } from '../../../../../services/admin.service';
+import { SelectionManagerService } from '../interactions/selection-manager.service';
 
 export interface SceneEntity {
   uuid: string;

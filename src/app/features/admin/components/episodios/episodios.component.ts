@@ -46,7 +46,7 @@ export class EpisodiosComponent implements OnInit {
       title: ['', [Validators.required, Validators.minLength(3)]],
       description: [''],
       // El nombre del campo del formulario no tiene que coincidir con el de FormData
-      thumbnail: [null, Validators.required] 
+      thumbnail: [null, Validators.required]
     });
   }
 
@@ -107,16 +107,28 @@ export class EpisodiosComponent implements OnInit {
     this.selectedFile = null;
   }
 
+
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files[0]) {
       this.selectedFile = input.files[0];
-      const reader = new FileReader();
-      reader.onload = () => this.imagePreview = reader.result;
-      reader.readAsDataURL(this.selectedFile);
+
+      // --- LÓGICA DE PREVISUALIZACIÓN MEJORADA ---
+      // Si el archivo es TIFF, el navegador no puede previsualizarlo.
+      if (this.selectedFile.type === 'image/tiff') {
+        // Asignamos null para que el <img> de la previsualización no intente cargar nada
+        this.imagePreview = null;
+        // Opcional: podrías asignar una imagen de placeholder
+        // this.imagePreview = 'assets/img/tiff-placeholder.png';
+        console.log("Archivo TIFF seleccionado. Previsualización no disponible en el navegador.");
+      } else {
+        // Para otros formatos (jpg, png), procedemos como antes.
+        const reader = new FileReader();
+        reader.onload = () => this.imagePreview = reader.result;
+        reader.readAsDataURL(this.selectedFile);
+      }
     }
   }
-
   onSubmit(): void {
     if (this.createEpisodeForm.invalid) {
       // Marcar todos los campos como "tocados" para mostrar los mensajes de error
@@ -148,7 +160,7 @@ export class EpisodiosComponent implements OnInit {
     });
   }
 
- 
+
   editEpisode(): void {
     if (this.episodes.length > 0) {
       const selectedId = this.episodes[this.activeIndex].id;

@@ -1,8 +1,8 @@
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass.js';
-import { CameraMode } from './camera-manager.service';
- 
+import { CameraMode } from '../managers/camera-manager.service';
+  
 const PERSPECTIVE_PARAMS = {
   edgeStrength: 10.0,
   edgeGlow: 1.0, 

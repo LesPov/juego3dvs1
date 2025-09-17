@@ -5,8 +5,8 @@ import { CommonModule } from '@angular/common';
 import * as THREE from 'three';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { Subscription } from 'rxjs';
-import { EngineService,  } from '../service/three-engine/engine.service'; // Importa el tipo CameraMode
-import { CameraMode } from '../service/three-engine/utils/camera-manager.service';
+import { EngineService,  } from '../service/three-engine/core/engine.service'; // Importa el tipo CameraMode
+import { CameraMode } from '../service/three-engine/managers/camera-manager.service';
 
 @Component({
   selector: 'app-brujula',

@@ -4,32 +4,53 @@ import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject } from 'rxjs';
 import { SceneManagerService } from './scene-manager.service';
-import { ControlsManagerService } from './controls-manager.service';
-import { EntityManagerService } from './entity-manager.service';
-import { SelectionManagerService } from './selection-manager.service';
-import { InteractionHelperManagerService } from './interaction-helper.manager.service';
-import { DragInteractionManagerService } from './drag-interaction.manager.service';
+ 
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { ControlsManagerService } from '../interactions/controls-manager.service';
+import { EntityManagerService } from './entity-manager.service';
+import { SelectionManagerService } from '../interactions/selection-manager.service';
+import { InteractionHelperManagerService } from '../interactions/interaction-helper.manager.service';
+import { DragInteractionManagerService } from '../interactions/drag-interaction.manager.service';
 
 export type CameraType = 'editor' | 'secondary';
 export type CameraMode = 'perspective' | 'orthographic';
+
+interface AnimationState3D {
+  position: THREE.Vector3;
+  target: THREE.Vector3;
+}
+
+interface AnimationState2D extends AnimationState3D {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
 
 @Injectable({ providedIn: 'root' })
 export class CameraManagerService {
 
   public cameraMode$ = new BehaviorSubject<CameraMode>('perspective');
   public activeCameraType: CameraType = 'editor';
-  
+
   private orthoCamera!: THREE.OrthographicCamera;
   
   private lastPerspectiveState: { position: THREE.Vector3, target: THREE.Vector3 } | null = null;
   private lastOrthographicState: { position: THREE.Vector3, target: THREE.Vector3 } | null = null;
   private lastEditorTarget = new THREE.Vector3();
   
+  private tempBox = new THREE.Box3();
   private tempBoxSize = new THREE.Vector3();
   private tempWorldPos = new THREE.Vector3();
   private tempQuaternion = new THREE.Quaternion();
   private tempSphere = new THREE.Sphere();
+
+  private isCameraAnimating = false;
+  private cameraAnimationTarget: AnimationState2D | AnimationState3D | null = null;
+  private cameraInitialState: AnimationState2D | AnimationState3D | null = null;
+  private cameraAnimationStartTime: number | null = null;
+  private readonly cameraAnimationDuration = 1000;
+  private clock = new THREE.Clock();
 
   constructor(
     private sceneManager: SceneManagerService,
@@ -91,6 +112,13 @@ export class CameraManagerService {
     if(currentSelectedObject && currentSelectedObject.uuid === newActiveCamera.uuid) {
         this.controlsManager.attach(currentSelectedObject);
     }
+  }
+
+  public update(delta: number): boolean {
+    if (this.isCameraAnimating) {
+      this.updateCameraAnimation();
+    }
+    return this.isCameraAnimating;
   }
 
   public toggleCameraMode(): void {
@@ -253,5 +281,120 @@ export class CameraManagerService {
     if (Math.abs(dir.x) > 0.9) return dir.x > 0 ? 'axis-x' : 'axis-x-neg';
     if (Math.abs(dir.y) > 0.9) return dir.y > 0 ? 'axis-y' : 'axis-y-neg';
     return dir.z > 0 ? 'axis-z' : 'axis-z-neg';
+  }
+
+  public focusOnObject(uuid: string): void {
+    if (this.isCameraAnimating) return;
+    const object = this.entityManager.getObjectByUuid(uuid);
+    if (!object) return;
+    const cameraMode = this.cameraMode$.getValue();
+    cameraMode === 'perspective' ? this.focusOnObject3D(object) : this.focusOnObject2D(object);
+  }
+
+  private focusOnObject3D(object: THREE.Object3D): void {
+    const controls = this.controlsManager.getControls();
+    const camera = this.sceneManager.activeCamera;
+    
+    this.tempBox.setFromObject(object, true);
+    if (this.tempBox.isEmpty()) this.tempBox.setFromCenterAndSize(object.position, new THREE.Vector3(1, 1, 1));
+    
+    const targetPoint = this.tempBox.getCenter(new THREE.Vector3());
+    const objectSize = this.tempBox.getSize(new THREE.Vector3()).length();
+    const distance = Math.max(objectSize * 2.5, 10);
+    
+    const cameraDirection = camera.getWorldDirection(new THREE.Vector3());
+    const finalCamPos = new THREE.Vector3().copy(targetPoint).addScaledVector(cameraDirection.negate(), distance);
+    
+    this.isCameraAnimating = true;
+    this.cameraAnimationStartTime = this.clock.getElapsedTime();
+    this.cameraInitialState = { position: camera.position.clone(), target: controls.target.clone() };
+    this.cameraAnimationTarget = { position: finalCamPos, target: targetPoint };
+
+    controls.enabled = false;
+    this.controlsManager.exitFlyMode();
+  }
+  
+  private focusOnObject2D(object: THREE.Object3D): void {
+    const camera = this.sceneManager.activeCamera as THREE.OrthographicCamera;
+    const controls = this.controlsManager.getControls();
+    if (!camera.isOrthographicCamera) return;
+
+    this.tempBox.setFromObject(object, true);
+    if (this.tempBox.isEmpty()) this.tempBox.setFromCenterAndSize(object.position, new THREE.Vector3(1, 1, 1));
+    
+    const objectCenter = this.tempBox.getCenter(new THREE.Vector3());
+    const objectSize = this.tempBox.getSize(new THREE.Vector3());
+    const cameraDirection = camera.getWorldDirection(new THREE.Vector3());
+    
+    const distanceToTarget = camera.position.distanceTo(controls.target);
+    const finalCamPos = new THREE.Vector3().copy(objectCenter).addScaledVector(cameraDirection.negate(), distanceToTarget);
+    
+    const aspect = (camera.right - camera.left) / (camera.top - camera.bottom);
+    const padding = 1.5;
+    let requiredWidth = 0, requiredHeight = 0;
+    if (Math.abs(cameraDirection.z) > 0.9) { requiredWidth = objectSize.x; requiredHeight = objectSize.y; }
+    else if (Math.abs(cameraDirection.x) > 0.9) { requiredWidth = objectSize.z; requiredHeight = objectSize.y; }
+    else { requiredWidth = objectSize.x; requiredHeight = objectSize.z; }
+
+    requiredWidth *= padding;
+    requiredHeight *= padding;
+
+    if (requiredWidth / aspect > requiredHeight) requiredHeight = requiredWidth / aspect;
+    else requiredWidth = requiredHeight * aspect;
+
+    this.isCameraAnimating = true;
+    this.cameraAnimationStartTime = this.clock.getElapsedTime();
+    this.cameraInitialState = { position: camera.position.clone(), target: controls.target.clone(), left: camera.left, right: camera.right, top: camera.top, bottom: camera.bottom };
+    this.cameraAnimationTarget = { position: finalCamPos, target: objectCenter, left: -requiredWidth / 2, right: requiredWidth / 2, top: requiredHeight / 2, bottom: -requiredHeight / 2 };
+    
+    controls.enabled = false;
+  }
+
+  private updateCameraAnimation(): void {
+    if (!this.isCameraAnimating || !this.cameraAnimationTarget || !this.cameraInitialState || this.cameraAnimationStartTime === null) {
+      return;
+    }
+
+    const elapsedTime = this.clock.getElapsedTime() - this.cameraAnimationStartTime;
+    const progress = Math.min(elapsedTime / (this.cameraAnimationDuration / 1000), 1);
+    const alpha = progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+
+    const camera = this.sceneManager.activeCamera;
+    const controls = this.controlsManager.getControls();
+
+    camera.position.lerpVectors(this.cameraInitialState.position, this.cameraAnimationTarget.position, alpha);
+    controls.target.lerpVectors(this.cameraInitialState.target, this.cameraAnimationTarget.target, alpha);
+
+    if ('left' in this.cameraInitialState && 'left' in this.cameraAnimationTarget && camera instanceof THREE.OrthographicCamera) {
+        camera.left = THREE.MathUtils.lerp(this.cameraInitialState.left, this.cameraAnimationTarget.left, alpha);
+        camera.right = THREE.MathUtils.lerp(this.cameraInitialState.right, this.cameraAnimationTarget.right, alpha);
+        camera.top = THREE.MathUtils.lerp(this.cameraInitialState.top, this.cameraAnimationTarget.top, alpha);
+        camera.bottom = THREE.MathUtils.lerp(this.cameraInitialState.bottom, this.cameraAnimationTarget.bottom, alpha);
+        camera.updateProjectionMatrix();
+    }
+    
+    controls.update();
+
+    if (progress >= 1) {
+      camera.position.copy(this.cameraAnimationTarget.position);
+      controls.target.copy(this.cameraAnimationTarget.target);
+      if ('left' in this.cameraAnimationTarget && camera instanceof THREE.OrthographicCamera) {
+        camera.left = this.cameraAnimationTarget.left; camera.right = this.cameraAnimationTarget.right;
+        camera.top = this.cameraAnimationTarget.top; camera.bottom = this.cameraAnimationTarget.bottom;
+        camera.updateProjectionMatrix();
+      }
+
+      if (this.activeCameraType === 'editor') {
+          controls.enabled = false;
+      } else {
+          controls.enabled = true;
+      }
+
+      controls.update();
+      this.isCameraAnimating = false;
+      this.cameraAnimationTarget = null;
+      this.cameraInitialState = null;
+      this.cameraAnimationStartTime = null;
+    }
   }
 }

@@ -1,7 +1,7 @@
 // src/app/features/admin/components/world-editor/toolbar/toolbar.component.ts
 import { Component, EventEmitter, Output, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { EngineService } from '../service/three-engine/engine.service';
+import { EngineService } from '../service/three-engine/core/engine.service';
  
 export type ToolMode = 'select' | 'move' | 'rotate' | 'scale' | 'helper' | 'camera' | 'frame' | 'maximize';
 
