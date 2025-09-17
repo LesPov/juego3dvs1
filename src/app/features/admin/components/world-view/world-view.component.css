@@ -204,29 +204,26 @@ app-brujula { position: absolute; top: 15px; right: 15px; width: 150px; height: 
 
 .scene-bottom-toolbar {
   /* ✨ CORRECCIÓN: Posicionamiento absoluto para superponer */
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: auto;
-  max-width: 80%;
-  
-  /* ✨ NUEVO: Estilos visuales modernos */
-  background: rgba(28, 28, 28, 0.65);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px); /* Para Safari */
-  border: 1px solid var(--c-border);
-  border-radius: 25px; /* Bordes redondeados tipo "pill" */
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-  padding: 0 10px;
-  height: 48px;
-
-  /* ✨ LÓGICA EXISTENTE */
-  display: flex;
-  align-items: center;
-  box-sizing: border-box;
-  z-index: 20;
-  pointer-events: all;
+   position: absolute;
+    bottom: -1px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    background: #37ff000a;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid #37ff00;
+    border-top-left-radius: 15px;
+    box-shadow: 0 4px 7px 2px #37ff0080;
+    border-top-right-radius: 15px;
+    padding: 30px 15px;
+    height: 48px;
+    display: flex
+;
+    align-items: center;
+    box-sizing: border-box;
+    z-index: 20;
+    pointer-events: all;
   
   /* ✨ CORRECCIÓN: Usamos una animación más adecuada */
   animation: toolbar-slide-in 0.5s cubic-bezier(0.25, 1, 0.5, 1);
