@@ -90,10 +90,10 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     'directionalLight': 'color-light',
     'ambientLight': 'color-light',
     'Model': 'color-model',
-    'star': 'color-star',
-    'galaxy': 'color-galaxy',
-    'supernova': 'color-supernova',
-    'diffraction_star': 'color-diffraction-star',
+    'galaxy_bright': 'color-galaxy',
+    'galaxy_medium': 'color-diffraction-star',
+    'galaxy_far': 'color-supernova',
+    'galaxy_normal': 'color-star',
     'default': 'color-default'
   };
   private propertyUpdate$ = new Subject<PropertyUpdate>();
@@ -274,7 +274,6 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ✨ NUEVO: Función que se llama desde el botón "Acercarse" en el HTML
   public onFocusObject(): void {
     if (this.selectedEntityUuid) {
       this.engineService.focusOnObject(this.selectedEntityUuid);
@@ -283,7 +282,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
 
   openImageModal(): void { if (this.episodeThumbnailUrl) { this.isImageModalVisible = true; } }
   closeImageModal(): void { this.isImageModalVisible = false; }
-  selectScene(sceneId: number): void { if (this.activeSceneId === sceneId) return; this.activeSceneId = sceneId; this.sceneTabs.forEach(tab => tab.isActive = tab.id === sceneId); console.log(`Cambiando a escena ID: ${sceneId}`); }
+  selectScene(sceneId: number): void { if (this.activeSceneId === sceneId) return; this.activeSceneId = sceneId; this.sceneTabs.forEach(tab => tab.isActive = tab.id === sceneId); }
   addScene(): void { const newScene: SceneTab = { id: this.nextSceneId, name: `Escena ${this.nextSceneId}`, isActive: false }; this.sceneTabs.push(newScene); this.nextSceneId++; this.selectScene(newScene.id); }
   private buildFullThumbnailUrl(relativePath: string | null): string | null { if (!relativePath) return null; const cleanEndpoint = environment.endpoint.endsWith('/') ? environment.endpoint.slice(0, -1) : environment.endpoint; const cleanThumbnailPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath; return `${cleanEndpoint}/${cleanThumbnailPath}`; }
 
@@ -294,25 +293,9 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     const brightnessSub = this.brightnessUpdate$.pipe(debounceTime(150)).subscribe(({ groupType, brightness }) => { const entityUuidsInGroup = this.allEntities.filter(entity => entity.type === groupType).map(entity => entity.uuid); if (entityUuidsInGroup.length > 0) this.engineService.setGroupBrightness(entityUuidsInGroup, brightness); });
     const cameraModeSub = this.engineService.cameraMode$.subscribe(mode => { if (mode === 'perspective') { let stateChanged = false; for (const key of this.groupBrightnessState.keys()) { if (this.groupBrightnessState.get(key) !== 1.0) { this.groupBrightnessState.set(key, 1.0); stateChanged = true; } } if (stateChanged) this.allEntities$.next([...this.allEntities]); } });
 
-    const finalSelectionSub = this.engineService.onObjectSelected$.subscribe(uuid => {
-      this.cdr.detectChanges(); // Forzar detección de cambios para la animación
-      if (uuid) {
-        const entityFromList = this.allEntities.find(e => e.uuid === uuid);
-        if (entityFromList) {
-          const foundObject = this.sceneObjects.find(o => o.id.toString() === uuid);
-          if (foundObject) {
-            this.selectedEntityUuid = entityFromList.uuid;
-            this.selectedObject = { ...foundObject };
-            this.selectPropertiesTab('object');
-            this.selectedEntityUuid$.next(this.selectedEntityUuid);
-          } else {
-            this.deselectObject();
-          }
-        }
-      } else {
-        this.deselectObject();
-      }
-      this.cdr.detectChanges(); // Forzar detección de cambios para la animación
+    // ✨ CORRECCIÓN: Suscripción centralizada a los eventos de selección del motor
+    const selectionSub = this.engineService.onObjectSelected$.subscribe(uuid => {
+      this.handleSelectionChange(uuid);
     });
 
     this.subscriptions.add(transformSub);
@@ -320,7 +303,48 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     this.subscriptions.add(entitiesSub);
     this.subscriptions.add(brightnessSub);
     this.subscriptions.add(cameraModeSub);
-    this.subscriptions.add(finalSelectionSub);
+    this.subscriptions.add(selectionSub); // ✨ Añadimos la nueva suscripción
+  }
+  
+  // ✨ NUEVO: Método único para manejar cualquier cambio de selección
+  private handleSelectionChange(uuid: string | null): void {
+    this.cdr.detectChanges(); // Forzar detección para animaciones de UI
+    if (uuid) {
+      const foundObject = this.sceneObjects.find(o => o.id.toString() === uuid);
+      if (foundObject) {
+        this.selectedEntityUuid = uuid;
+        this.selectedObject = { ...foundObject };
+        this.selectPropertiesTab('object');
+      } else {
+        // Esto puede pasar si el objeto seleccionado no está en la lista principal (ej. cámara)
+        // o si hay un error de sincronización. Deseleccionamos por seguridad.
+        this.deselectObject();
+      }
+    } else {
+      this.selectedEntityUuid = null;
+      this.selectedObject = null;
+      this.selectPropertiesTab('scene');
+    }
+    this.selectedEntityUuid$.next(this.selectedEntityUuid);
+    this.cdr.detectChanges(); // Forzar detección de nuevo tras actualizar el estado
+  }
+
+  // ✨ CORRECCIÓN: onEntitySelect ahora solo notifica al motor
+  public onEntitySelect(entity: SceneEntity): void {
+    if (entity.uuid.startsWith('placeholder-')) {
+      this.isAddObjectModalVisible = true;
+      this.engineService.setActiveSelectionByUuid(null);
+      return;
+    }
+    
+    // Si el objeto clickeado ya está seleccionado, lo deseleccionamos. Si no, lo seleccionamos.
+    const newUuid = this.selectedEntityUuid === entity.uuid ? null : entity.uuid;
+    this.engineService.setActiveSelectionByUuid(newUuid);
+  }
+
+  // ✨ CORRECCIÓN: deselectObject ahora solo notifica al motor
+  public deselectObject(): void {
+    this.engineService.setActiveSelectionByUuid(null);
   }
 
   public onGroupBrightnessChange(group: EntityGroup, event: Event): void { const slider = event.target as HTMLInputElement; const brightness = parseFloat(slider.value); this.groupBrightnessState.set(group.type, brightness); this.brightnessUpdate$.next({ groupType: group.type, brightness }); }
@@ -332,7 +356,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   public onSearchChange(term: string): void { this.groupDisplayCountState.clear(); this.searchFilter$.next(term); }
   trackByEntity(index: number, entity: SceneEntity): string { return entity.uuid; }
   handleObjectUpdate(update: PropertyUpdate): void { if (!this.selectedObject) return; if (['position', 'rotation', 'scale'].includes(update.path)) { this.engineService.updateObjectTransform(this.selectedObject.id.toString(), update.path as any, update.value as any); } else if (update.path === 'name') { this.engineService.updateObjectName(this.selectedObject.id.toString(), update.value as string); } this.updateLocalSelectedObject({ [update.path]: update.value }); this.propertyUpdate$.next(update); }
-  private handlePropertySave(update: PropertyUpdate): Observable<SceneObjectResponse> { if (!this.episodeId || !this.selectedObject) return new Observable(obs => obs.error(new Error("EpisodeID or SelectedObject is null"))); const dataToUpdate: Partial<SceneObjectResponse> = { [update.path]: update.value }; return this.sceneObjectService.updateSceneObject(this.episodeId, this.selectedObject.id, dataToUpdate).pipe(tap(updatedObj => { this.updateLocalSelectedObject(updatedObj); console.log("Guardado exitoso:", updatedObj); })); }
+  private handlePropertySave(update: PropertyUpdate): Observable<SceneObjectResponse> { if (!this.episodeId || !this.selectedObject) return new Observable(obs => obs.error(new Error("EpisodeID or SelectedObject is null"))); const dataToUpdate: Partial<SceneObjectResponse> = { [update.path]: update.value }; return this.sceneObjectService.updateSceneObject(this.episodeId, this.selectedObject.id, dataToUpdate).pipe(tap(updatedObj => { this.updateLocalSelectedObject(updatedObj); })); }
 
   private handleTransformEnd(): void {
     const transformedObject = this.engineService.getGizmoAttachedObject();
@@ -366,39 +390,6 @@ export class WorldViewComponent implements OnInit, OnDestroy {
         error: err => console.error("[WorldView] Error al guardar tras transformación:", err)
       });
     }
-  }
-
-  onEntitySelect(entity: SceneEntity): void {
-    if (entity.uuid.startsWith('placeholder-')) {
-      this.isAddObjectModalVisible = true;
-      this.deselectObject();
-      return;
-    }
-
-    if (this.selectedEntityUuid === entity.uuid) {
-      this.deselectObject();
-    } else {
-      const foundObject = this.sceneObjects.find(o => o.id.toString() === entity.uuid);
-      if (foundObject) {
-        this.selectedEntityUuid = entity.uuid;
-        this.selectedObject = { ...foundObject };
-        this.selectPropertiesTab('object');
-
-        this.engineService.setActiveSelectionByUuid(entity.uuid);
-        this.selectedEntityUuid$.next(this.selectedEntityUuid);
-      } else {
-        this.deselectObject();
-      }
-    }
-  }
-
-  deselectObject(): void {
-    this.selectedEntityUuid = null;
-    this.selectedObject = null;
-    this.selectPropertiesTab('scene');
-
-    this.engineService.setActiveSelectionByUuid(null);
-    this.selectedEntityUuid$.next(null);
   }
 
   createSceneObject(data: NewSceneObjectData): void { if (!this.episodeId) return; this.sceneObjectService.createSceneObject(this.episodeId, data).subscribe({ next: newObj => { this.closeAddObjectModal(); this.engineService.addObjectToScene(newObj); this.sceneObjects = [...this.sceneObjects, newObj]; }, error: err => console.error(err) }); }

@@ -1,4 +1,4 @@
-/* world-view.component.css - TEMA FINAL CON ANIMACIONES FLUIDAS Y GRID ADAPTATIVO */
+/* world-view.component.css */
 
 /* === CONFIGURACIÓN GLOBAL Y COLORES BASE === */
 :host {
@@ -69,7 +69,6 @@
 
 .p-header { flex-direction: row; justify-content: center; }
 
-/* -- MODIFICACIÓN PARA CONTENER LA NUEVA BARRA -- */
 .p-viewport { 
   padding: 0; 
   box-shadow: 0 0 15px rgba(0,0,0,0.5), inset 0 0 8px rgba(0,0,0,0.4); 
@@ -90,7 +89,13 @@
 .toggle-description { bottom: 8px; left: 50%; transform: translateX(-50%); width: 60px; height: 20px; border-top-left-radius: 6px; border-top-right-radius: 6px; border-bottom: none; }
 
 .episode-title { font-size: 1.2rem; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
-.scene-render-area { flex-grow: 1; position: relative; overflow: hidden; background: #000; }
+/* ✨ CORRECCIÓN: El contenedor del render ahora es relativo para anclar la barra de herramientas */
+.scene-render-area { 
+  flex-grow: 1; 
+  position: relative; /* << IMPORTANTE */
+  overflow: hidden; 
+  background: #000; 
+}
 .scene-container-header { flex-shrink: 0; background-color: var(--c-bg-panel); border-bottom: 1px solid var(--c-border); display: flex; align-items: center; justify-content: space-between; padding: 0 10px; }
 .scene-tabs-container { display: flex; align-items: center; padding: 6px 0 0 0; }
 .scene-tab-button { padding: 8px 20px; border: 1px solid var(--c-border); border-bottom: none; border-top-left-radius: 6px; border-top-right-radius: 6px; cursor: pointer; margin-right: 4px; background: var(--c-bg-interactive); color: var(--c-text-secondary); font-weight: 500; transition: all 0.2s ease-in-out; position: relative; top: 1px; }
@@ -183,38 +188,48 @@ app-brujula { position: absolute; top: 15px; right: 15px; width: 150px; height: 
 .object-name { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ========================================================= */
-/* ===         ✨ NUEVOS ESTILOS PARA LA BARRA ✨        === */
+/* ===       ✨ ESTILOS CORREGIDOS PARA LA BARRA ✨      === */
 /* ========================================================= */
 
-/* ✨ NUEVO: Definición de la animación de entrada */
-@keyframes slideInUp {
+@keyframes toolbar-slide-in {
   from {
-    transform: translateY(100%);
+    transform: translate(-50%, 150%);
     opacity: 0;
   }
   to {
-    transform: translateY(0);
+    transform: translate(-50%, 0);
     opacity: 1;
   }
 }
 
 .scene-bottom-toolbar {
-  flex-shrink: 0;
-  width: 100%;
-  height: 44px;
-  background-color: var(--c-bg-panel);
-  border-top: 1px solid var(--c-border);
+  /* ✨ CORRECCIÓN: Posicionamiento absoluto para superponer */
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: auto;
+  max-width: 80%;
+  
+  /* ✨ NUEVO: Estilos visuales modernos */
+  background: rgba(28, 28, 28, 0.65);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px); /* Para Safari */
+  border: 1px solid var(--c-border);
+  border-radius: 25px; /* Bordes redondeados tipo "pill" */
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  padding: 0 10px;
+  height: 48px;
+
+  /* ✨ LÓGICA EXISTENTE */
   display: flex;
   align-items: center;
-  padding: 0 10px;
   box-sizing: border-box;
-  border-bottom-left-radius: 8px;
-  border-bottom-right-radius: 8px;
   z-index: 20;
   pointer-events: all;
   
-  /* ✨ NUEVO: Aplicamos la animación */
-  animation: slideInUp 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+  /* ✨ CORRECCIÓN: Usamos una animación más adecuada */
+  animation: toolbar-slide-in 0.5s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .toolbar-section {
@@ -226,6 +241,7 @@ app-brujula { position: absolute; top: 15px; right: 15px; width: 150px; height: 
   color: var(--c-text-secondary);
   font-size: 13px;
   border-left: 1px solid var(--c-border-dark);
+  padding: 0 15px; /* Espaciado interno */
 }
 
 .toolbar-section:first-child {
@@ -237,7 +253,6 @@ app-brujula { position: absolute; top: 15px; right: 15px; width: 150px; height: 
   padding: 0 20px;
 }
 
-/* ✨ NUEVO: Renombramos y estilizamos el nuevo botón */
 .focus-button {
   padding: 6px 24px;
   font-size: 14px;

@@ -1,3 +1,5 @@
+// src/app/features/admin/views/world-editor/service/three-engine/engine.service.ts
+
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
@@ -19,14 +21,28 @@ export interface IntersectedObjectInfo {
     object: THREE.Object3D;
 }
 
-const INSTANCES_TO_CHECK_PER_FRAME = 100000; 
+// Interfaces para el estado de la animación
+interface AnimationState3D {
+    position: THREE.Vector3;
+    target: THREE.Vector3;
+}
+
+interface AnimationState2D extends AnimationState3D {
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+}
+
+
+const INSTANCES_TO_CHECK_PER_FRAME = 100000;
 const BASE_VISIBILITY_DISTANCE = 1000000000000;
 const MAX_PERCEPTUAL_DISTANCE = 10000000000000;
 const DEEP_SPACE_SCALE_BOOST = 10.0;
 const ORTHO_ZOOM_VISIBILITY_MULTIPLIER = 5.0;
 const ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR = 12.0;
 const BRIGHTNESS_MULTIPLIER = 1.0;
-const MAX_INTENSITY = 8.0; 
+const MAX_INTENSITY = 8.0;
 const BRIGHTNESS_FALLOFF_START_DISTANCE = 500_000_000;
 const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
 
@@ -46,10 +62,10 @@ export class EngineService implements OnDestroy {
   private axisLockStateSubject = new BehaviorSubject<'x' | 'y' | 'z' | null>(null);
   private cameraOrientationSubject = new BehaviorSubject<THREE.Quaternion>(new THREE.Quaternion());
   private cameraPositionSubject = new BehaviorSubject<THREE.Vector3>(new THREE.Vector3());
-  
+
   private selectedObject?: THREE.Object3D;
   private preselectedObject: IntersectedObjectInfo | null = null;
-  
+
   private clock = new THREE.Clock();
   private animationFrameId?: number;
   private keyMap = new Map<string, boolean>();
@@ -57,15 +73,15 @@ export class EngineService implements OnDestroy {
   private baseOrthoMatrixElement: number = 0;
   private controlsSubscription?: Subscription;
   private focusPivot: THREE.Object3D;
-  
+
   private raycaster = new THREE.Raycaster();
   private centerScreen = new THREE.Vector2(0, 0);
 
-  // ✨ NUEVO: Variables para la animación de la cámara
-  private cameraAnimationTarget: { position: THREE.Vector3, target: THREE.Vector3 } | null = null;
-  private cameraInitialState: { position: THREE.Vector3, target: THREE.Vector3 } | null = null;
+  // ✨ MEJORA: El estado de la animación ahora puede ser 2D o 3D
+  private cameraAnimationTarget: AnimationState2D | AnimationState3D | null = null;
+  private cameraInitialState: AnimationState2D | AnimationState3D | null = null;
   private cameraAnimationStartTime: number | null = null;
-  private readonly cameraAnimationDuration = 1500; // 1.5 segundos
+  private readonly cameraAnimationDuration = 1000; // 1 segundo
 
   private tempQuaternion = new THREE.Quaternion();
   private tempMatrix = new THREE.Matrix4();
@@ -77,7 +93,7 @@ export class EngineService implements OnDestroy {
   private tempBox = new THREE.Box3();
   private tempVec3 = new THREE.Vector3();
   private dynamicCelestialModels: THREE.Group[] = [];
-  
+
   constructor(
     private sceneManager: SceneManagerService,
     private entityManager: EntityManagerService,
@@ -86,7 +102,7 @@ export class EngineService implements OnDestroy {
     private interactionHelperManager: InteractionHelperManagerService,
     private dragInteractionManager: DragInteractionManagerService,
     private cameraManager: CameraManagerService,
-    private selectionManager: SelectionManagerService 
+    private selectionManager: SelectionManagerService
   ) {
     this.focusPivot = new THREE.Object3D();
     this.focusPivot.name = 'FocusPivot';
@@ -97,12 +113,12 @@ export class EngineService implements OnDestroy {
     this.cameraPosition$ = this.cameraPositionSubject.asObservable();
     this.cameraMode$ = this.cameraManager.cameraMode$.asObservable();
   }
-    
+
   public init(canvasRef: ElementRef<HTMLCanvasElement>): void {
     const canvas = canvasRef.nativeElement;
     this.sceneManager.setupBasicScene(canvas);
     this.sceneManager.scene.add(this.focusPivot);
-    
+
     this.entityManager.init(this.sceneManager.scene);
     this.statsManager.init();
     this.controlsManager.init(this.sceneManager.editorCamera, canvas, this.sceneManager.scene, this.focusPivot);
@@ -110,7 +126,7 @@ export class EngineService implements OnDestroy {
     this.interactionHelperManager.init(this.sceneManager.scene, this.sceneManager.editorCamera);
     this.dragInteractionManager.init(this.sceneManager.editorCamera, canvas, this.controlsManager);
     this.cameraManager.initialize();
-    
+
     const parent = this.sceneManager.canvas.parentElement!;
     const initialSize = new THREE.Vector2(parent.clientWidth, parent.clientHeight);
     this.selectionManager.init(this.sceneManager.scene, this.sceneManager.activeCamera, initialSize);
@@ -119,7 +135,7 @@ export class EngineService implements OnDestroy {
     });
 
     this.precompileShaders();
-    
+
     this.cameraMode$.subscribe(mode => {
         this.selectionManager.updateOutlineParameters(mode);
     });
@@ -128,23 +144,21 @@ export class EngineService implements OnDestroy {
     this.addEventListeners();
     this.animate();
   }
+
   private precompileShaders(): void {
     const dummyGeometry = new THREE.BoxGeometry(0.001, 0.001, 0.001);
     const dummyMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
     const dummyMesh = new THREE.Mesh(dummyGeometry, dummyMaterial);
     dummyMesh.position.set(Infinity, Infinity, Infinity);
     this.sceneManager.scene.add(dummyMesh);
-
     this.selectionManager.setSelectedObjects([dummyMesh]);
     this.sceneManager.composer.render();
     this.selectionManager.setSelectedObjects([]);
-
     this.sceneManager.scene.remove(dummyMesh);
     dummyGeometry.dispose();
     dummyMaterial.dispose();
-    console.log('✨ Shaders de selección pre-compilados.');
   }
-  
+
   public onWindowResize = () => {
     const parentElement = this.sceneManager.canvas?.parentElement;
     if (!parentElement) return;
@@ -154,10 +168,13 @@ export class EngineService implements OnDestroy {
 
     this.sceneManager.onWindowResize();
     this.interactionHelperManager.updateScale();
-    this.selectionManager.setSize(newWidth, newHeight); 
+    this.selectionManager.setSize(newWidth, newHeight);
   };
-    
+
   public setActiveSelectionByUuid(uuid: string | null): void {
+    const currentUuid = this.selectedObject?.uuid;
+    if (currentUuid === uuid) return;
+
     this.selectionManager.setSelectedObjects([]);
     this.interactionHelperManager.cleanupHelpers(this.selectedObject);
     this.dragInteractionManager.stopListening();
@@ -166,7 +183,7 @@ export class EngineService implements OnDestroy {
     this.dragInteractionManager.setAxisConstraint(null);
     this.axisLockStateSubject.next(null);
     this.selectedObject = undefined;
-    
+
     this.entityManager.selectObjectByUuid(uuid, this.focusPivot);
 
     if (uuid) {
@@ -174,49 +191,50 @@ export class EngineService implements OnDestroy {
       if (!this.selectedObject) {
         this.selectedObject = this.sceneManager.scene.getObjectByName('SelectionProxy');
       }
-
       if (this.selectedObject) {
         this.selectionManager.setSelectedObjects([this.selectedObject]);
         this.setToolMode(this.controlsManager.getCurrentToolMode());
       }
     }
+    this.onObjectSelected$.next(uuid);
   }
 
-// ✨ NUEVO: Función pública para iniciar la animación de cámara
-  // ✨ CORRECCIÓN: Función focusOnObject mejorada
   public focusOnObject(uuid: string): void {
-    if (this.isCameraAnimating) return; // Prevenir iniciar una animación si otra ya está en curso
+    if (this.isCameraAnimating) return;
 
     const object = this.entityManager.getObjectByUuid(uuid);
     if (!object) return;
-  
+
+    const cameraMode = this.cameraManager.cameraMode$.getValue();
+
+    if (cameraMode === 'perspective') {
+      this.focusOnObject3D(object);
+    } else {
+      this.focusOnObject2D(object);
+    }
+  }
+
+  private focusOnObject3D(object: THREE.Object3D): void {
     const controls = this.controlsManager.getControls();
     const camera = this.sceneManager.activeCamera;
 
-    this.tempBox.setFromObject(object, true); // Usar true para obtener el bounding box del objeto y sus hijos
+    this.tempBox.setFromObject(object, true);
     if (this.tempBox.isEmpty()) {
-      // Si el objeto no tiene geometría (ej. un grupo vacío), usa su posición
       this.tempBox.setFromCenterAndSize(object.position, new THREE.Vector3(1, 1, 1));
     }
-    
+
     const targetPoint = this.tempBox.getCenter(new THREE.Vector3());
     const objectSize = this.tempBox.getSize(new THREE.Vector3()).length();
-  
-    // Calcula una distancia segura, asegurando un valor mínimo
-    const distance = Math.max(objectSize * 2.0, 10);
-    
-    // Obtener la dirección desde la cámara hacia el target actual
-    const cameraDirection = new THREE.Vector3()
-      .subVectors(camera.position, controls.target)
-      .normalize();
 
-    // Posición final de la cámara: desde el centro del objeto, muévete hacia atrás
-    // en la dirección en la que ya estaba la cámara
+    const distance = Math.max(objectSize * 2.5, 10);
+
+    const cameraDirection = new THREE.Vector3();
+    camera.getWorldDirection(cameraDirection);
+
     const finalCamPos = new THREE.Vector3()
         .copy(targetPoint)
-        .addScaledVector(cameraDirection, distance);
-  
-    // Iniciar animación
+        .addScaledVector(cameraDirection.negate(), distance);
+
     this.isCameraAnimating = true;
     this.cameraAnimationStartTime = this.clock.getElapsedTime();
     this.cameraInitialState = {
@@ -228,17 +246,81 @@ export class EngineService implements OnDestroy {
       target: targetPoint,
     };
 
-    controls.enabled = false; // Desactivar controles durante la animación
-    this.controlsManager.exitFlyMode(); // Salir del modo vuelo si estaba activo
+    controls.enabled = false;
+    this.controlsManager.exitFlyMode();
   }
+
+  // ✨ MEJORA: focusOnObject2D ahora inicia una animación en lugar de un salto
+  private focusOnObject2D(object: THREE.Object3D): void {
+    const camera = this.sceneManager.activeCamera;
+    const controls = this.controlsManager.getControls();
+    if (!(camera instanceof THREE.OrthographicCamera)) return;
+
+    this.tempBox.setFromObject(object, true);
+    if (this.tempBox.isEmpty()) {
+        this.tempBox.setFromCenterAndSize(object.position, new THREE.Vector3(1, 1, 1));
+    }
+
+    const objectCenter = this.tempBox.getCenter(new THREE.Vector3());
+    const objectSize = this.tempBox.getSize(new THREE.Vector3());
+
+    const cameraDirection = new THREE.Vector3();
+    camera.getWorldDirection(cameraDirection);
+
+    const distanceToTarget = camera.position.distanceTo(controls.target);
+    const finalCamPos = new THREE.Vector3().copy(objectCenter).addScaledVector(cameraDirection.negate(), distanceToTarget);
+
+    const aspect = (camera.right - camera.left) / (camera.top - camera.bottom);
+    const padding = 1.5;
+
+    let requiredWidth = 0, requiredHeight = 0;
+    if (Math.abs(cameraDirection.z) > 0.9) {
+        requiredWidth = objectSize.x; requiredHeight = objectSize.y;
+    } else if (Math.abs(cameraDirection.x) > 0.9) {
+        requiredWidth = objectSize.z; requiredHeight = objectSize.y;
+    } else {
+        requiredWidth = objectSize.x; requiredHeight = objectSize.z;
+    }
+
+    requiredWidth *= padding;
+    requiredHeight *= padding;
+
+    if (requiredWidth / aspect > requiredHeight) {
+        requiredHeight = requiredWidth / aspect;
+    } else {
+        requiredWidth = requiredHeight * aspect;
+    }
+
+    this.isCameraAnimating = true;
+    this.cameraAnimationStartTime = this.clock.getElapsedTime();
+
+    this.cameraInitialState = {
+        position: camera.position.clone(),
+        target: controls.target.clone(),
+        left: camera.left,
+        right: camera.right,
+        top: camera.top,
+        bottom: camera.bottom,
+    };
+
+    this.cameraAnimationTarget = {
+        position: finalCamPos,
+        target: objectCenter,
+        left: -requiredWidth / 2,
+        right: requiredWidth / 2,
+        top: requiredHeight / 2,
+        bottom: -requiredHeight / 2,
+    };
+
+    controls.enabled = false;
+  }
+
   private animate = () => {
     this.animationFrameId = requestAnimationFrame(this.animate);
     this.statsManager.begin();
     const delta = this.clock.getDelta();
-    
-    // ✨ NUEVO: Llamar a la función que actualiza la animación en cada frame
+
     this.updateCameraAnimation();
-    
     this.updateHoverEffect();
     this.adjustCameraClippingPlanes();
 
@@ -251,16 +333,15 @@ export class EngineService implements OnDestroy {
     } else {
       this.sceneManager.editorCamera.userData['helper']?.update();
     }
-    
-    // Solo actualizar controles si no hay animación
-    if (!this.cameraAnimationTarget) {
+
+    if (!this.isCameraAnimating) {
       const cameraMoved = this.controlsManager.update(delta, this.keyMap);
       if (cameraMoved) {
         this.interactionHelperManager.updateScale();
         this.cameraPositionSubject.next(this.sceneManager.activeCamera.position);
       }
     }
-    
+
     this.sceneManager.activeCamera.getWorldQuaternion(this.tempQuaternion);
     if (!this.tempQuaternion.equals(this.cameraOrientationSubject.getValue())) {
       this.cameraOrientationSubject.next(this.tempQuaternion.clone());
@@ -282,40 +363,55 @@ export class EngineService implements OnDestroy {
     this.statsManager.end();
   };
 
-  // ✨ NUEVO: Lógica de interpolación para la animación de la cámara
+  // ✨ MEJORA: El bucle de animación ahora interpola el zoom 2D
   private updateCameraAnimation(): void {
-    if (!this.cameraAnimationTarget || !this.cameraInitialState || this.cameraAnimationStartTime === null) {
+    if (!this.isCameraAnimating || !this.cameraAnimationTarget || !this.cameraInitialState || this.cameraAnimationStartTime === null) {
       return;
     }
 
     const elapsedTime = this.clock.getElapsedTime() - this.cameraAnimationStartTime;
     const progress = Math.min(elapsedTime / (this.cameraAnimationDuration / 1000), 1);
-    
-    // Easing suave (salida y entrada cuadrática) para el efecto "galáctico"
-    const alpha = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+    const alpha = progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 
     const camera = this.sceneManager.activeCamera;
     const controls = this.controlsManager.getControls();
-    
-    // Interpolar posición y target
+
     camera.position.lerpVectors(this.cameraInitialState.position, this.cameraAnimationTarget.position, alpha);
     controls.target.lerpVectors(this.cameraInitialState.target, this.cameraAnimationTarget.target, alpha);
+
+    // Si es una animación 2D, también interpolamos los límites del frustum (zoom)
+    if ('left' in this.cameraInitialState && 'left' in this.cameraAnimationTarget && camera instanceof THREE.OrthographicCamera) {
+        camera.left = THREE.MathUtils.lerp(this.cameraInitialState.left, this.cameraAnimationTarget.left, alpha);
+        camera.right = THREE.MathUtils.lerp(this.cameraInitialState.right, this.cameraAnimationTarget.right, alpha);
+        camera.top = THREE.MathUtils.lerp(this.cameraInitialState.top, this.cameraAnimationTarget.top, alpha);
+        camera.bottom = THREE.MathUtils.lerp(this.cameraInitialState.bottom, this.cameraAnimationTarget.bottom, alpha);
+        camera.updateProjectionMatrix();
+    }
+
     controls.update();
 
-    // Cuando la animación termina
     if (progress >= 1) {
       camera.position.copy(this.cameraAnimationTarget.position);
       controls.target.copy(this.cameraAnimationTarget.target);
-      controls.enabled = true; // Reactivar controles
+
+      if ('left' in this.cameraAnimationTarget && camera instanceof THREE.OrthographicCamera) {
+        camera.left = this.cameraAnimationTarget.left;
+        camera.right = this.cameraAnimationTarget.right;
+        camera.top = this.cameraAnimationTarget.top;
+        camera.bottom = this.cameraAnimationTarget.bottom;
+        camera.updateProjectionMatrix();
+      }
+
+      controls.enabled = true;
       controls.update();
 
-      // Limpiar estado de animación
+      this.isCameraAnimating = false;
       this.cameraAnimationTarget = null;
       this.cameraInitialState = null;
       this.cameraAnimationStartTime = null;
     }
   }
-
 
   private updateHoverEffect(): void {
     if (this.controlsManager.getCurrentToolMode() !== 'select' || this.cameraManager.cameraMode$.getValue() === 'orthographic') {
@@ -324,13 +420,13 @@ export class EngineService implements OnDestroy {
       this.entityManager.removeHoverProxy();
       return;
     }
-  
+
     this.raycaster.setFromCamera(this.centerScreen, this.sceneManager.activeCamera);
     const intersects = this.raycaster.intersectObjects(this.sceneManager.scene.children, true);
-    
-    const firstValidHit = intersects.find(hit => 
-        !hit.object.name.endsWith('_helper') && 
-        hit.object.name !== '' && 
+
+    const firstValidHit = intersects.find(hit =>
+        !hit.object.name.endsWith('_helper') &&
+        hit.object.name !== '' &&
         hit.object.visible &&
         !['SelectionProxy', 'HoverProxy', 'EditorGrid', 'FocusPivot'].includes(hit.object.name)
     );
@@ -339,7 +435,7 @@ export class EngineService implements OnDestroy {
       const hitObject = firstValidHit.object;
       let targetUuid: string;
       let proxyObject: THREE.Object3D;
-      
+
       if ((hitObject as THREE.InstancedMesh).isInstancedMesh && firstValidHit.instanceId !== undefined) {
           proxyObject = this.entityManager.createOrUpdateHoverProxy(hitObject as THREE.InstancedMesh, firstValidHit.instanceId);
           targetUuid = proxyObject.uuid;
@@ -362,30 +458,16 @@ export class EngineService implements OnDestroy {
   }
 
   private onCanvasMouseDown = (event: MouseEvent) => {
-    // Solo actuar en click izquierdo y si hay un objeto preseleccionado (hover)
     if (event.button === 0 && this.preselectedObject) {
       event.preventDefault();
-      
       const hoveredUuid = this.preselectedObject.uuid;
-  
-      // --- NUEVA LÓGICA DE TOGGLE ---
-      // Comprobar si el objeto clickeado es el mismo que ya está seleccionado
-      const isDeselecting = this.selectedObject?.uuid === hoveredUuid;
-  
-      // Siempre limpiar el estado de preselección (aro azul)
+
       this.selectionManager.setHoveredObjects([]);
       this.entityManager.removeHoverProxy();
-      this.preselectedObject = null; 
-  
-      if (isDeselecting) {
-        // Si es el mismo, deseleccionar
-        this.onObjectSelected$.next(null); // Notificar a la UI que no hay nada seleccionado
-        this.setActiveSelectionByUuid(null); // Quitar el aro amarillo en el motor
-      } else {
-        // Si es uno nuevo, seleccionar
-        this.onObjectSelected$.next(hoveredUuid); // Notificar a la UI la nueva selección
-        this.setActiveSelectionByUuid(hoveredUuid); // Poner el aro amarillo en el nuevo objeto
-      }
+      this.preselectedObject = null;
+
+      const newUuid = this.selectedObject?.uuid === hoveredUuid ? null : hoveredUuid;
+      this.setActiveSelectionByUuid(newUuid);
     }
   };
 
@@ -417,7 +499,7 @@ export class EngineService implements OnDestroy {
       });
     });
   }
-  
+
   private adjustCameraClippingPlanes = () => {
     const camera = this.sceneManager.activeCamera;
     if (!(camera instanceof THREE.PerspectiveCamera)) return;
@@ -538,7 +620,7 @@ export class EngineService implements OnDestroy {
         }
         continue;
       }
-      
+
       const maxScale = Math.max(data.scale.x, data.scale.y, data.scale.z);
       const startFadeDistance = maxScale * 80.0;
       const endFadeDistance = maxScale * 10.0;
@@ -574,7 +656,7 @@ export class EngineService implements OnDestroy {
     if (needsColorUpdate && instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
     if (needsMatrixUpdate) instancedMesh.instanceMatrix.needsUpdate = true;
   }
-  
+
   public toggleActiveCamera(): void { this.cameraManager.toggleActiveCamera(this.selectedObject); }
   public toggleCameraMode(): void { this.cameraManager.toggleCameraMode(); }
   public setCameraView(axisName: string | null): void { this.baseOrthoMatrixElement = this.cameraManager.setCameraView(axisName, undefined); }
@@ -630,7 +712,7 @@ export class EngineService implements OnDestroy {
   }
 
   public getCurrentToolMode = (): ToolMode => this.controlsManager.getCurrentToolMode();
-  
+
   public setGroupVisibility = (uuids: string[], visible: boolean): void => this.entityManager.setGroupVisibility(uuids, visible);
   public setGroupBrightness = (uuids: string[], brightness: number): void => this.entityManager.setGroupBrightness(uuids, brightness);
   public addObjectToScene = (objData: SceneObjectResponse) => this.entityManager.createObjectFromData(objData);
@@ -697,7 +779,7 @@ export class EngineService implements OnDestroy {
     this.controlsSubscription?.unsubscribe();
     this.sceneManager.canvas.removeEventListener('mousedown', this.onCanvasMouseDown, false);
   };
-  
+
   ngOnDestroy = () => {
     this.removeEventListeners();
     this.interactionHelperManager.cleanupHelpers(this.selectedObject);
