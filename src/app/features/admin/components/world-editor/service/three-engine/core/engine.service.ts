@@ -12,7 +12,7 @@ import { ToolMode } from '../../../toolbar/toolbar.component';
 import { SceneObjectResponse } from '../../../../../services/admin.service';
 import { InteractionHelperManagerService } from '../interactions/interaction-helper.manager.service';
 import { DragInteractionManagerService } from '../interactions/drag-interaction.manager.service';
-import { CelestialInstanceData } from '../managers/object-manager.service';
+import { CelestialInstanceData, BLOOM_LAYER } from '../managers/object-manager.service'; // <<< [NUEVO] Importar BLOOM_LAYER
 import { CameraManagerService, CameraMode } from '../managers/camera-manager.service';
 import { SelectionManagerService } from '../interactions/selection-manager.service';
 import { EventManagerService } from '../interactions/event-manager.service';
@@ -106,6 +106,8 @@ export class EngineService implements OnDestroy {
   
   private dynamicCelestialModels: THREE.Group[] = []; // Cache para modelos celestes que tienen animaciones o efectos dinámicos.
   
+  private originalSceneBackground: THREE.Color | THREE.Texture | null = null; // <<< [NUEVO] Para guardar el fondo original
+  
   /**
    * @constructor
    * Inyecta todas las dependencias de los servicios especializados y configura los observables iniciales.
@@ -162,6 +164,8 @@ export class EngineService implements OnDestroy {
     const parent = this.sceneManager.canvas.parentElement!;
     const initialSize = new THREE.Vector2(parent.clientWidth, parent.clientHeight);
     this.selectionManager.init(this.sceneManager.scene, this.sceneManager.activeCamera, initialSize);
+    
+    // <<< [MODIFICADO] Añadir los pases de Outline al compositor FINAL
     this.selectionManager.getPasses().forEach(pass => this.sceneManager.composer.addPass(pass));
 
     // 2. Inicializar el servicio de interacción, pasándole todas sus dependencias.
@@ -233,10 +237,31 @@ export class EngineService implements OnDestroy {
       if (object.userData['animationMixer']) object.userData['animationMixer'].update(delta);
     });
 
-    // Renderizar la escena
-    this.sceneManager.composer.render();
+    // --- [NUEVA LÓGICA DE RENDERIZADO] ---
+    this.renderSceneWithSelectiveBloom();
+
     this.statsManager.end();
   };
+  
+  /**
+   * @private
+   * Orquesta el renderizado en dos etapas para lograr el brillo selectivo.
+   */
+  private renderSceneWithSelectiveBloom(): void {
+    // 1. Renderizar la pasada de BLOOM
+    this.originalSceneBackground = this.sceneManager.scene.background;
+    this.sceneManager.scene.background = null; // Fondo negro para aislar los objetos que brillan
+    this.sceneManager.activeCamera.layers.set(BLOOM_LAYER); // La cámara solo ve los objetos en la capa de bloom
+    this.sceneManager.bloomComposer.render(); // Renderiza solo el bloom a su buffer interno
+
+    // 2. Restaurar el estado para renderizar la pasada FINAL
+    this.sceneManager.scene.background = this.originalSceneBackground;
+    this.sceneManager.activeCamera.layers.enableAll(); // La cámara vuelve a ver todas las capas
+
+    // 3. Renderizar la pasada FINAL (escena + outlines + mezcla de bloom)
+    this.sceneManager.composer.render();
+  }
+
 
   /**
    * Se ejecuta al destruir el componente para limpiar recursos y detener el bucle de animación.

@@ -6,6 +6,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { CelestialInstanceData } from './object-manager.service';
 
 // ====================================================================
@@ -46,6 +47,10 @@ export class SceneManagerService {
   public secondaryCamera!: THREE.PerspectiveCamera; 
   
   public bloomPass!: UnrealBloomPass;
+  
+  // <<< [NUEVO] Compositor dedicado exclusivamente a calcular el efecto de bloom
+  public bloomComposer!: EffectComposer;
+  private finalPass!: ShaderPass;
 
   // ====================================================================
   // ESTADO INTERNO
@@ -152,7 +157,7 @@ export class SceneManagerService {
       // Ajusta el tamaño del renderizador y el compositor
       this.renderer.setSize(newWidth, newHeight);
       this.composer.setSize(newWidth, newHeight);
-      this.bloomPass?.setSize(newWidth, newHeight);
+      this.bloomComposer.setSize(newWidth, newHeight); // <<< [NUEVO]
       
       // Ajusta el pixel ratio para mantener la nitidez en pantallas de alta densidad
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
@@ -236,12 +241,52 @@ export class SceneManagerService {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     
-    // Configuración del compositor de post-procesado
+    // --- [NUEVA LÓGICA DE COMPOSITORES] ---
+
+    // 1. Pase de renderizado base, que se usará en ambos compositores.
     const renderPass = new RenderPass(this.scene, this.activeCamera);
+
+    // 2. Pase de Bloom
     this.bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 1.0, 0.6, 0.85);
 
+    // 3. Compositor para el Bloom (renderiza a una textura, no a la pantalla)
+    this.bloomComposer = new EffectComposer(this.renderer);
+    this.bloomComposer.renderToScreen = false;
+    this.bloomComposer.addPass(renderPass);
+    this.bloomComposer.addPass(this.bloomPass);
+
+    // 4. Pase final que mezcla la escena base con la escena con bloom
+    this.finalPass = new ShaderPass(
+      new THREE.ShaderMaterial({
+        uniforms: {
+          baseTexture: { value: null },
+          bloomTexture: { value: this.bloomComposer.renderTarget2.texture }
+        },
+        vertexShader: `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+          }
+        `,
+        fragmentShader: `
+          uniform sampler2D baseTexture;
+          uniform sampler2D bloomTexture;
+          varying vec2 vUv;
+          void main() {
+            gl_FragColor = ( texture2D( baseTexture, vUv ) + vec4( 1.0 ) * texture2D( bloomTexture, vUv ) );
+          }
+        `
+      }), 'baseTexture'
+    );
+    this.finalPass.needsSwap = true;
+
+    // 5. Compositor final (renderiza a la pantalla)
+    // Este compositor renderizará la escena principal y luego la mezclará con el resultado del bloomComposer
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(renderPass);
-    this.composer.addPass(this.bloomPass);
+    this.composer.addPass(this.finalPass);
+    
+    // Los pases de Outline del SelectionManager se añadirán a ESTE composer en EngineService.
   }
 }

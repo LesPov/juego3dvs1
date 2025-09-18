@@ -7,6 +7,14 @@ import { environment } from '../../../../../../../../environments/environment';
 import { SceneObjectResponse } from '../../../../../services/admin.service';
 
 /**
+ * @constant BLOOM_LAYER
+ * @description
+ * Define la capa de renderizado para los objetos que deben ser procesados por el `UnrealBloomPass`.
+ * Los objetos que no estén en esta capa no generarán el efecto de brillo (bloom).
+ */
+export const BLOOM_LAYER = 1;
+
+/**
  * @interface CelestialInstanceData
  * @description Almacena toda la información relevante de una sola instancia dentro de un `InstancedMesh`.
  * Esto evita tener que acceder a datos de la API repetidamente y permite mantener estados
@@ -208,7 +216,10 @@ export class ObjectManagerService {
     gltf.scene.userData['originalEmissiveIntensity'] = farIntensity;
     gltf.scene.userData['baseEmissiveIntensity'] = 0.5;
 
+    // <<< [NUEVO] Habilitar la capa de BLOOM para este objeto y todos sus hijos.
+    gltf.scene.layers.enable(BLOOM_LAYER);
     gltf.scene.traverse(child => {
+      child.layers.enable(BLOOM_LAYER); // Asegurarse de que todos los hijos también brillen
       if (child instanceof THREE.Mesh && child.material) {
         const processMaterial = (material: THREE.Material): THREE.Material => {
           const newMaterial = material.clone();
@@ -228,6 +239,7 @@ export class ObjectManagerService {
     const lightDistance = Math.max(objData.scale.x, objData.scale.y, objData.scale.z) * 50;
     const coreLight = new THREE.PointLight(auraColor, lightPower, lightDistance);
     coreLight.name = `${objData.name}_CoreLight`;
+    coreLight.layers.enable(BLOOM_LAYER); // La luz también debe estar en la capa de bloom
     gltf.scene.add(coreLight);
     this._setupAnimations(gltf);
   }
@@ -260,6 +272,7 @@ export class ObjectManagerService {
     
     instancedMesh.name = `CelestialObjects_Texture_${texturePath.replace(/[^a-zA-Z0-9]/g, '_')}`;
     instancedMesh.frustumCulled = false;
+    instancedMesh.layers.enable(BLOOM_LAYER); // <<< [NUEVO] Habilitar la capa de BLOOM
     this._populateInstanceData(instancedMesh, objectsData);
     scene.add(instancedMesh);
   }
@@ -271,6 +284,7 @@ export class ObjectManagerService {
 
     instancedMesh.name = 'CelestialObjects_Default';
     instancedMesh.frustumCulled = false;
+    instancedMesh.layers.enable(BLOOM_LAYER); // <<< [NUEVO] Habilitar la capa de BLOOM
     this._populateInstanceData(instancedMesh, objectsData);
     scene.add(instancedMesh);
   }
