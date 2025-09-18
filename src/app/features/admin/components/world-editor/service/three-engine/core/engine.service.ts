@@ -204,8 +204,6 @@ export class EngineService implements OnDestroy {
     const currentUuid = this.selectedObject?.uuid;
     if (currentUuid === uuid) return;
     
-    // ✨ LÓGICA DE ETIQUETA SIMPLIFICADA ✨
-    // Oculta la etiqueta anterior solo si no es la misma que la que se va a mostrar ahora (caso de hover -> select).
     if (currentUuid && currentUuid !== uuid) {
         this.labelManager.hideLabel(currentUuid);
     }
@@ -226,8 +224,6 @@ export class EngineService implements OnDestroy {
         this.interactionService.setSelectedObject(this.selectedObject);
         this.selectionManager.setSelectedObjects([this.selectedObject]);
         this.interactionService.setToolMode(this.controlsManager.getCurrentToolMode());
-
-        // Muestra la nueva etiqueta. Si ya estaba visible por el hover, esta llamada no hará nada.
         this.labelManager.showLabel(uuid);
       }
     }
@@ -321,7 +317,6 @@ export class EngineService implements OnDestroy {
     if (!hasModelsToLoad && loadingManager.onLoad) setTimeout(() => loadingManager.onLoad!(), 0);
   }
   
-  // ✨ --- LÓGICA DE CÁMARA MEJORADA --- ✨
   private adjustCameraClippingPlanes = () => {
     const camera = this.sceneManager.activeCamera as THREE.PerspectiveCamera;
     if (!camera.isPerspectiveCamera) return;
@@ -333,8 +328,6 @@ export class EngineService implements OnDestroy {
     this.tempBox.setFromObject(this.selectedObject ?? this.focusPivot, true);
     const objectSize = this.tempBox.getSize(this.tempVec3).length();
     
-    // Si hay un objeto seleccionado, el near plane se vuelve mucho más pequeño para evitar cortarlo.
-    // Si no hay nada seleccionado, usa una fórmula más conservadora.
     let newNear: number;
     if (this.selectedObject && objectSize > 0) {
       newNear = Math.min(distanceToTarget * 0.1, objectSize * 0.05);
@@ -343,7 +336,6 @@ export class EngineService implements OnDestroy {
     }
     newNear = THREE.MathUtils.clamp(newNear, 0.01, 1000);
 
-    // El far plane siempre se asegura de cubrir más allá del target.
     let newFar = Math.max(distanceToTarget * 2.5, camera.userData['originalFar'] || 1e15);
     
     if (newFar <= newNear) newFar = newNear * 2;
@@ -420,22 +412,18 @@ export class EngineService implements OnDestroy {
     return distance <= (personalVisibilityDist * visibilityFactor);
   }
 
-  // ✨ --- LÓGICA DE BRILLO MEJORADA --- ✨
   private _calculateInstanceIntensity(data: CelestialInstanceData, camera: THREE.Camera, isOrthographic: boolean, bloomDampeningFactor: number): number {
     const distance = data.position.distanceTo(camera.position);
     const maxScale = Math.max(data.scale.x, data.scale.y, data.scale.z);
 
-    // Factor de atenuación basado en la distancia lejana.
     const falloff = THREE.MathUtils.clamp(THREE.MathUtils.inverseLerp(maxScale * 80.0, maxScale * 10.0, distance), 0.0, 1.0);
     const targetIntensity = THREE.MathUtils.lerp(data.emissiveIntensity, data.baseEmissiveIntensity, falloff);
     
-    // NUEVO: Factor de atenuación basado en la proximidad para evitar brillo excesivo.
     const proximityFade = THREE.MathUtils.smoothstep(distance, maxScale * 1.5, maxScale * 3.0);
     
     return Math.min(targetIntensity, MAX_INTENSITY) * bloomDampeningFactor * data.brightness * proximityFade;
   }
   
-  // ✨ --- LÓGICA DE BRILLO MEJORADA (PARA MODELOS) --- ✨
   private updateDynamicCelestialModels(delta: number): void {
       this.dynamicCelestialModels.forEach(model => {
           if (!model.userData['isDynamicCelestialModel']) return;
@@ -447,7 +435,6 @@ export class EngineService implements OnDestroy {
           const fadeFactor = THREE.MathUtils.clamp(THREE.MathUtils.inverseLerp(maxScale * 80.0, maxScale * 10.0, distance), 0.0, 1.0);
           let targetIntensity = THREE.MathUtils.lerp(originalIntensity, baseIntensity, fadeFactor);
           
-          // NUEVO: Factor de atenuación basado en la proximidad.
           const proximityFade = THREE.MathUtils.smoothstep(distance, maxScale * 1.5, maxScale * 3.0);
           targetIntensity *= proximityFade;
 

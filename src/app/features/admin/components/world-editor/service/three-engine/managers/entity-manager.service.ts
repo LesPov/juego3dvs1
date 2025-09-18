@@ -158,7 +158,6 @@ export class EntityManagerService {
       this.hoverProxy.uuid = data.originalUuid;
 
       if (this.lastHoveredUuid && this.lastHoveredUuid !== data.originalUuid) {
-        // Solo oculta la etiqueta anterior si NO está actualmente seleccionada.
         const isSelected = this.selectionManager.isObjectSelected(this.lastHoveredUuid);
         if (!isSelected) {
             this.labelManager.hideLabel(this.lastHoveredUuid);
@@ -172,7 +171,6 @@ export class EntityManagerService {
 
   public removeHoverProxy(): void {
     if (this.lastHoveredUuid) {
-        // Al quitar el hover, solo oculta la etiqueta si el objeto NO está seleccionado.
         const isSelected = this.selectionManager.isObjectSelected(this.lastHoveredUuid);
         if (!isSelected) {
             this.labelManager.hideLabel(this.lastHoveredUuid);
