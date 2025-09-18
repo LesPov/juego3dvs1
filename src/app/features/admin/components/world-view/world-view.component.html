@@ -59,7 +59,7 @@
         <div class="crosshair-line vertical"></div>
       </div>
       <app-scene [initialObjects]="sceneObjects" (loadingProgress)="handleLoadingProgress($event)"
-        (loadingComplete)="handleSceneAssetsLoaded()" 
+        (loadingComplete)="handleSceneAssetsLoaded()"
         [style.visibility]="isRenderingScene ? 'hidden' : 'visible'"></app-scene>
       <app-brujula></app-brujula>
     </div>
@@ -68,11 +68,10 @@
     <!-- ✨ NUEVO: BARRA DE HERRAMIENTAS INFERIOR CONTEXTUAL CON *ngIf ✨ -->
     <!-- ============================================================== -->
     <div *ngIf="selectedEntityUuid" class="scene-bottom-toolbar">
-      <div class="toolbar-section">Sección 1</div>
+      <div class="toolbar-section"> <button class="focus-button" (click)="onFocusObject()">Acercarse</button>
+      </div>
       <div class="toolbar-section">Sección 2</div>
-      <div class="toolbar-section center">
-        <!-- ✨ NUEVO: Botón actualizado con nueva clase, texto y evento (click) -->
-        <button class="focus-button" (click)="onFocusObject()">Acercarse</button>
+      <div class="toolbar-section center">Sección 3
       </div>
       <div class="toolbar-section">Sección 4</div>
       <div class="toolbar-section">Sección 5</div>
@@ -91,19 +90,21 @@
     </div>
     <!-- Ocultar la barra de búsqueda si hay algo seleccionado -->
     <div class="search-bar-container" *ngIf="!selectedEntityUuid">
-      <input type="text" class="search-input" placeholder=" Buscar por nombre..."
-        [ngModel]="searchFilter" (ngModelChange)="onSearchChange($event)">
+      <input type="text" class="search-input" placeholder=" Buscar por nombre..." [ngModel]="searchFilter"
+        (ngModelChange)="onSearchChange($event)">
     </div>
     <div class="panel-content scrollable" cdkDropListGroup>
       <ng-container *ngIf="displayGroups$ | async as groups">
         <div *ngIf="groups.length > 0; else noResults">
           <div *ngFor="let group of groups; trackBy: trackByGroupType" class="object-group">
             <!-- Ocultar controles de grupo si hay algo seleccionado -->
-            <div class="group-header" (click)="!selectedEntityUuid && toggleGroup(group)" [class.group-hidden]="!group.isGroupVisible" [class.no-hover]="selectedEntityUuid">
+            <div class="group-header" (click)="!selectedEntityUuid && toggleGroup(group)"
+              [class.group-hidden]="!group.isGroupVisible" [class.no-hover]="selectedEntityUuid">
               <span class="group-toggle-icon" *ngIf="!selectedEntityUuid">{{ group.isExpanded ? '▼' : '▶' }}</span>
               <span class="group-name">{{ group.type }}</span>
               <span class="group-count" *ngIf="!selectedEntityUuid">({{ group.totalCount }})</span>
-              <button *ngIf="!selectedEntityUuid" class="group-visibility-toggle" (click)="toggleGroupVisibility(group, $event)"
+              <button *ngIf="!selectedEntityUuid" class="group-visibility-toggle"
+                (click)="toggleGroupVisibility(group, $event)"
                 [title]="group.isGroupVisible ? 'Ocultar grupo' : 'Mostrar grupo'">
                 <span *ngIf="group.isGroupVisible" class="icon-eye-open"></span>
                 <span *ngIf="!group.isGroupVisible" class="icon-eye-closed"></span>
@@ -112,7 +113,8 @@
             <ng-container *ngIf="group.isExpanded">
               <div class="group-controls" *ngIf="!selectedEntityUuid">
                 <span class="brightness-icon"></span>
-                <input type="range" class="brightness-slider" min="0" max="1" step="0.01" [value]="group.brightness" (input)="onGroupBrightnessChange(group, $event)" (click)="$event.stopPropagation()">
+                <input type="range" class="brightness-slider" min="0" max="1" step="0.01" [value]="group.brightness"
+                  (input)="onGroupBrightnessChange(group, $event)" (click)="$event.stopPropagation()">
               </div>
               <ul class="scene-object-list" cdkDropList [cdkDropListData]="group.visibleEntities"
                 (cdkDropListDropped)="onDrop($event)">
@@ -125,7 +127,8 @@
                 </li>
               </ul>
               <div class="list-loader" *ngIf="!selectedEntityUuid && group.visibleEntities.length < group.totalCount">
-                <button (click)="showMoreInGroup(group)" class="show-more-button">Cargar Más ({{ group.visibleEntities.length }} / {{ group.totalCount }})</button>
+                <button (click)="showMoreInGroup(group)" class="show-more-button">Cargar Más ({{
+                  group.visibleEntities.length }} / {{ group.totalCount }})</button>
               </div>
             </ng-container>
           </div>

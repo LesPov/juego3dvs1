@@ -207,7 +207,13 @@ export class ObjectManagerService {
     }
     
     const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
-    const instancedMesh = new THREE.InstancedMesh(this.sharedPlaneGeometry, material, objectsData.length);
+    
+    // ====================================================================
+    // --- ✨ MEJORA APLICADA AQUÍ ✨ ---
+    // Se usa la misma geometría de círculo que los objetos por defecto.
+    // Esto asegura que la escala se aplique de forma consistente y visualmente correcta.
+    // ====================================================================
+    const instancedMesh = new THREE.InstancedMesh(this.sharedCircleGeometry, material, objectsData.length);
     
     instancedMesh.name = `CelestialObjects_Texture_${texturePath.replace(/[^a-zA-Z0-9]/g, '_')}`;
     instancedMesh.frustumCulled = false;
