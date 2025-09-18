@@ -1,10 +1,9 @@
-// src/app/features/admin/views/world-editor/world-view/service/three-engine/managers/object-manager.service.ts
-
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { GLTFLoader, GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { environment } from '../../../../../../../../environments/environment';
 import { SceneObjectResponse } from '../../../../../services/admin.service';
+import { LabelManagerService } from './label-manager.service';
 
 /**
  * @constant BLOOM_LAYER
@@ -56,57 +55,23 @@ function sanitizeHexColor(color: any, defaultColor: string = '#ffffff'): string 
  * Este servicio es la **fábrica** de objetos del motor 3D. Su única responsabilidad es
  * crear objetos de Three.js (`THREE.Object3D`) a partir de los datos crudos
  * que provienen de la API (`SceneObjectResponse`).
- *
- * Funciones clave:
- * - Es el único lugar que sabe cómo interpretar los diferentes `type` de la API para crear la geometría y material correctos.
- * - Centraliza la creación de `InstancedMesh` para renderizar de forma ultra-eficiente miles de objetos celestes.
- * - Maneja la carga de modelos 3D (`.glb`), texturas y otros assets.
- * - Optimiza la creación de billboards (galaxias, meteoros) usando geometrías compartidas para ahorrar memoria y garantizar consistencia visual.
- * - Proporciona métodos para crear objetos de ayuda como el `SelectionProxy`.
  */
 @Injectable({ providedIn: 'root' })
 export class ObjectManagerService {
 
-  // ====================================================================
-  // ESTADO Y CONFIGURACIÓN
-  // ====================================================================
-
-  /** URL base del backend para cargar assets. */
   private readonly backendUrl = environment.endpoint.endsWith('/')
     ? environment.endpoint.slice(0, -1)
     : environment.endpoint;
 
-  /** Gestor de carga de texturas de Three.js. */
   private textureLoader = new THREE.TextureLoader();
-  /** Caché para evitar recargar la misma textura múltiples veces. */
   private textureCache = new Map<string, THREE.Texture>();
-  /** Textura de "glow" genérica, creada una sola vez y reutilizada. */
   private glowTexture: THREE.CanvasTexture | null = null;
   
-  /**
-   * --- OPTIMIZACIÓN CLAVE ---
-   * Geometrías compartidas para todos los billboards. Se crean una sola vez.
-   * Cualquier InstancedMesh o SelectionProxy/HoverProxy que represente un billboard
-   * usará una referencia a estas geometrías. Esto:
-   * 1. Ahorra memoria significativamente.
-   * 2. Garantiza que la geometría del proxy de selección coincida *perfectamente*
-   *    con la del objeto instanciado, solucionando problemas de contorno.
-   */
   private sharedPlaneGeometry = new THREE.PlaneGeometry(1, 1);
   private sharedCircleGeometry = new THREE.CircleGeometry(6.0, 32);
 
-  // ====================================================================
-  // PUNTOS DE ENTRADA (MÉTODOS PÚBLICOS DE CREACIÓN)
-  // ====================================================================
+  constructor(private labelManager: LabelManagerService) {}
 
-  /**
-   * Punto de entrada principal para crear un **único objeto** en la escena.
-   * Delega la creación al método específico según el `type` del objeto.
-   * @param scene - La escena de Three.js donde se añadirá el objeto.
-   * @param objData - Los datos del objeto provenientes de la API.
-   * @param loader - El cargador de GLTF, proporcionado por `EntityManager`.
-   * @returns La referencia al `THREE.Object3D` creado, o `null` si el tipo no es manejado.
-   */
   public createObjectFromData(scene: THREE.Scene, objData: SceneObjectResponse, loader: GLTFLoader): THREE.Object3D | null {
     let createdObject: THREE.Object3D | null = null;
     switch (objData.type) {
@@ -134,33 +99,28 @@ export class ObjectManagerService {
         console.warn(`[ObjectManager] Tipo '${objData.type}' no manejado y será ignorado.`);
         break;
     }
+
+    // ✨ REGISTRAR OBJETO EN EL LABEL MANAGER ✨
+    if (createdObject) {
+      this.labelManager.registerObject(createdObject);
+    }
+    
     return createdObject;
   }
 
-  /**
-   * Crea eficientemente **miles de objetos celestes** (billboards) usando `InstancedMesh`.
-   * Agrupa los objetos por su textura para crear un `InstancedMesh` por cada textura diferente,
-   * optimizando las llamadas de dibujado (draw calls).
-   * @param scene - La escena donde se añadirán los `InstancedMesh`.
-   * @param objectsData - Un array con los datos de todos los objetos celestes a crear.
-   * @param loader - El cargador de GLTF.
-   */
   public createCelestialObjectsInstanced(scene: THREE.Scene, objectsData: SceneObjectResponse[], loader: GLTFLoader): void {
     if (!objectsData.length) return;
 
-    // Separa objetos que son modelos 3D completos de los que son billboards.
     const modelBasedCelestials = objectsData.filter(obj => obj.asset?.type === 'model_glb');
     const billboardCelestials = objectsData.filter(obj => obj.asset?.type !== 'model_glb');
     
-    // Los modelos se cargan individualmente.
     if (modelBasedCelestials.length > 0) {
       modelBasedCelestials.forEach(objData => this.loadGltfModel(scene, objData, loader));
     }
     
-    // Los billboards se agrupan por asset para instanciar.
     if (billboardCelestials.length > 0) {
       const groupedObjects = new Map<string, SceneObjectResponse[]>();
-      groupedObjects.set('__DEFAULT__', []); // Grupo para objetos sin textura específica (usarán el glow genérico).
+      groupedObjects.set('__DEFAULT__', []);
 
       for (const obj of billboardCelestials) {
         const assetPath = (obj.asset?.type === 'texture_png' || obj.asset?.type === 'texture_jpg') ? obj.asset.path : null;
@@ -181,16 +141,6 @@ export class ObjectManagerService {
     }
   }
 
-  // ====================================================================
-  // CREACIÓN DE MODELOS 3D (GLTF)
-  // ====================================================================
-
-  /**
-   * Carga y configura un modelo 3D desde un archivo `.glb`.
-   * @param scene - La escena.
-   * @param objData - Datos del modelo.
-   * @param loader - El cargador GLTF.
-   */
   private loadGltfModel(scene: THREE.Scene, objData: SceneObjectResponse, loader: GLTFLoader): void {
     if (!objData.asset?.path) {
       console.error(`[ObjectManager] '${objData.name}' es un modelo pero no tiene asset válido.`);
@@ -200,31 +150,26 @@ export class ObjectManagerService {
     loader.load( modelUrl, (gltf) => {
       this._setupCelestialModel(gltf, objData);
       this.applyTransformations(gltf.scene, objData);
+      // ✨ REGISTRAR MODELO EN EL LABEL MANAGER ✨
+      this.labelManager.registerObject(gltf.scene);
       scene.add(gltf.scene);
     });
   }
 
-  /**
-   * Aplica configuraciones específicas a un modelo 3D recién cargado para integrarlo visualmente en la escena.
-   * (Efectos de brillo, materiales, luces, etc.).
-   * @param gltf - El objeto GLTF cargado.
-   * @param objData - Datos del objeto.
-   */
   private _setupCelestialModel(gltf: GLTF, objData: SceneObjectResponse): void {
     const farIntensity = THREE.MathUtils.clamp(objData.emissiveIntensity, 1.0, 7.0);
     gltf.scene.userData['isDynamicCelestialModel'] = true;
     gltf.scene.userData['originalEmissiveIntensity'] = farIntensity;
     gltf.scene.userData['baseEmissiveIntensity'] = 0.5;
 
-    // <<< [NUEVO] Habilitar la capa de BLOOM para este objeto y todos sus hijos.
     gltf.scene.layers.enable(BLOOM_LAYER);
     gltf.scene.traverse(child => {
-      child.layers.enable(BLOOM_LAYER); // Asegurarse de que todos los hijos también brillen
+      child.layers.enable(BLOOM_LAYER);
       if (child instanceof THREE.Mesh && child.material) {
         const processMaterial = (material: THREE.Material): THREE.Material => {
           const newMaterial = material.clone();
           if (newMaterial instanceof THREE.MeshStandardMaterial || newMaterial instanceof THREE.MeshPhysicalMaterial) {
-            newMaterial.emissive = new THREE.Color(0xffffff); // Forzar blanco para controlar con intensity
+            newMaterial.emissive = new THREE.Color(0xffffff);
             newMaterial.emissiveMap = newMaterial.map;
             newMaterial.emissiveIntensity = farIntensity;
           }
@@ -239,12 +184,11 @@ export class ObjectManagerService {
     const lightDistance = Math.max(objData.scale.x, objData.scale.y, objData.scale.z) * 50;
     const coreLight = new THREE.PointLight(auraColor, lightPower, lightDistance);
     coreLight.name = `${objData.name}_CoreLight`;
-    coreLight.layers.enable(BLOOM_LAYER); // La luz también debe estar en la capa de bloom
+    coreLight.layers.enable(BLOOM_LAYER);
     gltf.scene.add(coreLight);
     this._setupAnimations(gltf);
   }
 
-  /** Activa todas las animaciones incluidas en un modelo GLTF. */
   private _setupAnimations(gltf: GLTF): void {
     if (gltf.animations?.length > 0) {
       const mixer = new THREE.AnimationMixer(gltf.scene);
@@ -253,11 +197,6 @@ export class ObjectManagerService {
     }
   }
 
-  // ====================================================================
-  // CREACIÓN DE OBJETOS INSTANCIADOS (Billboards)
-  // ====================================================================
-
-  /** Crea un `InstancedMesh` para billboards que usan una textura específica. */
   private _createTexturedInstancedMesh(scene: THREE.Scene, objectsData: SceneObjectResponse[], texturePath: string): void {
     const textureUrl = `${this.backendUrl}${texturePath}`;
     let texture = this.textureCache.get(textureUrl);
@@ -272,29 +211,22 @@ export class ObjectManagerService {
     
     instancedMesh.name = `CelestialObjects_Texture_${texturePath.replace(/[^a-zA-Z0-9]/g, '_')}`;
     instancedMesh.frustumCulled = false;
-    instancedMesh.layers.enable(BLOOM_LAYER); // <<< [NUEVO] Habilitar la capa de BLOOM
+    instancedMesh.layers.enable(BLOOM_LAYER);
     this._populateInstanceData(instancedMesh, objectsData);
     scene.add(instancedMesh);
   }
 
-  /** Crea un `InstancedMesh` para billboards que no tienen textura y usan un "glow" genérico. */
   private _createDefaultGlowInstancedMesh(scene: THREE.Scene, objectsData: SceneObjectResponse[]): void {
     const material = new THREE.MeshBasicMaterial({ map: this._createGlowTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
     const instancedMesh = new THREE.InstancedMesh(this.sharedCircleGeometry, material, objectsData.length);
 
     instancedMesh.name = 'CelestialObjects_Default';
     instancedMesh.frustumCulled = false;
-    instancedMesh.layers.enable(BLOOM_LAYER); // <<< [NUEVO] Habilitar la capa de BLOOM
+    instancedMesh.layers.enable(BLOOM_LAYER);
     this._populateInstanceData(instancedMesh, objectsData);
     scene.add(instancedMesh);
   }
 
-  /**
-   * Itera sobre los datos de los objetos y configura las matrices de transformación,
-   * colores y datos personalizados para cada instancia dentro de un `InstancedMesh`.
-   * @param instancedMesh - El mesh que se va a poblar.
-   * @param objectsData - Los datos de los objetos a instanciar.
-   */
   private _populateInstanceData(instancedMesh: THREE.InstancedMesh, objectsData: SceneObjectResponse[]): void {
     const celestialData: CelestialInstanceData[] = [];
     instancedMesh.userData['celestialData'] = celestialData;
@@ -306,16 +238,16 @@ export class ObjectManagerService {
       const visualColor = new THREE.Color(sanitizeHexColor(objData.emissiveColor));
 
       position.set(objData.position.x, objData.position.y, objData.position.z);
-      quaternion.identity(); // Billboards no rotan.
+      quaternion.identity();
       scale.set(objData.scale.x, objData.scale.y, objData.scale.z);
       matrix.compose(position, quaternion, scale);
       instancedMesh.setMatrixAt(i, matrix);
-      instancedMesh.setColorAt(i, new THREE.Color(0x000000)); // Se inicia invisible, el color lo controla el Engine.
+      instancedMesh.setColorAt(i, new THREE.Color(0x000000));
 
       const scaleLuminosity = Math.max(1.0, objData.scale.x / 600.0);
       const dominantBoost = (objData.isDominant ?? false) ? 5.0 : 1.0;
 
-      celestialData.push({
+      const instanceData: CelestialInstanceData = {
           originalColor: visualColor.clone(),
           emissiveIntensity: THREE.MathUtils.clamp(objData.emissiveIntensity, 1.0, 5.0),
           baseEmissiveIntensity: 1.0,
@@ -330,17 +262,16 @@ export class ObjectManagerService {
           type: objData.type,
           isManuallyHidden: false,
           brightness: 1.0
-      });
+      };
+      celestialData.push(instanceData);
+
+      // ✨ REGISTRAR CADA INSTANCIA EN EL LABEL MANAGER ✨
+      this.labelManager.registerInstancedObject(instanceData);
     }
     instancedMesh.instanceMatrix.needsUpdate = true;
     if (instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
   }
   
-  // ====================================================================
-  // CREACIÓN DE OBJETOS BÁSICOS Y DE AYUDA
-  // ====================================================================
-
-  /** Crea una cámara de Three.js y su helper visual. */
   private createCamera(scene: THREE.Scene, objData: SceneObjectResponse): THREE.PerspectiveCamera {
     const props = objData.properties || {};
     const camera = new THREE.PerspectiveCamera(props['fov'] ?? 50, 16 / 9, props['near'] ?? 0.1, props['far'] ?? 1000);
@@ -352,7 +283,6 @@ export class ObjectManagerService {
     return camera;
   }
 
-  /** Crea una luz direccional de Three.js y su helper visual. */
   private createDirectionalLight(scene: THREE.Scene, objData: SceneObjectResponse): THREE.DirectionalLight {
     const props = objData.properties || {};
     const light = new THREE.DirectionalLight(new THREE.Color(sanitizeHexColor(props['color'])), props['intensity'] ?? 1.0);
@@ -364,7 +294,6 @@ export class ObjectManagerService {
     return light;
   }
   
-  /** Crea una primitiva geométrica estándar (cubo, esfera, etc.). */
   private createStandardPrimitive(scene: THREE.Scene, objData: SceneObjectResponse): THREE.Mesh {
     const properties = objData.properties || {};
     const color = new THREE.Color(sanitizeHexColor(properties['color']));
@@ -384,7 +313,6 @@ export class ObjectManagerService {
     return mesh;
   }
 
-  /** Crea una primitiva de "agujero negro" (una esfera negra simple). */
   private createBlackHolePrimitive(scene: THREE.Scene, objData: SceneObjectResponse): THREE.Mesh {
     const geometry = new THREE.SphereGeometry(0.5, 32, 16);
     const material = new THREE.MeshBasicMaterial({ color: 0x000000 });
@@ -393,18 +321,7 @@ export class ObjectManagerService {
     scene.add(mesh);
     return mesh;
   }
-
-  // ====================================================================
-  // UTILIDADES Y HELPERS
-  // ====================================================================
   
-  /**
-   * Crea un mesh "proxy" invisible. Usado para la selección y el hover, su contorno
-   * se hace visible a través de un `OutlinePass`.
-   * @param geometry - La geometría a usar. Por defecto es una esfera, pero para billboards
-   * se le pasará una de las geometrías compartidas (`sharedPlaneGeometry` o `sharedCircleGeometry`).
-   * @returns Un nuevo `THREE.Mesh` que actúa como proxy.
-   */
   public createSelectionProxy(geometry: THREE.BufferGeometry = new THREE.SphereGeometry(1.1, 16, 8)): THREE.Mesh {
     const proxyMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0, depthWrite: false });
     const proxyMesh = new THREE.Mesh(geometry, proxyMaterial);
@@ -412,18 +329,10 @@ export class ObjectManagerService {
     return proxyMesh;
   }
   
-  /**
-   * Comprueba si una geometría es una de las instancias compartidas.
-   * Crucial para que `EntityManager` no intente liberar la memoria de una geometría que está
-   * siendo usada por potencialmente miles de objetos.
-   * @param geometry - La geometría a comprobar.
-   * @returns `true` si la geometría es compartida.
-   */
   public isSharedGeometry(geometry: THREE.BufferGeometry): boolean {
     return geometry === this.sharedCircleGeometry || geometry === this.sharedPlaneGeometry;
   }
 
-  /** Crea (una vez) y devuelve una textura de resplandor radial generada por programación. */
   private _createGlowTexture(): THREE.CanvasTexture {
     if (this.glowTexture) return this.glowTexture;
     const canvas = document.createElement('canvas');
@@ -441,12 +350,6 @@ export class ObjectManagerService {
     return this.glowTexture;
   }
   
-  /**
-   * Aplica las transformaciones básicas (posición, rotación, escala), nombre, UUID y
-   * otros metadatos a cualquier `THREE.Object3D`.
-   * @param object - El objeto 3D al que aplicar las transformaciones.
-   * @param data - Los datos de la API que contienen la información.
-   */
   private applyTransformations(object: THREE.Object3D, data: SceneObjectResponse): void {
     object.name = data.name;
     object.uuid = data.id.toString();
