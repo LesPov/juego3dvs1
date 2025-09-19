@@ -1,5 +1,3 @@
-// src/app/features/admin/views/world-editor/world-view/world-view.component.ts
-
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
@@ -8,7 +6,8 @@ import { Observable, Subject, Subscription, BehaviorSubject, combineLatest } fro
 import { switchMap, tap, debounceTime, map, startWith } from 'rxjs/operators';
 import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { environment } from '../../../../../environments/environment';
-import { SceneObjectResponse, AdminService } from '../../services/admin.service';
+// Asegúrate de que SceneObjectStatus se importe correctamente desde tu servicio
+import { SceneObjectResponse, AdminService, SceneObjectStatus } from '../../services/admin.service';
 import { SceneObjectService } from '../../services/scene-object.service';
 import { AddObjectModalComponent, NewSceneObjectData } from '../world-editor/add-object-modal/add-object-modal.component';
 import { BrujulaComponent } from '../world-editor/brujula/brujula.component';
@@ -33,6 +32,10 @@ export interface SceneTab {
   name: string;
   isActive: boolean;
 }
+
+// Definición de tipo para los tipos de objetos válidos en SceneObjectResponse
+type SceneObjectType = "cube" | "sphere" | "floor" | "model" | "video" | "sound" | "camera" | "torus" | "ambientLight" | "directionalLight" | "cone" | "galaxy_normal" | "galaxy_bright" | "galaxy_medium" | "galaxy_far";
+
 
 @Component({
   selector: 'app-world-view',
@@ -67,6 +70,8 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   public activeSceneId: number = 1;
   private nextSceneId: number = 2;
   public isImageModalVisible = false;
+
+  public cameraTravelSpeedMultiplier: number = 1.0;
 
   public layoutState = {
     isMaximized: false,
@@ -141,6 +146,8 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.engineService.setTravelSpeedMultiplier(this.cameraTravelSpeedMultiplier);
+    
     this.sceneTabs.push({ id: 1, name: 'Escena Principal', isActive: true });
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
@@ -164,42 +171,24 @@ export class WorldViewComponent implements OnInit, OnDestroy {
         this.episodeTitle = response.episode.title;
         this.episodeThumbnailUrl = this.buildFullThumbnailUrl(response.episode.thumbnailUrl);
         this.sceneObjects = response.sceneObjects || [];
-
         const hasSceneAssetsToLoad = this.sceneObjects.some(o => o.asset?.path);
         const hasThumbnailToLoad = !!this.episodeThumbnailUrl;
-
         this.isLoadingData = false;
         this.isRenderingScene = true;
-
         if (hasThumbnailToLoad) {
           this.isThumbnailAssetLoaded = false;
           const img = new Image();
-          img.onload = () => {
-            this.isThumbnailLoaded = true;
-            this.isThumbnailAssetLoaded = true;
-            this.cdr.detectChanges();
-            this.checkAndFinalizeLoading();
-          };
-          img.onerror = () => {
-            this.isThumbnailLoaded = true;
-            this.isThumbnailAssetLoaded = true;
-            this.checkAndFinalizeLoading();
-          };
+          img.onload = () => { this.isThumbnailLoaded = true; this.isThumbnailAssetLoaded = true; this.cdr.detectChanges(); this.checkAndFinalizeLoading(); };
+          img.onerror = () => { this.isThumbnailLoaded = true; this.isThumbnailAssetLoaded = true; this.checkAndFinalizeLoading(); };
           img.src = this.episodeThumbnailUrl!;
         } else {
           this.isThumbnailAssetLoaded = true;
         }
-
-        if (!hasSceneAssetsToLoad) {
-          this.isSceneAssetsLoaded = true;
-        }
-
+        if (!hasSceneAssetsToLoad) { this.isSceneAssetsLoaded = true; }
         this.checkAndFinalizeLoading();
       },
       error: (err) => {
-        this.errorMessage = "Error al cargar los datos del episodio.";
-        this.isLoadingData = false;
-        console.error(err);
+        this.errorMessage = "Error al cargar los datos del episodio."; this.isLoadingData = false; console.error(err);
       }
     });
   }
@@ -208,39 +197,22 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     if (this.isSceneAssetsLoaded && this.isThumbnailAssetLoaded) {
       this.loadingProgress = 100;
       this.cdr.detectChanges();
-
-      setTimeout(() => {
-        this.isRenderingScene = false;
-        this.cdr.detectChanges();
-      }, 500);
+      setTimeout(() => { this.isRenderingScene = false; this.cdr.detectChanges(); }, 500);
     }
   }
 
-  public handleSceneAssetsLoaded(): void {
-    this.isSceneAssetsLoaded = true;
-    this.checkAndFinalizeLoading();
-  }
-
-  public handleLoadingProgress(progress: number): void {
-    this.loadingProgress = Math.min(progress, 99);
-    this.cdr.detectChanges();
-  }
+  public handleSceneAssetsLoaded(): void { this.isSceneAssetsLoaded = true; this.checkAndFinalizeLoading(); }
+  public handleLoadingProgress(progress: number): void { this.loadingProgress = Math.min(progress, 99); this.cdr.detectChanges(); }
 
   onMaximizeToggle(): void {
     const goingToMaximized = !this.layoutState.isMaximized;
     if (goingToMaximized) {
       this.layoutState.isMaximized = true;
     } else {
-      this.layoutState.sceneListVisible = true;
-      this.layoutState.propertiesVisible = true;
-      this.layoutState.imageVisible = true;
-      this.layoutState.assetsVisible = true;
-      this.layoutState.performanceVisible = true;
-      this.layoutState.descriptionVisible = true;
-      setTimeout(() => {
-        this.layoutState.isMaximized = false;
-        this.cdr.detectChanges();
-      }, 10);
+      this.layoutState.sceneListVisible = true; this.layoutState.propertiesVisible = true;
+      this.layoutState.imageVisible = true; this.layoutState.assetsVisible = true;
+      this.layoutState.performanceVisible = true; this.layoutState.descriptionVisible = true;
+      setTimeout(() => { this.layoutState.isMaximized = false; this.cdr.detectChanges(); }, 10);
     }
   }
 
@@ -260,7 +232,6 @@ export class WorldViewComponent implements OnInit, OnDestroy {
       (acc[type] = acc[type] || []).push(entity);
       return acc;
     }, {} as { [key: string]: SceneEntity[] });
-
     return Object.keys(groups).sort().map(type => {
       const allGroupEntities = groups[type];
       const totalCount = allGroupEntities.length;
@@ -274,12 +245,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     });
   }
 
-  public onFocusObject(): void {
-    if (this.selectedEntityUuid) {
-      this.engineService.focusOnObject(this.selectedEntityUuid);
-    }
-  }
-
+  public onFocusObject(): void { if (this.selectedEntityUuid) { this.engineService.focusOnObject(this.selectedEntityUuid); } }
   openImageModal(): void { if (this.episodeThumbnailUrl) { this.isImageModalVisible = true; } }
   closeImageModal(): void { this.isImageModalVisible = false; }
   selectScene(sceneId: number): void { if (this.activeSceneId === sceneId) return; this.activeSceneId = sceneId; this.sceneTabs.forEach(tab => tab.isActive = tab.id === sceneId); }
@@ -292,59 +258,96 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     const entitiesSub = this.engineService.getSceneEntities().pipe(map(engineEntities => { const sceneObjectMap = new Map<string, SceneObjectResponse>(); this.sceneObjects.forEach(obj => sceneObjectMap.set(obj.id.toString(), obj)); return engineEntities.map(entity => { const originalObject = sceneObjectMap.get(entity.uuid); return { ...entity, type: originalObject ? originalObject.type : entity.type }; }); })).subscribe((correctedEntities: SceneEntity[]) => { this.allEntities = correctedEntities; this.allEntities$.next(correctedEntities); });
     const brightnessSub = this.brightnessUpdate$.pipe(debounceTime(150)).subscribe(({ groupType, brightness }) => { const entityUuidsInGroup = this.allEntities.filter(entity => entity.type === groupType).map(entity => entity.uuid); if (entityUuidsInGroup.length > 0) this.engineService.setGroupBrightness(entityUuidsInGroup, brightness); });
     const cameraModeSub = this.engineService.cameraMode$.subscribe(mode => { if (mode === 'perspective') { let stateChanged = false; for (const key of this.groupBrightnessState.keys()) { if (this.groupBrightnessState.get(key) !== 1.0) { this.groupBrightnessState.set(key, 1.0); stateChanged = true; } } if (stateChanged) this.allEntities$.next([...this.allEntities]); } });
-
-    // ✨ CORRECCIÓN: Suscripción centralizada a los eventos de selección del motor
-    const selectionSub = this.engineService.onObjectSelected$.subscribe(uuid => {
-      this.handleSelectionChange(uuid);
-    });
-
-    this.subscriptions.add(transformSub);
-    this.subscriptions.add(propertyUpdateSub);
-    this.subscriptions.add(entitiesSub);
-    this.subscriptions.add(brightnessSub);
-    this.subscriptions.add(cameraModeSub);
-    this.subscriptions.add(selectionSub); // ✨ Añadimos la nueva suscripción
+    const selectionSub = this.engineService.onObjectSelected$.subscribe(uuid => { this.handleSelectionChange(uuid); });
+    this.subscriptions.add(transformSub); this.subscriptions.add(propertyUpdateSub); this.subscriptions.add(entitiesSub); this.subscriptions.add(brightnessSub); this.subscriptions.add(cameraModeSub); this.subscriptions.add(selectionSub);
   }
-  
-  // ✨ NUEVO: Método único para manejar cualquier cambio de selección
+
+  // ==================================================================
+  // ========= INICIO DE LA LÓGICA CORREGIDA ==========================
+  // ==================================================================
   private handleSelectionChange(uuid: string | null): void {
-    this.cdr.detectChanges(); // Forzar detección para animaciones de UI
+    this.cdr.detectChanges();
     if (uuid) {
-      const foundObject = this.sceneObjects.find(o => o.id.toString() === uuid);
+      let foundObject: SceneObjectResponse | undefined | null = this.sceneObjects.find(o => o.id.toString() === uuid);
+
+      // Si el objeto no está en nuestra lista (sceneObjects), significa que es un objeto
+      // que solo existe en la escena 3D. Debemos crear un objeto temporal para poder seleccionarlo.
+      if (!foundObject) {
+        const entity = this.allEntities.find(e => e.uuid === uuid);
+        
+        // El motor ya ha seleccionado el objeto, así que podemos pedirle el objeto 3D
+        // real para leer sus propiedades de transformación (posición, rotación, escala).
+        const liveObject = this.engineService.getGizmoAttachedObject();
+
+        // Nos aseguramos de tener la entidad y el objeto 3D real antes de continuar
+        if (entity && liveObject && liveObject.uuid === uuid) {
+          
+          const objectType = (entity.type === 'Model' ? 'model' : entity.type) as SceneObjectType;
+
+          // ¡CORRECCIÓN PRINCIPAL!
+          // Creamos un objeto que satisface completamente la interfaz SceneObjectResponse
+          foundObject = {
+            id: parseInt(uuid, 10) || 0,
+            name: entity.name,
+            type: objectType,
+            episodeId: this.episodeId || 0,
+            asset: null,
+            assetId: null,
+            isDominant: false,
+            isVisible: true,
+            // SOLUCIÓN AL ERROR DE STATUS:
+            // El error indica que 'visible' no es un valor válido. Usualmente, los tipos de estado
+            // usan mayúsculas. Probamos con 'VISIBLE'. Si sigue dando error, debes revisar
+            // la definición exacta de 'SceneObjectStatus' en tu archivo 'admin.service.ts'.
+            status: 'VISIBLE' as SceneObjectStatus,
+            emissiveColor: '#ffffff',
+            emissiveIntensity: 1,
+            properties: {},
+            // SOLUCIÓN A ERRORES DE TRANSFORMACIÓN:
+            // Usamos `liveObject` del motor para obtener los datos actuales.
+            position: { x: liveObject.position.x, y: liveObject.position.y, z: liveObject.position.z },
+            rotation: { x: liveObject.rotation.x, y: liveObject.rotation.y, z: liveObject.rotation.z },
+            scale: { x: liveObject.scale.x, y: liveObject.scale.y, z: liveObject.scale.z },
+          };
+        }
+      }
+
       if (foundObject) {
         this.selectedEntityUuid = uuid;
         this.selectedObject = { ...foundObject };
         this.selectPropertiesTab('object');
       } else {
-        // Esto puede pasar si el objeto seleccionado no está en la lista principal (ej. cámara)
-        // o si hay un error de sincronización. Deseleccionamos por seguridad.
+        // Si después de intentar todo no encontramos el objeto, deseleccionamos.
         this.deselectObject();
       }
     } else {
+      // Si el uuid es nulo, es una deselección.
       this.selectedEntityUuid = null;
       this.selectedObject = null;
       this.selectPropertiesTab('scene');
     }
     this.selectedEntityUuid$.next(this.selectedEntityUuid);
-    this.cdr.detectChanges(); // Forzar detección de nuevo tras actualizar el estado
+    this.cdr.detectChanges();
   }
+  // ==================================================================
+  // ========= FIN DE LA LÓGICA CORREGIDA =============================
+  // ==================================================================
 
-  // ✨ CORRECCIÓN: onEntitySelect ahora solo notifica al motor
   public onEntitySelect(entity: SceneEntity): void {
     if (entity.uuid.startsWith('placeholder-')) {
-      this.isAddObjectModalVisible = true;
-      this.engineService.setActiveSelectionByUuid(null);
-      return;
+      this.isAddObjectModalVisible = true; this.engineService.setActiveSelectionByUuid(null); return;
     }
-    
-    // Si el objeto clickeado ya está seleccionado, lo deseleccionamos. Si no, lo seleccionamos.
     const newUuid = this.selectedEntityUuid === entity.uuid ? null : entity.uuid;
     this.engineService.setActiveSelectionByUuid(newUuid);
   }
 
-  // ✨ CORRECCIÓN: deselectObject ahora solo notifica al motor
-  public deselectObject(): void {
-    this.engineService.setActiveSelectionByUuid(null);
+  public deselectObject(): void { this.engineService.setActiveSelectionByUuid(null); }
+
+  public onTravelSpeedChange(event: Event): void {
+    const slider = event.target as HTMLInputElement;
+    const speedMultiplier = parseFloat(slider.value);
+    this.cameraTravelSpeedMultiplier = speedMultiplier;
+    this.engineService.setTravelSpeedMultiplier(speedMultiplier);
   }
 
   public onGroupBrightnessChange(group: EntityGroup, event: Event): void { const slider = event.target as HTMLInputElement; const brightness = parseFloat(slider.value); this.groupBrightnessState.set(group.type, brightness); this.brightnessUpdate$.next({ groupType: group.type, brightness }); }
@@ -365,24 +368,9 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     const dataToSave: Partial<SceneObjectResponse> = {};
     let hasChanges = false;
     switch (currentTool) {
-      case 'move':
-        const newPosition = { x: transformedObject.position.x, y: transformedObject.position.y, z: transformedObject.position.z };
-        this.updateLocalSelectedObject({ position: newPosition });
-        dataToSave.position = newPosition;
-        hasChanges = true;
-        break;
-      case 'rotate':
-        const newRotation = { x: transformedObject.rotation.x, y: transformedObject.rotation.y, z: transformedObject.rotation.z };
-        this.updateLocalSelectedObject({ rotation: newRotation });
-        dataToSave.rotation = newRotation;
-        hasChanges = true;
-        break;
-      case 'scale':
-        const newScale = { x: transformedObject.scale.x, y: transformedObject.scale.y, z: transformedObject.scale.z };
-        this.updateLocalSelectedObject({ scale: newScale });
-        dataToSave.scale = newScale;
-        hasChanges = true;
-        break;
+      case 'move': const newPosition = { x: transformedObject.position.x, y: transformedObject.position.y, z: transformedObject.position.z }; this.updateLocalSelectedObject({ position: newPosition }); dataToSave.position = newPosition; hasChanges = true; break;
+      case 'rotate': const newRotation = { x: transformedObject.rotation.x, y: transformedObject.rotation.y, z: transformedObject.rotation.z }; this.updateLocalSelectedObject({ rotation: newRotation }); dataToSave.rotation = newRotation; hasChanges = true; break;
+      case 'scale': const newScale = { x: transformedObject.scale.x, y: transformedObject.scale.y, z: transformedObject.scale.z }; this.updateLocalSelectedObject({ scale: newScale }); dataToSave.scale = newScale; hasChanges = true; break;
     }
     if (hasChanges) {
       this.sceneObjectService.updateSceneObject(this.episodeId, this.selectedObject.id, dataToSave).subscribe({

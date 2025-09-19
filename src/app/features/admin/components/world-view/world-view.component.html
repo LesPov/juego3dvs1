@@ -64,15 +64,24 @@
       <app-brujula></app-brujula>
     </div>
 
-    <!-- ============================================================== -->
-    <!-- ✨ NUEVO: BARRA DE HERRAMIENTAS INFERIOR CONTEXTUAL CON *ngIf ✨ -->
-    <!-- ============================================================== -->
+    <!-- ==================================================================== -->
+    <!-- ✨ BARRA DE HERRAMIENTAS INFERIOR CON CONTROL DE VELOCIDAD FUNCIONAL ✨ -->
+    <!-- ==================================================================== -->
     <div *ngIf="selectedEntityUuid" class="scene-bottom-toolbar">
-      <div class="toolbar-section"> <button class="focus-button" (click)="onFocusObject()">Acercarse</button>
+      <div class="toolbar-section toolbar-section-vertical">
+        <button class="focus-button" (click)="onFocusObject()">Acercarse</button>
+        <div class="toolbar-speed-control">
+          <label for="speed-slider">Velocidad: x{{ cameraTravelSpeedMultiplier | number:'1.0-1' }}</label>
+          <input id="speed-slider" type="range" class="speed-slider" 
+                 min="0" max="100" step="0.1" 
+                 [value]="cameraTravelSpeedMultiplier"
+                 (input)="onTravelSpeedChange($event)"
+                 title="Ajustar velocidad de viaje">
+        </div>
       </div>
+
       <div class="toolbar-section">Sección 2</div>
-      <div class="toolbar-section center">Sección 3
-      </div>
+      <div class="toolbar-section center">Sección 3</div>
       <div class="toolbar-section">Sección 4</div>
       <div class="toolbar-section">Sección 5</div>
     </div>
@@ -80,15 +89,13 @@
 
   </main>
 
-  <!-- PANEL 1: LISTA DE OBJETOS -->
+  <!-- EL RESTO DE LA INTERFAZ (SIN CAMBIOS) -->
   <div class="panel p-scene-list">
     <div class="panel-header">
-      <!-- Título dinámico si hay algo seleccionado -->
       <span class="panel-title">{{ selectedEntityUuid ? 'Objeto Seleccionado' : 'Lista de Objetos' }}</span>
       <button class="panel-toggle-icon" (click)="togglePanel('sceneListVisible')"
         title="Ocultar/Mostrar Panel"><span></span></button>
     </div>
-    <!-- Ocultar la barra de búsqueda si hay algo seleccionado -->
     <div class="search-bar-container" *ngIf="!selectedEntityUuid">
       <input type="text" class="search-input" placeholder=" Buscar por nombre..." [ngModel]="searchFilter"
         (ngModelChange)="onSearchChange($event)">
@@ -97,7 +104,6 @@
       <ng-container *ngIf="displayGroups$ | async as groups">
         <div *ngIf="groups.length > 0; else noResults">
           <div *ngFor="let group of groups; trackBy: trackByGroupType" class="object-group">
-            <!-- Ocultar controles de grupo si hay algo seleccionado -->
             <div class="group-header" (click)="!selectedEntityUuid && toggleGroup(group)"
               [class.group-hidden]="!group.isGroupVisible" [class.no-hover]="selectedEntityUuid">
               <span class="group-toggle-icon" *ngIf="!selectedEntityUuid">{{ group.isExpanded ? '▼' : '▶' }}</span>
@@ -139,15 +145,12 @@
           <div *ngIf="!searchFilter && allEntities.length === 0" class="empty-state">La escena está vacía.</div>
         </ng-template>
       </ng-container>
-      <!-- Ocultar placeholder si hay algo seleccionado -->
       <ul class="scene-object-list" *ngIf="!searchFilter && !selectedEntityUuid">
         <li *ngFor="let e of placeholderEntities" class="scene-object-item placeholder-item"
           (click)="onEntitySelect(e)">{{ e.name }}</li>
       </ul>
     </div>
   </div>
-
-  <!-- EL RESTO DE PANELES (SIN CAMBIOS) -->
   <div class="panel p-properties">
     <div class="panel-header">
       <span class="panel-title">Propiedades</span>
@@ -179,7 +182,6 @@
       </ng-container>
     </div>
   </div>
-
   <div class="panel p-episode-image">
     <div class="panel-header">
       <span class="panel-title">Imagen del Episodio</span>
@@ -202,7 +204,6 @@
       </ng-template>
     </div>
   </div>
-
   <div class="panel p-episode-assets">
     <div class="panel-header">
       <span class="panel-title">Assets del Episodio</span>
@@ -215,7 +216,6 @@
       </div>
     </div>
   </div>
-
   <div class="panel p-performance">
     <div class="panel-header">
       <span class="panel-title">Rendimiento</span>
@@ -228,7 +228,6 @@
       </div>
     </div>
   </div>
-
   <div class="panel p-description">
     <div class="panel-header">
       <span class="panel-title">Descripción del Objeto</span>
@@ -245,7 +244,6 @@
       </ng-template>
     </div>
   </div>
-
   <button class="panel-toggle-tab toggle-scene-list" *ngIf="!layoutState.sceneListVisible"
     (click)="togglePanel('sceneListVisible')"><span>&#9654;</span></button>
   <button class="panel-toggle-tab toggle-properties" *ngIf="!layoutState.propertiesVisible"
@@ -259,5 +257,4 @@
   <button class="panel-toggle-tab toggle-description" *ngIf="!layoutState.descriptionVisible"
     (click)="togglePanel('descriptionVisible')"><span>&#9650;</span></button>
 </div>
-
 <div *ngIf="errorMessage" class="error-state">{{ errorMessage }}</div>

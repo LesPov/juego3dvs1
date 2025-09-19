@@ -89,10 +89,9 @@
 .toggle-description { bottom: 8px; left: 50%; transform: translateX(-50%); width: 60px; height: 20px; border-top-left-radius: 6px; border-top-right-radius: 6px; border-bottom: none; }
 
 .episode-title { font-size: 1.2rem; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
-/* ✨ CORRECCIÓN: El contenedor del render ahora es relativo para anclar la barra de herramientas */
 .scene-render-area { 
   flex-grow: 1; 
-  position: relative; /* << IMPORTANTE */
+  position: relative;
   overflow: hidden; 
   background: #000; 
 }
@@ -188,44 +187,34 @@ app-brujula { position: absolute; top: 15px; right: 15px; width: 150px; height: 
 .object-name { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ========================================================= */
-/* ===       ✨ ESTILOS CORREGIDOS PARA LA BARRA ✨      === */
+/* ===       ✨ ESTILOS PARA LA BARRA ACTUALIZADA ✨      === */
 /* ========================================================= */
 
 @keyframes toolbar-slide-in {
-  from {
-    transform: translate(-50%, 150%);
-    opacity: 0;
-  }
-  to {
-    transform: translate(-50%, 0);
-    opacity: 1;
-  }
+  from { transform: translate(-50%, 150%); opacity: 0; }
+  to { transform: translate(-50%, 0); opacity: 1; }
 }
 
 .scene-bottom-toolbar {
-  /* ✨ CORRECCIÓN: Posicionamiento absoluto para superponer */
-   position: absolute;
-    bottom: -1px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 100%;
-    background: #37ff000a;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid #37ff00;
-    border-top-left-radius: 15px;
-    box-shadow: 0 4px 7px 2px #37ff0080;
-    border-top-right-radius: 15px;
-    padding: 30px 15px;
-    height: 48px;
-    display: flex
-;
-    align-items: center;
-    box-sizing: border-box;
-    z-index: 20;
-    pointer-events: all;
-  
-  /* ✨ CORRECCIÓN: Usamos una animación más adecuada */
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  background: rgba(0, 14, 3, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid #37ff00;
+  border-top-left-radius: 15px;
+  box-shadow: 0 4px 7px 2px rgba(55, 255, 0, 0.5);
+  border-top-right-radius: 15px;
+  height: 80px;
+  padding: 8px 15px;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  z-index: 20;
+  pointer-events: all;
   animation: toolbar-slide-in 0.5s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
@@ -238,16 +227,49 @@ app-brujula { position: absolute; top: 15px; right: 15px; width: 150px; height: 
   color: var(--c-text-secondary);
   font-size: 13px;
   border-left: 1px solid var(--c-border-dark);
-  padding: 0 15px; /* Espaciado interno */
+  padding: 0 15px;
 }
 
-.toolbar-section:first-child {
-  border-left: none;
+.toolbar-section:first-child { border-left: none; }
+.toolbar-section.center { flex-grow: 0; padding: 0 20px; }
+
+.toolbar-section-vertical {
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 10px;
 }
 
-.toolbar-section.center {
-  flex-grow: 0;
-  padding: 0 20px;
+.toolbar-speed-control {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+}
+
+.speed-slider {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.speed-slider:focus { outline: none; }
+.speed-slider::-webkit-slider-runnable-track { background: var(--c-bg-deep); height: 6px; border-radius: 3px; border: 1px solid var(--c-border); }
+.speed-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; margin-top: -6px; background-color: var(--c-accent-highlight); height: 16px; width: 16px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.4); }
+
+.speed-icon {
+  width: 16px; height: 16px; flex-shrink: 0; background-color: #a0a0a0;
+  mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.88 12.53L11 13V7h1.5v5.25l2.38 1.36-.7 1.24z"/></svg>');
+}
+
+.speed-indicator {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--c-text-secondary);
+  user-select: none;
+  width: 60px; /* Ancho fijo para evitar saltos de layout */
+  text-align: center;
 }
 
 .focus-button {
@@ -261,6 +283,8 @@ app-brujula { position: absolute; top: 15px; right: 15px; width: 150px; height: 
   cursor: pointer;
   transition: all 0.2s ease-in-out;
   box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .focus-button:hover {

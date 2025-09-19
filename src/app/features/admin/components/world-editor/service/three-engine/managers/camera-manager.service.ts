@@ -9,10 +9,6 @@ import { InteractionHelperManagerService } from '../interactions/interaction-hel
 import { DragInteractionManagerService } from '../interactions/drag-interaction.manager.service';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 
-// ====================================================================
-// TIPOS Y INTERFACES
-// ====================================================================
-
 export type CameraType = 'editor' | 'secondary';
 export type CameraMode = 'perspective' | 'orthographic';
 
@@ -45,36 +41,22 @@ export class CameraManagerService {
   private tempQuaternion = new THREE.Quaternion();
   private tempSphere = new THREE.Sphere();
 
-  // --- ESTADO DE ANIMACIÓN Y ÓRBITA ---
   private isCameraAnimating = false;
   private cameraAnimationTarget: AnimationState2D | AnimationState3D | null = null;
   private cameraInitialState: AnimationState2D | AnimationState3D | null = null;
-  private cameraAnimationStartTime: number | null = null;
-  private cameraAnimationDuration = 1000; 
-  private clock = new THREE.Clock();
-
+  private cameraAnimationDuration = 1000;
+  
+  private travelSpeedMultiplier: number = 1.0;
+  private animationProgress: number = 0;
+  
   private isCameraOrbiting = false;
   private orbitTarget: THREE.Vector3 | null = null;
   private orbitStartTime = 0;
   private orbitInitialOffset = new THREE.Vector3();
-  
-  // ====================================================================
-  // ✨ CONSTANTES DE AJUSTE PARA ENFOQUE Y ÓRBITA ✨
-  // Aquí puedes modificar el comportamiento de la cámara.
-  // ====================================================================
-  /** 
-   * Velocidad constante de viaje de la cámara en unidades del mundo por segundo.
-   * Un valor más BAJO hará el viaje MÁS LENTO.
-   * AJUSTA ESTE VALOR PARA CAMBIAR LA VELOCIDAD.
-   */
-  private readonly CAMERA_TRAVEL_SPEED = 1000000000; // Reducido para un viaje mucho más lento
+  private clock = new THREE.Clock();
 
-  // ✨ ELIMINADO: Ya no hay duración máxima ni mínima para el viaje. El tiempo dependerá 100% de la distancia.
-  // private readonly MAX_TRAVEL_DURATION = 15000;
-  // private readonly MIN_TRAVEL_DURATION = 1500;
-
-  /** Duración de la órbita automática al llegar al objeto, en milisegundos. */
-  private readonly ORBIT_DURATION = 4000; // 4 segundos
+  private readonly BASE_TRAVEL_SPEED = 1000000000;
+  private readonly ORBIT_DURATION = 4000;
   
   constructor(
     private sceneManager: SceneManagerService,
@@ -90,10 +72,17 @@ export class CameraManagerService {
     this.orthoCamera = new THREE.OrthographicCamera(-1 * aspect, 1 * aspect, 1, -1, 0.1, 5e15);
     this.orthoCamera.name = 'Cámara Ortográfica';
   }
+
+  // ✨ CORRECCIÓN DEL ERROR DE COMPILACIÓN: El nombre del método ahora es `setTravelSpeedMultiplier`
+  public setTravelSpeedMultiplier(multiplier: number): void {
+    this.travelSpeedMultiplier = Math.max(0, multiplier);
+  }
   
   public update(delta: number): boolean {
     if (this.isCameraAnimating) {
-      this._updateCameraAnimation();
+      if (this.travelSpeedMultiplier > 0) {
+        this._updateCameraAnimation(delta);
+      }
     } else if (this.isCameraOrbiting) {
       this._updateCameraOrbit(delta);
     }
@@ -105,12 +94,10 @@ export class CameraManagerService {
     const secondaryHelper = this.sceneManager.secondaryCamera.userData['helper'];
     const controls = this.controlsManager.getControls();
     let newActiveCamera: THREE.Camera;
-
     if (this.activeCameraType === 'editor') {
       this.activeCameraType = 'secondary';
       newActiveCamera = this.sceneManager.secondaryCamera;
       this.lastEditorTarget.copy(controls.target);
-
       const { editorCamera, secondaryCamera } = this.sceneManager;
       const offset = secondaryCamera.userData['initialOffset'] as THREE.Vector3;
       editorCamera.getWorldPosition(this.tempWorldPos);
@@ -118,24 +105,19 @@ export class CameraManagerService {
       const newCamPos = offset.clone().applyQuaternion(this.tempQuaternion).add(this.tempWorldPos);
       secondaryCamera.position.copy(newCamPos);
       controls.target.copy(this.tempWorldPos);
-      
       if (editorHelper) editorHelper.visible = true;
       if (secondaryHelper) secondaryHelper.visible = false;
       this.controlsManager.configureForSecondaryCamera();
-
     } else {
       this.activeCameraType = 'editor';
       newActiveCamera = this.sceneManager.editorCamera;
       controls.target.copy(this.lastEditorTarget);
-
       if (editorHelper) editorHelper.visible = false;
       if (secondaryHelper) secondaryHelper.visible = true;
       this.controlsManager.configureForEditorCamera();
     }
-
     this.sceneManager.activeCamera = newActiveCamera as THREE.PerspectiveCamera;
     this._updateDependentServices(newActiveCamera);
-    
     if(currentSelectedObject && currentSelectedObject.uuid === newActiveCamera.uuid) {
         this.controlsManager.attach(currentSelectedObject);
     }
@@ -157,18 +139,14 @@ export class CameraManagerService {
   public setCameraView(axisName: string | null, state?: { position: THREE.Vector3, target: THREE.Vector3 }): number {
     const controls = this.controlsManager.getControls();
     if (!controls) return 0;
-    
     if (this.cameraMode$.getValue() === 'perspective') {
         this.lastPerspectiveState = { position: this.sceneManager.editorCamera.position.clone(), target: controls.target.clone() };
     }
-
     const boundingBox = this.sceneManager.getSceneBoundingBox();
     if (boundingBox.isEmpty()) return 0;
-
     const target = boundingBox.getCenter(new THREE.Vector3());
     const boxSize = boundingBox.getSize(this.tempBoxSize);
     const distance = Math.max(boxSize.length(), 100);
-
     if (axisName) {
         const newPosition = new THREE.Vector3();
         switch (axisName) {
@@ -184,21 +162,17 @@ export class CameraManagerService {
     } else if (state) {
         this.orthoCamera.position.copy(state.position);
     }
-    
     this.orthoCamera.lookAt(target);
     this.lastOrthographicState = { position: this.orthoCamera.position.clone(), target: target.clone() };
-
     const aspect = this.sceneManager.canvas.clientWidth / this.sceneManager.canvas.clientHeight;
     let frustumWidth = Math.max(boxSize.x, 0.1);
     let frustumHeight = Math.max(boxSize.y, 0.1);
     const currentAxis = axisName || this._getAxisFromState(this.lastOrthographicState);
-    
     switch (currentAxis) {
         case 'axis-x': case 'axis-x-neg': frustumHeight = boxSize.y; frustumWidth = boxSize.z; break;
         case 'axis-y': case 'axis-y-neg': frustumHeight = boxSize.z; frustumWidth = boxSize.x; break;
         case 'axis-z': case 'axis-z-neg': default: frustumHeight = boxSize.y; frustumWidth = boxSize.x; break;
     }
-
     frustumWidth *= 1.1;
     frustumHeight *= 1.1;
     if (frustumWidth / aspect > frustumHeight) {
@@ -206,25 +180,20 @@ export class CameraManagerService {
     } else {
         frustumWidth = frustumHeight * aspect;
     }
-
     this.orthoCamera.left = frustumWidth / -2;
     this.orthoCamera.right = frustumWidth / 2;
     this.orthoCamera.top = frustumHeight / 2;
     this.orthoCamera.bottom = frustumHeight / -2;
     this.orthoCamera.updateProjectionMatrix();
-
     this.sceneManager.activeCamera = this.orthoCamera;
     this._updateDependentServices(this.orthoCamera);
-
     this.controlsManager.exitFlyMode();
     this.controlsManager.isFlyEnabled = false;
     controls.enabled = true;
     controls.enableRotate = false;
     controls.target.copy(target);
     controls.update();
-
     this.cameraMode$.next('orthographic');
-    
     return this.orthoCamera.projectionMatrix.elements[0];
   }
 
@@ -232,10 +201,8 @@ export class CameraManagerService {
     this.entityManager.resetAllGroupsBrightness();
     const controls = this.controlsManager.getControls();
     if (!controls) return;
-
     this.sceneManager.activeCamera = this.sceneManager.editorCamera;
     this._updateDependentServices(this.sceneManager.editorCamera);
-    
     if (this.lastPerspectiveState) {
         this.sceneManager.editorCamera.position.copy(this.lastPerspectiveState.position);
         controls.target.copy(this.lastPerspectiveState.target);
@@ -247,7 +214,6 @@ export class CameraManagerService {
         this.sceneManager.editorCamera.position.copy(target).addScaledVector(direction, safeDistance);
         controls.target.copy(target);
     }
-    
     this.controlsManager.isFlyEnabled = true;
     controls.enableRotate = true;
     controls.update();
@@ -258,143 +224,100 @@ export class CameraManagerService {
     const controls = this.controlsManager.getControls();
     const camera = this.sceneManager.activeCamera;
     if (!controls) return;
-
     const box = this.sceneManager.getSceneBoundingBox();
     if (box.isEmpty()) return;
-
     const center = box.getCenter(new THREE.Vector3());
-
     if (this.cameraMode$.getValue() === 'perspective' && camera instanceof THREE.PerspectiveCamera) {
       const sphere = box.getBoundingSphere(this.tempSphere);
       const radius = sphere.radius;
-      
       const fov = camera.fov * (Math.PI / 180);
       const distance = (radius / Math.sin(fov / 2)) * 1.2;
-      
       const direction = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
       if (direction.lengthSq() === 0) direction.set(0, 0, 1);
-
       camera.position.copy(center).addScaledVector(direction, distance);
-
     } else {
       const currentAxis = this._getAxisFromState(this.lastOrthographicState);
       this.setCameraView(currentAxis);
       return;
     }
-    
     controls.target.copy(center);
     controls.update();
   }
   
   public focusOnObject(uuid: string): void {
-    if (this.isCameraAnimating || this.isCameraOrbiting) return;
-    
+    if (this.isCameraAnimating) this.isCameraAnimating = false;
+    if (this.isCameraOrbiting) this.isCameraOrbiting = false;
     const object = this.entityManager.getObjectByUuid(uuid) ?? this.sceneManager.scene.getObjectByName('SelectionProxy');
     if (!object) {
       console.warn(`[CameraManager] No se pudo encontrar el objeto con UUID: ${uuid} para enfocar.`);
       return;
     }
-
     const cameraMode = this.cameraMode$.getValue();
     cameraMode === 'perspective' ? this._focusOnObject3D(object) : this._focusOnObject2D(object);
   }
 
-  // ====================================================================
-  // ✨ LÓGICA DE ANIMACIÓN Y ÓRBITA MEJORADA ✨
-  // ====================================================================
-  
   private _focusOnObject3D(object: THREE.Object3D): void {
     const controls = this.controlsManager.getControls();
     const camera = this.sceneManager.activeCamera;
-    
     this.tempBox.setFromObject(object, true);
     if (this.tempBox.isEmpty()) this.tempBox.setFromCenterAndSize(object.position, new THREE.Vector3(1, 1, 1));
-    
     const targetPoint = this.tempBox.getCenter(new THREE.Vector3());
     const objectSize = this.tempBox.getSize(new THREE.Vector3()).length();
     const distanceToObject = Math.max(objectSize * 2.5, 10);
-    
     const cameraDirection = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
     if (cameraDirection.lengthSq() === 0) cameraDirection.set(0, 0.5, 1).normalize();
     const finalCamPos = new THREE.Vector3().copy(targetPoint).addScaledVector(cameraDirection, distanceToObject);
-    
-    // --- Lógica de velocidad constante ---
     const travelDistance = camera.position.distanceTo(finalCamPos);
-    // ✨ La duración ahora se calcula únicamente por la distancia y la velocidad, sin límites.
-    const duration = (travelDistance / this.CAMERA_TRAVEL_SPEED) * 1000; // Convertir a milisegundos
-
-    this._startAnimation(
-        { position: camera.position.clone(), target: controls.target.clone() },
-        { position: finalCamPos, target: targetPoint },
-        duration
-    );
+    const duration = (travelDistance / this.BASE_TRAVEL_SPEED) * 1000;
+    this._startAnimation({ position: camera.position.clone(), target: controls.target.clone() }, { position: finalCamPos, target: targetPoint }, duration);
   }
   
   private _focusOnObject2D(object: THREE.Object3D): void {
     const camera = this.sceneManager.activeCamera as THREE.OrthographicCamera;
     const controls = this.controlsManager.getControls();
     if (!camera.isOrthographicCamera) return;
-
     this.tempBox.setFromObject(object, true);
     if (this.tempBox.isEmpty()) this.tempBox.setFromCenterAndSize(object.position, new THREE.Vector3(1, 1, 1));
-    
     const objectCenter = this.tempBox.getCenter(new THREE.Vector3());
     const objectSize = this.tempBox.getSize(this.tempBoxSize);
-    
     const cameraDirection = camera.getWorldDirection(new THREE.Vector3());
     const distanceToTarget = camera.position.distanceTo(controls.target);
     const finalCamPos = new THREE.Vector3().copy(objectCenter).addScaledVector(cameraDirection.negate(), distanceToTarget);
-    
     const aspect = (camera.right - camera.left) / (camera.top - camera.bottom);
     const padding = 1.5;
     let requiredWidth = 0, requiredHeight = 0;
-
     if (Math.abs(cameraDirection.z) > 0.9) { requiredWidth = objectSize.x; requiredHeight = objectSize.y; }
     else if (Math.abs(cameraDirection.x) > 0.9) { requiredWidth = objectSize.z; requiredHeight = objectSize.y; }
     else { requiredWidth = objectSize.x; requiredHeight = objectSize.z; }
-
     requiredWidth *= padding;
     requiredHeight *= padding;
     if (requiredWidth / aspect > requiredHeight) requiredHeight = requiredWidth / aspect;
     else requiredWidth = requiredHeight * aspect;
-
     const travelDistance = camera.position.distanceTo(finalCamPos);
-    // ✨ La duración ahora se calcula únicamente por la distancia y la velocidad, sin límites.
-    const duration = (travelDistance / this.CAMERA_TRAVEL_SPEED) * 1000;
-
-    this._startAnimation(
-        { position: camera.position.clone(), target: controls.target.clone(), left: camera.left, right: camera.right, top: camera.top, bottom: camera.bottom },
-        { position: finalCamPos, target: objectCenter, left: -requiredWidth / 2, right: requiredWidth / 2, top: requiredHeight / 2, bottom: -requiredHeight / 2 },
-        duration
-    );
+    const duration = (travelDistance / this.BASE_TRAVEL_SPEED) * 1000;
+    this._startAnimation({ position: camera.position.clone(), target: controls.target.clone(), left: camera.left, right: camera.right, top: camera.top, bottom: camera.bottom }, { position: finalCamPos, target: objectCenter, left: -requiredWidth / 2, right: requiredWidth / 2, top: requiredHeight / 2, bottom: -requiredHeight / 2 }, duration);
   }
 
   private _startAnimation(initialState: AnimationState2D | AnimationState3D, targetState: AnimationState2D | AnimationState3D, duration: number) {
     this.isCameraAnimating = true;
-    this.cameraAnimationStartTime = this.clock.getElapsedTime();
+    this.animationProgress = 0;
     this.cameraInitialState = initialState;
     this.cameraAnimationTarget = targetState;
-    this.cameraAnimationDuration = Math.max(duration, 500); // Asegura una duración mínima para evitar saltos
-
+    this.cameraAnimationDuration = Math.max(duration, 500);
     this.controlsManager.getControls().enabled = false;
     this.controlsManager.exitFlyMode();
   }
-
-  private _updateCameraAnimation(): void {
-    if (!this.isCameraAnimating || !this.cameraAnimationTarget || !this.cameraInitialState || this.cameraAnimationStartTime === null) return;
-
-    const elapsedTime = this.clock.getElapsedTime() - this.cameraAnimationStartTime;
-    const progress = Math.min(elapsedTime / (this.cameraAnimationDuration / 1000), 1);
-    
-    // Easing "easeOutQuint" - empieza rápido y desacelera mucho al final.
-    const alpha = 1 - Math.pow(1 - progress, 5);
-
+  
+  private _updateCameraAnimation(delta: number): void {
+    if (!this.isCameraAnimating || !this.cameraAnimationTarget || !this.cameraInitialState) return;
+    const durationInSeconds = this.cameraAnimationDuration / 1000;
+    const progressIncrement = (delta / durationInSeconds) * this.travelSpeedMultiplier;
+    this.animationProgress = Math.min(this.animationProgress + progressIncrement, 1.0);
+    const alpha = 1 - Math.pow(1 - this.animationProgress, 5);
     const camera = this.sceneManager.activeCamera;
     const controls = this.controlsManager.getControls();
-
     camera.position.lerpVectors(this.cameraInitialState.position, this.cameraAnimationTarget.position, alpha);
     controls.target.lerpVectors(this.cameraInitialState.target, this.cameraAnimationTarget.target, alpha);
-
     if ('left' in this.cameraInitialState && 'left' in this.cameraAnimationTarget && camera instanceof THREE.OrthographicCamera) {
         camera.left = THREE.MathUtils.lerp(this.cameraInitialState.left, this.cameraAnimationTarget.left, alpha);
         camera.right = THREE.MathUtils.lerp(this.cameraInitialState.right, this.cameraAnimationTarget.right, alpha);
@@ -402,26 +325,19 @@ export class CameraManagerService {
         camera.bottom = THREE.MathUtils.lerp(this.cameraInitialState.bottom, this.cameraAnimationTarget.bottom, alpha);
         camera.updateProjectionMatrix();
     }
-    
     controls.update();
-
-    if (progress >= 1) {
-      // --- Finaliza la animación de enfoque e inicia la órbita ---
+    if (this.animationProgress >= 1) {
       camera.position.copy(this.cameraAnimationTarget.position);
       controls.target.copy(this.cameraAnimationTarget.target);
-      
       this.isCameraAnimating = false;
       this.cameraAnimationTarget = null;
       this.cameraInitialState = null;
-      this.cameraAnimationStartTime = null;
-
       if (this.cameraMode$.getValue() === 'perspective') {
         this.isCameraOrbiting = true;
         this.orbitStartTime = this.clock.getElapsedTime();
         this.orbitTarget = controls.target.clone();
         this.orbitInitialOffset.subVectors(camera.position, this.orbitTarget);
       } else {
-         // En ortográfico no hay órbita, solo se reactivan los controles.
          controls.enabled = true;
       }
     }
@@ -429,11 +345,9 @@ export class CameraManagerService {
 
   private _updateCameraOrbit(delta: number): void {
     if (!this.isCameraOrbiting || !this.orbitTarget) return;
-
     const camera = this.sceneManager.activeCamera;
     const controls = this.controlsManager.getControls();
     const elapsedOrbitTime = (this.clock.getElapsedTime() - this.orbitStartTime) * 1000;
-
     if (elapsedOrbitTime >= this.ORBIT_DURATION) {
       this.isCameraOrbiting = false;
       this.orbitTarget = null;
@@ -441,19 +355,13 @@ export class CameraManagerService {
       controls.update();
       return;
     }
-
     const rotationAngle = (delta / (this.ORBIT_DURATION / 1000)) * Math.PI * 2;
     this.orbitInitialOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotationAngle);
-
     camera.position.copy(this.orbitTarget).add(this.orbitInitialOffset);
     controls.target.copy(this.orbitTarget);
     controls.update();
   }
 
-  // ====================================================================
-  // HELPERS PRIVADOS
-  // ====================================================================
-  
   private _getAxisFromState(state: { position: THREE.Vector3, target: THREE.Vector3 } | null): string {
     if (!state) return 'axis-y-neg';
     const dir = new THREE.Vector3().copy(state.position).sub(state.target).normalize();

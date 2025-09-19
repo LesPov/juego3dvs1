@@ -22,10 +22,6 @@ export interface IntersectedObjectInfo {
     object: THREE.Object3D;
 }
 
-// ====================================================================
-// CONSTANTES DE RENDIMIENTO Y VISUALIZACIÓN
-// ====================================================================
-
 const INSTANCES_TO_CHECK_PER_FRAME = 100000;
 const BASE_VISIBILITY_DISTANCE = 1000000000000;
 const MAX_PERCEPTUAL_DISTANCE = 10000000000000;
@@ -34,7 +30,6 @@ const ORTHO_ZOOM_VISIBILITY_MULTIPLIER = 5.0;
 const ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR = 12.0;
 const MAX_INTENSITY = 8.0;
 const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
-
 
 @Injectable()
 export class EngineService implements OnDestroy {
@@ -449,6 +444,10 @@ export class EngineService implements OnDestroy {
       });
   }
   
+  public setTravelSpeedMultiplier(multiplier: number): void {
+    this.cameraManager.setTravelSpeedMultiplier(multiplier);
+  }
+
   public onWindowResize = () => this.sceneManager.onWindowResize();
   public toggleActiveCamera(): void { this.cameraManager.toggleActiveCamera(this.selectedObject); }
   public toggleCameraMode(): void { this.cameraManager.toggleCameraMode(); }
