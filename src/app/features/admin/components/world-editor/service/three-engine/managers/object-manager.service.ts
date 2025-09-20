@@ -66,11 +66,11 @@ export class ObjectManagerService {
   private textureLoader = new THREE.TextureLoader();
   private textureCache = new Map<string, THREE.Texture>();
   private glowTexture: THREE.CanvasTexture | null = null;
-  
+
   private sharedPlaneGeometry = new THREE.PlaneGeometry(1, 1);
   private sharedCircleGeometry = new THREE.CircleGeometry(6.0, 32);
 
-  constructor(private labelManager: LabelManagerService) {}
+  constructor(private labelManager: LabelManagerService) { }
 
   public createObjectFromData(scene: THREE.Scene, objData: SceneObjectResponse, loader: GLTFLoader): THREE.Object3D | null {
     let createdObject: THREE.Object3D | null = null;
@@ -81,9 +81,9 @@ export class ObjectManagerService {
       case 'galaxy_medium':
       case 'galaxy_far':
         if (objData.asset?.type === 'model_glb') {
-            this.loadGltfModel(scene, objData, loader);
+          this.loadGltfModel(scene, objData, loader);
         } else if (objData.properties?.['is_black_hole']) {
-            createdObject = this.createBlackHolePrimitive(scene, objData);
+          createdObject = this.createBlackHolePrimitive(scene, objData);
         }
         break;
       case 'cube': case 'sphere': case 'cone': case 'torus': case 'floor':
@@ -103,7 +103,7 @@ export class ObjectManagerService {
     if (createdObject) {
       this.labelManager.registerObject(createdObject);
     }
-    
+
     return createdObject;
   }
 
@@ -112,11 +112,11 @@ export class ObjectManagerService {
 
     const modelBasedCelestials = objectsData.filter(obj => obj.asset?.type === 'model_glb');
     const billboardCelestials = objectsData.filter(obj => obj.asset?.type !== 'model_glb');
-    
+
     if (modelBasedCelestials.length > 0) {
       modelBasedCelestials.forEach(objData => this.loadGltfModel(scene, objData, loader));
     }
-    
+
     if (billboardCelestials.length > 0) {
       const groupedObjects = new Map<string, SceneObjectResponse[]>();
       groupedObjects.set('__DEFAULT__', []);
@@ -130,11 +130,11 @@ export class ObjectManagerService {
           groupedObjects.get('__DEFAULT__')!.push(obj);
         }
       }
-      
+
       groupedObjects.forEach((groupData, key) => {
         if (groupData.length === 0) return;
-        key === '__DEFAULT__' 
-          ? this._createDefaultGlowInstancedMesh(scene, groupData) 
+        key === '__DEFAULT__'
+          ? this._createDefaultGlowInstancedMesh(scene, groupData)
           : this._createTexturedInstancedMesh(scene, groupData, key);
       });
     }
@@ -146,7 +146,7 @@ export class ObjectManagerService {
       return;
     };
     const modelUrl = `${this.backendUrl}${objData.asset.path}`;
-    loader.load( modelUrl, (gltf) => {
+    loader.load(modelUrl, (gltf) => {
       this._setupCelestialModel(gltf, objData);
       this.applyTransformations(gltf.scene, objData);
       this.labelManager.registerObject(gltf.scene);
@@ -154,10 +154,10 @@ export class ObjectManagerService {
     });
   }
 
-   private _setupCelestialModel(gltf: GLTF, objData: SceneObjectResponse): void {
+  private _setupCelestialModel(gltf: GLTF, objData: SceneObjectResponse): void {
     const galaxyInfo = objData.galaxyData;
     const farIntensity = galaxyInfo ? THREE.MathUtils.clamp(galaxyInfo.emissiveIntensity, 1.0, 7.0) : 1.0;
-    
+
     gltf.scene.userData['isDynamicCelestialModel'] = true;
     gltf.scene.userData['originalEmissiveIntensity'] = farIntensity;
     gltf.scene.userData['baseEmissiveIntensity'] = 0.5;
@@ -165,7 +165,7 @@ export class ObjectManagerService {
     gltf.scene.layers.enable(BLOOM_LAYER);
     gltf.scene.traverse(child => {
       if (child instanceof THREE.Mesh) {
-          child.layers.enable(BLOOM_LAYER);
+        child.layers.enable(BLOOM_LAYER);
       }
     });
 
@@ -194,17 +194,17 @@ export class ObjectManagerService {
       texture.colorSpace = THREE.SRGBColorSpace;
       this.textureCache.set(textureUrl, texture);
     }
-    
-    const material = new THREE.MeshBasicMaterial({ 
-        map: texture, 
-        transparent: true, 
-        blending: THREE.AdditiveBlending, 
-        depthWrite: false, 
-        side: THREE.DoubleSide 
+
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide
     });
-    
+
     const instancedMesh = new THREE.InstancedMesh(this.sharedCircleGeometry, material, objectsData.length);
-    
+
     instancedMesh.name = `CelestialObjects_Texture_${texturePath.replace(/[^a-zA-Z0-9]/g, '_')}`;
     instancedMesh.frustumCulled = false;
     instancedMesh.layers.enable(BLOOM_LAYER);
@@ -216,11 +216,11 @@ export class ObjectManagerService {
   }
 
   private _createDefaultGlowInstancedMesh(scene: THREE.Scene, objectsData: SceneObjectResponse[]): void {
-    const material = new THREE.MeshBasicMaterial({ 
-        map: this._createGlowTexture(), 
-        transparent: true, 
-        blending: THREE.AdditiveBlending, 
-        depthWrite: false 
+    const material = new THREE.MeshBasicMaterial({
+      map: this._createGlowTexture(),
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
     });
     const instancedMesh = new THREE.InstancedMesh(this.sharedCircleGeometry, material, objectsData.length);
 
@@ -234,7 +234,7 @@ export class ObjectManagerService {
     scene.add(instancedMesh);
   }
 
-   private _populateInstanceData(instancedMesh: THREE.InstancedMesh, objectsData: SceneObjectResponse[]): void {
+  private _populateInstanceData(instancedMesh: THREE.InstancedMesh, objectsData: SceneObjectResponse[]): void {
     const celestialData: CelestialInstanceData[] = [];
     instancedMesh.userData['celestialData'] = celestialData;
 
@@ -248,7 +248,7 @@ export class ObjectManagerService {
         console.warn(`[ObjectManager] Objeto '${objData.name}' es de tipo galaxia pero no tiene 'galaxyData'. Se omitirá.`);
         continue;
       }
-      
+
       const visualColor = new THREE.Color(sanitizeHexColor(galaxyInfo.emissiveColor));
 
       position.set(objData.position.x, objData.position.y, objData.position.z);
@@ -259,23 +259,36 @@ export class ObjectManagerService {
       instancedMesh.setColorAt(i, new THREE.Color(0x000000));
 
       const scaleLuminosity = Math.max(1.0, objData.scale.x / 600.0);
-      const dominantBoost = (galaxyInfo.isDominant ?? false) ? 5.0 : 1.0;
+
+      // ================== LÓGICA MEJORADA DE LUMINOSIDAD ==================
+      // ELIMINAMOS ESTO:
+      // const dominantBoost = (galaxyInfo.isDominant ?? false) ? 5.0 : 1.0;
+
+      // Y AÑADIMOS ESTO:
+      // Calculamos un boost basado en el SNR del objeto.
+      // Usamos una escala logarítmica para que el efecto sea suave y no se dispare con valores altos de SNR.
+      // Puedes ajustar los números '50.0' (divisor) y '2.0' (multiplicador) para calibrar el efecto.
+      const snr = galaxyInfo.snr || 0;
+      const luminosityBoost = 1.0 + Math.log1p(snr / 50.0) * 2.0;
+      // Math.log1p(x) es como Math.log(1 + x), bueno para valores que pueden ser cercanos a cero.
+      // ================== FIN DE LA LÓGICA MEJORADA ==================
 
       const instanceData: CelestialInstanceData = {
-          originalColor: visualColor.clone(),
-          emissiveIntensity: THREE.MathUtils.clamp(galaxyInfo.emissiveIntensity, 1.0, 5.0),
-          baseEmissiveIntensity: 1.0,
-          position: position.clone(),
-          scale: scale.clone(),
-          originalMatrix: matrix.clone(),
-          originalUuid: objData.id.toString(),
-          originalName: objData.name,
-          isDominant: galaxyInfo.isDominant ?? false,
-          luminosity: scaleLuminosity * dominantBoost,
-          type: objData.type,
-          isManuallyHidden: false,
-          brightness: 1.0,
-          currentIntensity: 0.0
+        originalColor: visualColor.clone(),
+        emissiveIntensity: THREE.MathUtils.clamp(galaxyInfo.emissiveIntensity, 1.0, 5.0),
+        baseEmissiveIntensity: 1.0,
+        position: position.clone(),
+        scale: scale.clone(),
+        originalMatrix: matrix.clone(),
+        originalUuid: objData.id.toString(),
+        originalName: objData.name,
+        // Usamos el nuevo boost calculado en lugar del antiguo
+        luminosity: scaleLuminosity * luminosityBoost,
+        isDominant: galaxyInfo.isDominant ?? false, // Mantenemos el dato por si lo necesitas para otra cosa
+        type: objData.type,
+        isManuallyHidden: false,
+        brightness: 1.0,
+        currentIntensity: 0.0
       };
       celestialData.push(instanceData);
 
@@ -284,8 +297,8 @@ export class ObjectManagerService {
     instancedMesh.instanceMatrix.needsUpdate = true;
     if (instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
   }
-  
-  
+
+
   private createCamera(scene: THREE.Scene, objData: SceneObjectResponse): THREE.PerspectiveCamera {
     const props = objData.properties || {};
     const camera = new THREE.PerspectiveCamera(props['fov'] ?? 50, 16 / 9, props['near'] ?? 0.1, props['far'] ?? 1000);
@@ -307,7 +320,7 @@ export class ObjectManagerService {
     scene.add(light, helper);
     return light;
   }
-  
+
   private createStandardPrimitive(scene: THREE.Scene, objData: SceneObjectResponse): THREE.Mesh {
     const properties = objData.properties || {};
     const color = new THREE.Color(sanitizeHexColor(properties['color']));
@@ -335,14 +348,14 @@ export class ObjectManagerService {
     scene.add(mesh);
     return mesh;
   }
-  
+
   public createSelectionProxy(geometry: THREE.BufferGeometry = new THREE.SphereGeometry(1.1, 16, 8)): THREE.Mesh {
     const proxyMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0, depthWrite: false });
     const proxyMesh = new THREE.Mesh(geometry, proxyMaterial);
     proxyMesh.name = 'SelectionProxy';
     return proxyMesh;
   }
-  
+
   public isSharedGeometry(geometry: THREE.BufferGeometry): boolean {
     return geometry === this.sharedCircleGeometry || geometry === this.sharedPlaneGeometry;
   }
@@ -363,7 +376,7 @@ export class ObjectManagerService {
     this.glowTexture.needsUpdate = true;
     return this.glowTexture;
   }
-  
+
   private applyTransformations(object: THREE.Object3D, data: SceneObjectResponse): void {
     object.name = data.name;
     object.uuid = data.id.toString();
