@@ -5,8 +5,8 @@ import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import { SceneObjectResponse } from './admin.service';
-// <-- ¡CAMBIO CLAVE! Importamos la interfaz actualizada desde su ubicación correcta.
- 
+// La importación ahora apunta a la interfaz simplificada, lo cual es correcto.
+   
 @Injectable({
   providedIn: 'root'
 })
@@ -26,19 +26,14 @@ export class SceneObjectService {
     return this.http.post<SceneObjectResponse>(this.getObjectsUrl(episodeId), objectData);
   }
 
-  /**
-   * Actualiza un objeto de escena existente.
-   * Gracias a la interfaz actualizada, ahora puedes enviar campos directamente como:
-   * { emissiveColor: '#FF0000' } o { isVisible: false }
-   */
   updateSceneObject(
     episodeId: number,
     objectId: number,
     dataToUpdate: Partial<SceneObjectResponse>
   ): Observable<SceneObjectResponse> {
-
     console.log(`[SceneObjectService] Actualizando objeto ${objectId} con:`, dataToUpdate);
     const updateUrl = `${this.getObjectsUrl(episodeId)}/${objectId}`;
+    // Esto seguirá funcionando para actualizar campos como 'name', 'position', 'status', etc.
     return this.http.put<SceneObjectResponse>(updateUrl, dataToUpdate);
   }
 }

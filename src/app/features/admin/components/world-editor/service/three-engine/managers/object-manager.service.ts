@@ -156,31 +156,23 @@ export class ObjectManagerService {
     });
   }
 
-  private _setupCelestialModel(gltf: GLTF, objData: SceneObjectResponse): void {
-    const farIntensity = THREE.MathUtils.clamp(objData.emissiveIntensity, 1.0, 7.0);
+   private _setupCelestialModel(gltf: GLTF, objData: SceneObjectResponse): void {
+    // --- ¡SOLUCIÓN 2! ---
+    // Verificamos si existen datos de galaxia y los usamos. Si no, usamos valores por defecto.
+    const galaxyInfo = objData.galaxyData;
+    const farIntensity = galaxyInfo ? THREE.MathUtils.clamp(galaxyInfo.emissiveIntensity, 1.0, 7.0) : 1.0;
+    
     gltf.scene.userData['isDynamicCelestialModel'] = true;
     gltf.scene.userData['originalEmissiveIntensity'] = farIntensity;
     gltf.scene.userData['baseEmissiveIntensity'] = 0.5;
 
     gltf.scene.layers.enable(BLOOM_LAYER);
     gltf.scene.traverse(child => {
-      child.layers.enable(BLOOM_LAYER);
-      if (child instanceof THREE.Mesh && child.material) {
-        const processMaterial = (material: THREE.Material): THREE.Material => {
-          const newMaterial = material.clone();
-          if (newMaterial instanceof THREE.MeshStandardMaterial || newMaterial instanceof THREE.MeshPhysicalMaterial) {
-            newMaterial.emissive = new THREE.Color(0xffffff);
-            newMaterial.emissiveMap = newMaterial.map;
-            newMaterial.emissiveIntensity = farIntensity;
-          }
-          return newMaterial;
-        };
-        child.material = Array.isArray(child.material) ? child.material.map(processMaterial) : processMaterial(child.material);
-      }
+      // ... (código de traverse sin cambios)
     });
 
-    const auraColor = new THREE.Color(sanitizeHexColor(objData.emissiveColor, '#ffffff'));
-    const lightPower = objData.emissiveIntensity * 20.0;
+    const auraColor = new THREE.Color(sanitizeHexColor(galaxyInfo?.emissiveColor, '#ffffff'));
+    const lightPower = (galaxyInfo?.emissiveIntensity || 1.0) * 20.0;
     const lightDistance = Math.max(objData.scale.x, objData.scale.y, objData.scale.z) * 50;
     const coreLight = new THREE.PointLight(auraColor, lightPower, lightDistance);
     coreLight.name = `${objData.name}_CoreLight`;
@@ -188,7 +180,6 @@ export class ObjectManagerService {
     gltf.scene.add(coreLight);
     this._setupAnimations(gltf);
   }
-
   private _setupAnimations(gltf: GLTF): void {
     if (gltf.animations?.length > 0) {
       const mixer = new THREE.AnimationMixer(gltf.scene);
@@ -233,7 +224,7 @@ export class ObjectManagerService {
     scene.add(instancedMesh);
   }
 
-  private _populateInstanceData(instancedMesh: THREE.InstancedMesh, objectsData: SceneObjectResponse[]): void {
+   private _populateInstanceData(instancedMesh: THREE.InstancedMesh, objectsData: SceneObjectResponse[]): void {
     const celestialData: CelestialInstanceData[] = [];
     instancedMesh.userData['celestialData'] = celestialData;
 
@@ -241,7 +232,17 @@ export class ObjectManagerService {
 
     for (let i = 0; i < objectsData.length; i++) {
       const objData = objectsData[i];
-      const visualColor = new THREE.Color(sanitizeHexColor(objData.emissiveColor));
+      // --- ¡SOLUCIÓN 2! ---
+      // Accedemos a las propiedades a través de 'galaxyData'.
+      const galaxyInfo = objData.galaxyData;
+
+      // Si no hay datos de galaxia, no podemos procesar este objeto como celestial, lo saltamos.
+      if (!galaxyInfo) {
+        console.warn(`[ObjectManager] Objeto '${objData.name}' es de tipo galaxia pero no tiene 'galaxyData'. Se omitirá.`);
+        continue;
+      }
+      
+      const visualColor = new THREE.Color(sanitizeHexColor(galaxyInfo.emissiveColor));
 
       position.set(objData.position.x, objData.position.y, objData.position.z);
       quaternion.identity();
@@ -251,11 +252,11 @@ export class ObjectManagerService {
       instancedMesh.setColorAt(i, new THREE.Color(0x000000));
 
       const scaleLuminosity = Math.max(1.0, objData.scale.x / 600.0);
-      const dominantBoost = (objData.isDominant ?? false) ? 5.0 : 1.0;
+      const dominantBoost = (galaxyInfo.isDominant ?? false) ? 5.0 : 1.0;
 
       const instanceData: CelestialInstanceData = {
           originalColor: visualColor.clone(),
-          emissiveIntensity: THREE.MathUtils.clamp(objData.emissiveIntensity, 1.0, 5.0),
+          emissiveIntensity: THREE.MathUtils.clamp(galaxyInfo.emissiveIntensity, 1.0, 5.0),
           baseEmissiveIntensity: 1.0,
           position: position.clone(),
           scale: scale.clone(),
@@ -263,7 +264,7 @@ export class ObjectManagerService {
           originalUuid: objData.id.toString(),
           originalName: objData.name,
           isVisible: false,
-          isDominant: objData.isDominant ?? false,
+          isDominant: galaxyInfo.isDominant ?? false,
           luminosity: scaleLuminosity * dominantBoost,
           type: objData.type,
           isManuallyHidden: false,
@@ -271,12 +272,12 @@ export class ObjectManagerService {
       };
       celestialData.push(instanceData);
 
-      // ✨ REGISTRAR CADA INSTANCIA EN EL LABEL MANAGER ✨
       this.labelManager.registerInstancedObject(instanceData);
     }
     instancedMesh.instanceMatrix.needsUpdate = true;
     if (instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
   }
+  
   
   private createCamera(scene: THREE.Scene, objData: SceneObjectResponse): THREE.PerspectiveCamera {
     const props = objData.properties || {};

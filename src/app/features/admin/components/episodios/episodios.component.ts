@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormGroup, FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
-import { AdminService, CreateEpisodeResponse, EpisodeResponse } from '../../services/admin.service';
+import { AdminService, AnalysisType, CreateEpisodeResponse, EpisodeResponse,  } from '../../services/admin.service';
 import { HttpErrorResponse } from '@angular/common/http';
 import { finalize } from 'rxjs/operators';
 import { environment } from '../../../../../environments/environment';
@@ -36,6 +36,12 @@ export class EpisodiosComponent implements OnInit {
   createEpisodeForm: FormGroup;
   selectedFile: File | null = null;
   imagePreview: string | ArrayBuffer | null = null;
+  // Añadimos una propiedad para las opciones del tipo de análisis
+  analysisTypes: { value: AnalysisType, label: string }[] = [
+    { value: 'DEEP_SPACE_ASTROPHOTOGRAPHY', label: 'Astrofotografía de Espacio Profundo' },
+    { value: 'PLANETARY_BODY', label: 'Cuerpo Planetario' },
+    { value: 'NEBULA', label: 'Nebulosa' }
+  ];
 
   constructor(
     private router: Router,
@@ -44,8 +50,9 @@ export class EpisodiosComponent implements OnInit {
   ) {
     this.createEpisodeForm = this.fb.group({
       title: ['', [Validators.required, Validators.minLength(3)]],
-      description: [''],
-      // El nombre del campo del formulario no tiene que coincidir con el de FormData
+         description: [''],
+      // Añadimos el nuevo campo al formulario con un valor por defecto
+      analysisType: [this.analysisTypes[0].value, Validators.required],
       thumbnail: [null, Validators.required]
     });
   }
@@ -55,28 +62,25 @@ export class EpisodiosComponent implements OnInit {
     this.loadEpisodes();
   }
 
-  loadEpisodes(): void {
+ loadEpisodes(): void {
     this.isLoading = true;
     this.errorMessage = null;
 
     this.adminService.getEpisodes()
       .pipe(finalize(() => this.isLoading = false))
       .subscribe({
+        // El tipado aquí ahora es correcto gracias a la importación.
         next: (data: EpisodeResponse[]) => {
           this.episodes = data.map(ep => {
-            // ¡LÓGICA CORREGIDA A PRUEBA DE DOBLE SLASH!
             const cleanEndpoint = environment.endpoint.endsWith('/')
               ? environment.endpoint.slice(0, -1)
               : environment.endpoint;
-
             const cleanThumbnailPath = ep.thumbnailUrl?.startsWith('/')
               ? ep.thumbnailUrl.slice(1)
               : ep.thumbnailUrl;
-
             const fullThumbnailUrl = ep.thumbnailUrl
               ? `${cleanEndpoint}/${cleanThumbnailPath}`
               : null;
-
             return {
               id: ep.id,
               title: ep.title,
@@ -94,7 +98,6 @@ export class EpisodiosComponent implements OnInit {
         }
       });
   }
-
 
   selectEpisode(idx: number): void { this.activeIndex = idx; }
   back(): void { this.router.navigate(['/admin/dashboard']); }

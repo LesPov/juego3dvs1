@@ -147,7 +147,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.engineService.setTravelSpeedMultiplier(this.cameraTravelSpeedMultiplier);
-    
+
     this.sceneTabs.push({ id: 1, name: 'Escena Principal', isActive: true });
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
@@ -274,40 +274,31 @@ export class WorldViewComponent implements OnInit, OnDestroy {
       // que solo existe en la escena 3D. Debemos crear un objeto temporal para poder seleccionarlo.
       if (!foundObject) {
         const entity = this.allEntities.find(e => e.uuid === uuid);
-        
+
         // El motor ya ha seleccionado el objeto, así que podemos pedirle el objeto 3D
         // real para leer sus propiedades de transformación (posición, rotación, escala).
         const liveObject = this.engineService.getGizmoAttachedObject();
 
         // Nos aseguramos de tener la entidad y el objeto 3D real antes de continuar
         if (entity && liveObject && liveObject.uuid === uuid) {
-          
+
           const objectType = (entity.type === 'Model' ? 'model' : entity.type) as SceneObjectType;
 
           // ¡CORRECCIÓN PRINCIPAL!
           // Creamos un objeto que satisface completamente la interfaz SceneObjectResponse
-          foundObject = {
+        foundObject = {
             id: parseInt(uuid, 10) || 0,
             name: entity.name,
             type: objectType,
             episodeId: this.episodeId || 0,
             asset: null,
             assetId: null,
-            isDominant: false,
-            isVisible: true,
-            // SOLUCIÓN AL ERROR DE STATUS:
-            // El error indica que 'visible' no es un valor válido. Usualmente, los tipos de estado
-            // usan mayúsculas. Probamos con 'VISIBLE'. Si sigue dando error, debes revisar
-            // la definición exacta de 'SceneObjectStatus' en tu archivo 'admin.service.ts'.
-            status: 'VISIBLE' as SceneObjectStatus,
-            emissiveColor: '#ffffff',
-            emissiveIntensity: 1,
+            status: 'active', // Usamos un valor válido por defecto de 'SceneObjectStatus'
             properties: {},
-            // SOLUCIÓN A ERRORES DE TRANSFORMACIÓN:
-            // Usamos `liveObject` del motor para obtener los datos actuales.
             position: { x: liveObject.position.x, y: liveObject.position.y, z: liveObject.position.z },
             rotation: { x: liveObject.rotation.x, y: liveObject.rotation.y, z: liveObject.rotation.z },
             scale: { x: liveObject.scale.x, y: liveObject.scale.y, z: liveObject.scale.z },
+            // galaxyData se deja como 'undefined', ya que no tenemos esa información.
           };
         }
       }
