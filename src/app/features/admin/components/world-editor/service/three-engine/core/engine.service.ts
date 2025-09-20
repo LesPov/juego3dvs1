@@ -22,9 +22,20 @@ export interface IntersectedObjectInfo {
     object: THREE.Object3D;
 }
 
-const INSTANCES_TO_CHECK_PER_FRAME = 100000;
-const BASE_VISIBILITY_DISTANCE = 1000000000000;
+const INSTANCES_TO_CHECK_PER_FRAME = 10000000000000;
+const BASE_VISIBILITY_DISTANCE = 150000000;
 const MAX_PERCEPTUAL_DISTANCE = 10000000000000;
+const PERSPECTIVE_VISIBILITY_MULTIPLIER = 0.08;
+const FADE_IN_SPEED = 3.0;
+const FADE_OUT_SPEED = 7.0;
+const VISIBILITY_HYSTERESIS_FACTOR = 1.05;
+
+// ================== SOLUCIÓN OBJETOS TENUES ==================
+// --- Constantes para el efecto de "niebla" a distancia ---
+const FOG_START_DISTANCE_MULTIPLIER = 0.7; // La niebla empieza al 70% de la distancia de visibilidad del objeto.
+const FOG_DENSITY = 0.95; // Qué tan densa es la niebla. 1.0 significa que el objeto será invisible en el borde.
+// ================== FIN SOLUCIÓN OBJETOS TENUES ==================
+
 const DEEP_SPACE_SCALE_BOOST = 10.0;
 const ORTHO_ZOOM_VISIBILITY_MULTIPLIER = 5.0;
 const ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR = 12.0;
@@ -139,7 +150,8 @@ export class EngineService implements OnDestroy {
     this.interactionService.update();
     this.labelManager.update();
     
-    this.adjustCameraClippingPlanes();
+    // No ajustamos clipping planes con logarithmic depth buffer, puede causar problemas.
+    // this.adjustCameraClippingPlanes(); 
     
     if (this.cameraManager.activeCameraType === 'secondary') {
       const controls = this.controlsManager.getControls();
@@ -166,7 +178,7 @@ export class EngineService implements OnDestroy {
 
     this.updateDynamicCelestialModels(delta);
     this.sceneManager.scene.children.forEach(object => {
-      if (object.name.startsWith(CELESTIAL_MESH_PREFIX)) this.updateVisibleCelestialInstances(object as THREE.InstancedMesh);
+      if (object.name.startsWith(CELESTIAL_MESH_PREFIX)) this.updateVisibleCelestialInstances(object as THREE.InstancedMesh, delta);
       if (object.userData['animationMixer']) object.userData['animationMixer'].update(delta);
     });
 
@@ -312,113 +324,102 @@ export class EngineService implements OnDestroy {
     if (!hasModelsToLoad && loadingManager.onLoad) setTimeout(() => loadingManager.onLoad!(), 0);
   }
   
-  private adjustCameraClippingPlanes = () => {
-    const camera = this.sceneManager.activeCamera as THREE.PerspectiveCamera;
-    if (!camera.isPerspectiveCamera) return;
-    
-    const controls = this.controlsManager.getControls();
-    if (!controls) return;
-    
-    const distanceToTarget = camera.position.distanceTo(controls.target);
-    this.tempBox.setFromObject(this.selectedObject ?? this.focusPivot, true);
-    const objectSize = this.tempBox.getSize(this.tempVec3).length();
-    
-    let newNear: number;
-    if (this.selectedObject && objectSize > 0) {
-      newNear = Math.min(distanceToTarget * 0.1, objectSize * 0.05);
-    } else {
-      newNear = distanceToTarget / 1000;
-    }
-    newNear = THREE.MathUtils.clamp(newNear, 0.01, 1000);
+  private updateVisibleCelestialInstances(instancedMesh: THREE.InstancedMesh, delta: number): void {
+      const allData: CelestialInstanceData[] = instancedMesh.userData['celestialData'];
+      if (!allData || allData.length === 0) return;
 
-    let newFar = Math.max(distanceToTarget * 2.5, camera.userData['originalFar'] || 1e15);
-    
-    if (newFar <= newNear) newFar = newNear * 2;
-    
-    if (camera.near !== newNear || camera.far !== newFar) {
-      camera.near = newNear;
-      camera.far = newFar;
-      camera.updateProjectionMatrix();
-    }
-  };
+      this.updateCameraFrustum();
+      let needsColorUpdate = false, needsMatrixUpdate = false;
+      const camera = this.sceneManager.activeCamera;
+      const isOrthographic = this.cameraManager.cameraMode$.getValue() === 'orthographic';
 
-  private updateVisibleCelestialInstances(instancedMesh: THREE.InstancedMesh): void {
-    const allData: CelestialInstanceData[] = instancedMesh.userData['celestialData'];
-    if (!allData || allData.length === 0) return;
+      let visibilityFactor = 1.0, bloomDampeningFactor = 1.0;
+      if (isOrthographic && this.baseOrthoMatrixElement > 0) {
+          const orthoCam = camera as THREE.OrthographicCamera;
+          const zoomRatio = this.baseOrthoMatrixElement / orthoCam.projectionMatrix.elements[0];
+          visibilityFactor = Math.max(0.1, zoomRatio * ORTHO_ZOOM_VISIBILITY_MULTIPLIER);
+          bloomDampeningFactor = Math.min(1.0, ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR / zoomRatio);
+      }
+      
+      const totalInstances = allData.length;
+      const startIndex = (instancedMesh.userData['updateIndexCounter'] = (instancedMesh.userData['updateIndexCounter'] || 0) % totalInstances);
+      const checkCount = Math.min(totalInstances, Math.ceil(INSTANCES_TO_CHECK_PER_FRAME / 5));
 
-    this.updateCameraFrustum();
-    let needsColorUpdate = false, needsMatrixUpdate = false;
-    const camera = this.sceneManager.activeCamera;
-    const isOrthographic = this.cameraManager.cameraMode$.getValue() === 'orthographic';
+      for (let i = 0; i < checkCount; i++) {
+          const idx = (startIndex + i) % totalInstances;
+          const data = allData[idx];
+          if (data.isManuallyHidden) continue;
+          
+          const personalVisibilityDist = Math.min(BASE_VISIBILITY_DISTANCE * data.luminosity, MAX_PERCEPTUAL_DISTANCE) * visibilityFactor * (isOrthographic ? 1.0 : PERSPECTIVE_VISIBILITY_MULTIPLIER);
+          const shouldBeVisible = this._isInstanceVisible(data, camera, personalVisibilityDist);
+          const targetIntensity = shouldBeVisible ? this._calculateInstanceIntensity(data, camera, isOrthographic, bloomDampeningFactor, personalVisibilityDist) : 0.0;
 
-    let visibilityFactor = 1.0, bloomDampeningFactor = 1.0;
-    if (isOrthographic && this.baseOrthoMatrixElement > 0) {
-      const orthoCam = camera as THREE.OrthographicCamera;
-      const zoomRatio = this.baseOrthoMatrixElement / orthoCam.projectionMatrix.elements[0];
-      visibilityFactor = Math.max(0.1, zoomRatio * ORTHO_ZOOM_VISIBILITY_MULTIPLIER);
-      bloomDampeningFactor = Math.min(1.0, ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR / zoomRatio);
-    }
-    
-    const totalInstances = allData.length;
-    const startIndex = (instancedMesh.userData['updateIndexCounter'] = (instancedMesh.userData['updateIndexCounter'] || 0) % totalInstances);
-    const checkCount = Math.min(totalInstances, Math.ceil(INSTANCES_TO_CHECK_PER_FRAME / 5));
+          const fadeSpeed = targetIntensity > data.currentIntensity ? FADE_IN_SPEED : FADE_OUT_SPEED;
+          data.currentIntensity = THREE.MathUtils.lerp(data.currentIntensity, targetIntensity, 1.0 - Math.exp(-fadeSpeed * delta));
 
-    for (let i = 0; i < checkCount; i++) {
-        const idx = (startIndex + i) % totalInstances;
-        const data = allData[idx];
-        if (data.isManuallyHidden) continue;
-        
-        let isVisible = this._isInstanceVisible(data, camera, visibilityFactor);
-        
-        if (isVisible) {
-          const finalIntensity = this._calculateInstanceIntensity(data, camera, isOrthographic, bloomDampeningFactor);
-          if (finalIntensity < 0.01) {
-            isVisible = false;
-          } else {
-            this.tempMatrix.compose(data.position, camera.quaternion, this.tempScale.copy(data.scale).multiplyScalar(DEEP_SPACE_SCALE_BOOST));
-            instancedMesh.setMatrixAt(idx, this.tempMatrix);
-            instancedMesh.setColorAt(idx, this.tempColor.copy(data.originalColor).multiplyScalar(finalIntensity));
-            needsMatrixUpdate = true;
-            needsColorUpdate = true;
+          if (data.currentIntensity < 0.001) {
+              data.currentIntensity = 0.0;
           }
-        }
-        
-        if (data.isVisible !== isVisible) {
-          if (!isVisible) {
-             instancedMesh.setColorAt(idx, this.tempColor.setScalar(0));
-             needsColorUpdate = true;
+
+          if (data.currentIntensity > 0) {
+              this.tempMatrix.compose(data.position, camera.quaternion, this.tempScale.copy(data.scale).multiplyScalar(DEEP_SPACE_SCALE_BOOST));
+              instancedMesh.setMatrixAt(idx, this.tempMatrix);
+              needsMatrixUpdate = true;
           }
-          data.isVisible = isVisible;
-        }
-    }
-    
-    instancedMesh.userData['updateIndexCounter'] += checkCount;
-    if (needsColorUpdate && instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
-    if (needsMatrixUpdate) instancedMesh.instanceMatrix.needsUpdate = true;
+          
+          instancedMesh.setColorAt(idx, this.tempColor.copy(data.originalColor).multiplyScalar(data.currentIntensity));
+          needsColorUpdate = true;
+      }
+      
+      instancedMesh.userData['updateIndexCounter'] += checkCount;
+      if (needsColorUpdate && instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
+      if (needsMatrixUpdate) instancedMesh.instanceMatrix.needsUpdate = true;
   }
   
-  private _isInstanceVisible(data: CelestialInstanceData, camera: THREE.Camera, visibilityFactor: number): boolean {
+  private _isInstanceVisible(data: CelestialInstanceData, camera: THREE.Camera, personalVisibilityDist: number): boolean {
     this.boundingSphere.center.copy(data.position);
     this.boundingSphere.radius = Math.max(data.scale.x, data.scale.y, data.scale.z) * DEEP_SPACE_SCALE_BOOST;
     if (!this.frustum.intersectsSphere(this.boundingSphere)) return false;
+
+    if (this.cameraManager.cameraMode$.getValue() === 'orthographic') {
+        return true;
+    }
     
-    const personalVisibilityDist = Math.min(BASE_VISIBILITY_DISTANCE * data.luminosity, MAX_PERCEPTUAL_DISTANCE);
     const distance = data.position.distanceTo(camera.position);
-    return distance <= (personalVisibilityDist * visibilityFactor);
+
+    if (data.currentIntensity > 0) {
+        return distance <= (personalVisibilityDist * VISIBILITY_HYSTERESIS_FACTOR);
+    } else {
+        return distance <= personalVisibilityDist;
+    }
   }
 
-  private _calculateInstanceIntensity(data: CelestialInstanceData, camera: THREE.Camera, isOrthographic: boolean, bloomDampeningFactor: number): number {
+  // ================== SOLUCIÓN OBJETOS TENUES ==================
+  // --- Añadida lógica de niebla manual para atenuar objetos lejanos ---
+  private _calculateInstanceIntensity(data: CelestialInstanceData, camera: THREE.Camera, isOrthographic: boolean, bloomDampeningFactor: number, personalVisibilityDist: number): number {
     const distance = data.position.distanceTo(camera.position);
     const maxScale = Math.max(data.scale.x, data.scale.y, data.scale.z);
 
     const falloff = THREE.MathUtils.clamp(THREE.MathUtils.inverseLerp(maxScale * 80.0, maxScale * 10.0, distance), 0.0, 1.0);
-    const targetIntensity = THREE.MathUtils.lerp(data.emissiveIntensity, data.baseEmissiveIntensity, falloff);
+    let finalIntensity = THREE.MathUtils.lerp(data.emissiveIntensity, data.baseEmissiveIntensity, falloff);
     
     const proximityFade = THREE.MathUtils.smoothstep(distance, maxScale * 1.5, maxScale * 3.0);
     
-    return Math.min(targetIntensity, MAX_INTENSITY) * bloomDampeningFactor * data.brightness * proximityFade;
+    finalIntensity = Math.min(finalIntensity, MAX_INTENSITY) * bloomDampeningFactor * data.brightness * proximityFade;
+    
+    // Aplicamos el efecto de niebla solo en perspectiva
+    if (!isOrthographic) {
+        const fogStartDistance = personalVisibilityDist * FOG_START_DISTANCE_MULTIPLIER;
+        if (distance > fogStartDistance) {
+            const fogFactor = THREE.MathUtils.inverseLerp(fogStartDistance, personalVisibilityDist, distance);
+            finalIntensity *= (1.0 - fogFactor * FOG_DENSITY);
+        }
+    }
+
+    return finalIntensity;
   }
-  
+  // ================== FIN SOLUCIÓN OBJETOS TENUES ==================
+
   private updateDynamicCelestialModels(delta: number): void {
       this.dynamicCelestialModels.forEach(model => {
           if (!model.userData['isDynamicCelestialModel']) return;

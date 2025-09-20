@@ -28,12 +28,12 @@ export interface CelestialInstanceData {
   originalUuid: string;          // UUID de la base de datos.
   originalName: string;          // Nombre original.
   scale: THREE.Vector3;          // Escala del objeto.
-  isVisible: boolean;            // Estado de visibilidad calculado en cada frame.
   isDominant: boolean;           // Si es un objeto "dominante" (más luminoso).
   luminosity: number;            // Factor calculado que afecta a la distancia de visibilidad.
   type: string;                  // Tipo de objeto (e.g., 'galaxy_far').
   isManuallyHidden: boolean;     // Si el usuario lo ha ocultado explícitamente.
   brightness: number;            // Factor de brillo manual (0.0 a 1.0).
+  currentIntensity: number;      // Intensidad de renderizado actual para el efecto de fade.
 }
 
 /**
@@ -100,7 +100,6 @@ export class ObjectManagerService {
         break;
     }
 
-    // ✨ REGISTRAR OBJETO EN EL LABEL MANAGER ✨
     if (createdObject) {
       this.labelManager.registerObject(createdObject);
     }
@@ -150,15 +149,12 @@ export class ObjectManagerService {
     loader.load( modelUrl, (gltf) => {
       this._setupCelestialModel(gltf, objData);
       this.applyTransformations(gltf.scene, objData);
-      // ✨ REGISTRAR MODELO EN EL LABEL MANAGER ✨
       this.labelManager.registerObject(gltf.scene);
       scene.add(gltf.scene);
     });
   }
 
    private _setupCelestialModel(gltf: GLTF, objData: SceneObjectResponse): void {
-    // --- ¡SOLUCIÓN 2! ---
-    // Verificamos si existen datos de galaxia y los usamos. Si no, usamos valores por defecto.
     const galaxyInfo = objData.galaxyData;
     const farIntensity = galaxyInfo ? THREE.MathUtils.clamp(galaxyInfo.emissiveIntensity, 1.0, 7.0) : 1.0;
     
@@ -168,7 +164,9 @@ export class ObjectManagerService {
 
     gltf.scene.layers.enable(BLOOM_LAYER);
     gltf.scene.traverse(child => {
-      // ... (código de traverse sin cambios)
+      if (child instanceof THREE.Mesh) {
+          child.layers.enable(BLOOM_LAYER);
+      }
     });
 
     const auraColor = new THREE.Color(sanitizeHexColor(galaxyInfo?.emissiveColor, '#ffffff'));
@@ -197,29 +195,41 @@ export class ObjectManagerService {
       this.textureCache.set(textureUrl, texture);
     }
     
-    const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    const material = new THREE.MeshBasicMaterial({ 
+        map: texture, 
+        transparent: true, 
+        blending: THREE.AdditiveBlending, 
+        depthWrite: false, 
+        side: THREE.DoubleSide 
+    });
     
-    // ====================================================================
-    // --- ✨ MEJORA APLICADA AQUÍ ✨ ---
-    // Se usa la misma geometría de círculo que los objetos por defecto.
-    // Esto asegura que la escala se aplique de forma consistente y visualmente correcta.
-    // ====================================================================
     const instancedMesh = new THREE.InstancedMesh(this.sharedCircleGeometry, material, objectsData.length);
     
     instancedMesh.name = `CelestialObjects_Texture_${texturePath.replace(/[^a-zA-Z0-9]/g, '_')}`;
     instancedMesh.frustumCulled = false;
     instancedMesh.layers.enable(BLOOM_LAYER);
+    // ================== SOLUCIÓN PARPADEO ==================
+    instancedMesh.renderOrder = 1; // Damos prioridad de renderizado para evitar Z-fighting
+    // ================== FIN SOLUCIÓN PARPADEO ==================
     this._populateInstanceData(instancedMesh, objectsData);
     scene.add(instancedMesh);
   }
 
   private _createDefaultGlowInstancedMesh(scene: THREE.Scene, objectsData: SceneObjectResponse[]): void {
-    const material = new THREE.MeshBasicMaterial({ map: this._createGlowTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+    const material = new THREE.MeshBasicMaterial({ 
+        map: this._createGlowTexture(), 
+        transparent: true, 
+        blending: THREE.AdditiveBlending, 
+        depthWrite: false 
+    });
     const instancedMesh = new THREE.InstancedMesh(this.sharedCircleGeometry, material, objectsData.length);
 
     instancedMesh.name = 'CelestialObjects_Default';
     instancedMesh.frustumCulled = false;
     instancedMesh.layers.enable(BLOOM_LAYER);
+    // ================== SOLUCIÓN PARPADEO ==================
+    instancedMesh.renderOrder = 1; // Damos prioridad de renderizado para evitar Z-fighting
+    // ================== FIN SOLUCIÓN PARPADEO ==================
     this._populateInstanceData(instancedMesh, objectsData);
     scene.add(instancedMesh);
   }
@@ -232,11 +242,8 @@ export class ObjectManagerService {
 
     for (let i = 0; i < objectsData.length; i++) {
       const objData = objectsData[i];
-      // --- ¡SOLUCIÓN 2! ---
-      // Accedemos a las propiedades a través de 'galaxyData'.
       const galaxyInfo = objData.galaxyData;
 
-      // Si no hay datos de galaxia, no podemos procesar este objeto como celestial, lo saltamos.
       if (!galaxyInfo) {
         console.warn(`[ObjectManager] Objeto '${objData.name}' es de tipo galaxia pero no tiene 'galaxyData'. Se omitirá.`);
         continue;
@@ -263,12 +270,12 @@ export class ObjectManagerService {
           originalMatrix: matrix.clone(),
           originalUuid: objData.id.toString(),
           originalName: objData.name,
-          isVisible: false,
           isDominant: galaxyInfo.isDominant ?? false,
           luminosity: scaleLuminosity * dominantBoost,
           type: objData.type,
           isManuallyHidden: false,
-          brightness: 1.0
+          brightness: 1.0,
+          currentIntensity: 0.0
       };
       celestialData.push(instanceData);
 

@@ -128,7 +128,7 @@ export class SceneManagerService {
   
   private _createCameras(width: number, height: number): void {
     const nearPlane = 0.1;
-    const farPlane = 5e11;
+    const farPlane = 5e15; // Aumentamos el far plane para el logarithmic depth buffer
     const aspect = width / height;
 
     this.editorCamera = new THREE.PerspectiveCamera(50, aspect, nearPlane, farPlane);
@@ -157,9 +157,14 @@ export class SceneManagerService {
   private _createRendererAndComposer(width: number, height: number): void {
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
-      antialias: false,
+      antialias: false, // El antialiasing a menudo se maneja en el post-procesamiento
       powerPreference: 'high-performance',
-      precision: 'highp'
+      precision: 'highp',
+      // ================== SOLUCIÓN DEFINITIVA PARPADEO ==================
+      // Activamos el buffer de profundidad logarítmico.
+      // Esto resuelve los problemas de precisión (Z-fighting) en escenas de gran escala.
+      logarithmicDepthBuffer: true
+      // ================== FIN SOLUCIÓN PARPADEO ==================
     });
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));

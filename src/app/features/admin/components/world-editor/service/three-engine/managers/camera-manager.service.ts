@@ -73,7 +73,6 @@ export class CameraManagerService {
     this.orthoCamera.name = 'Cámara Ortográfica';
   }
 
-  // ✨ CORRECCIÓN DEL ERROR DE COMPILACIÓN: El nombre del método ahora es `setTravelSpeedMultiplier`
   public setTravelSpeedMultiplier(multiplier: number): void {
     this.travelSpeedMultiplier = Math.max(0, multiplier);
   }
