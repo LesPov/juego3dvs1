@@ -1,3 +1,5 @@
+// src/app/features/admin/pages/world-editor/service/three-engine/managers/scene-manager.service.ts
+
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -28,13 +30,13 @@ export class SceneManagerService {
   public renderer!: THREE.WebGLRenderer;
   public composer!: EffectComposer;
   public canvas!: HTMLCanvasElement;
-  
+
   public activeCamera!: THREE.PerspectiveCamera | THREE.OrthographicCamera;
   public editorCamera!: THREE.PerspectiveCamera;
-  public secondaryCamera!: THREE.PerspectiveCamera; 
-  
+  public secondaryCamera!: THREE.PerspectiveCamera;
+
   public bloomPass!: UnrealBloomPass;
-  
+
   public bloomComposer!: EffectComposer;
   private finalPass!: ShaderPass;
 
@@ -44,7 +46,7 @@ export class SceneManagerService {
     this.canvas = canvas;
     const container = this.canvas.parentElement;
     if (!container) {
-      console.error("El canvas debe estar dentro de un contenedor para medir las dimensiones.");
+      console.error("[SceneManager] El canvas debe estar dentro de un contenedor para medir las dimensiones.");
       return;
     }
     const width = container.clientWidth;
@@ -55,15 +57,17 @@ export class SceneManagerService {
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.15);
     ambientLight.name = "Luz Ambiental";
     this.scene.add(ambientLight);
+    
+    console.log("[SceneManager] Escena básica y luz ambiental creadas.");
 
     this._createCameras(width, height);
     this.activeCamera = this.editorCamera;
 
     this._createRendererAndComposer(width, height);
   }
-  
-  public setControls(controls: OrbitControls): void { 
-    this.controls = controls; 
+
+  public setControls(controls: OrbitControls): void {
+    this.controls = controls;
   }
 
   public getSceneBoundingBox(): THREE.Box3 {
@@ -77,11 +81,11 @@ export class SceneManagerService {
       if (object.name.startsWith(CELESTIAL_MESH_PREFIX)) {
         const allInstanceData: CelestialInstanceData[] = object.userData["celestialData"];
         if (allInstanceData) {
-          allInstanceData.forEach(instance => { 
+          allInstanceData.forEach(instance => {
             if (!instance.isManuallyHidden) {
-              box.expandByPoint(instance.position); 
+              box.expandByPoint(instance.position);
             }
-          }); 
+          });
         }
       } else {
         box.expandByObject(object);
@@ -94,41 +98,53 @@ export class SceneManagerService {
     if (!this.canvas || !this.renderer || !this.activeCamera) return;
     const container = this.canvas.parentElement;
     if (!container) return;
-    
+
     const newWidth = container.clientWidth;
     const newHeight = container.clientHeight;
 
     if (this.canvas.width !== newWidth || this.canvas.height !== newHeight) {
       if ('aspect' in this.activeCamera) {
-          this.activeCamera.aspect = newWidth / newHeight;
+        this.activeCamera.aspect = newWidth / newHeight;
       }
       this.activeCamera.updateProjectionMatrix();
 
       this.renderer.setSize(newWidth, newHeight);
       this.composer.setSize(newWidth, newHeight);
       this.bloomComposer.setSize(newWidth, newHeight);
-      
+
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     }
   }
 
   public frameScene(sceneWidth: number, sceneHeight: number): void {
     if (!this.activeCamera || !this.controls || !('fov' in this.activeCamera)) return;
-    
+
     const fovRad = THREE.MathUtils.degToRad(this.activeCamera.fov);
     const effectiveHeight = Math.max(sceneHeight, sceneWidth / this.activeCamera.aspect);
     const distance = (effectiveHeight / 2) / Math.tan(fovRad / 2);
     const finalZ = distance * 1.2;
-    
+
     this.activeCamera.position.set(0, 0, finalZ);
     this.activeCamera.lookAt(0, 0, 0);
     this.controls.target.set(0, 0, 0);
     this.controls.update();
   }
-  
+
   private _createCameras(width: number, height: number): void {
     const nearPlane = 0.1;
-    const farPlane = 5e15; // Aumentamos el far plane para el logarithmic depth buffer
+    
+    // ==================================================================
+    // ========= INICIO DE LA LÓGICA CORREGIDA ==========================
+    // ==================================================================
+    // ¡CORRECCIÓN CLAVE!
+    // Reducimos el farPlane de 5e15 a 1e14. Sigue siendo una distancia enorme,
+    // pero es un valor más estable que evita que los cálculos del CameraHelper
+    // produzcan NaN. Esto nos permite mantener el logarithmicDepthBuffer activado.
+    const farPlane = 1e14; 
+    // ==================================================================
+    // ========= FIN DE LA LÓGICA CORREGIDA =============================
+    // ==================================================================
+    
     const aspect = width / height;
 
     this.editorCamera = new THREE.PerspectiveCamera(50, aspect, nearPlane, farPlane);
@@ -136,41 +152,40 @@ export class SceneManagerService {
     this.editorCamera.lookAt(0, 0, 0);
     this.editorCamera.name = 'Cámara del Editor';
     this.editorCamera.userData = { apiType: 'camera', originalNear: nearPlane, originalFar: farPlane };
-    
+
     this.secondaryCamera = new THREE.PerspectiveCamera(50, aspect, nearPlane, farPlane);
     this.secondaryCamera.name = 'Cámara Secundaria';
     this.secondaryCamera.userData = { apiType: 'camera', initialOffset: new THREE.Vector3(0, 4, 15) };
-    
+
     const editorCameraHelper = new THREE.CameraHelper(this.editorCamera);
     editorCameraHelper.name = `${this.editorCamera.name}_helper`;
     this.editorCamera.userData['helper'] = editorCameraHelper;
-    editorCameraHelper.visible = false; 
-    
+    editorCameraHelper.visible = false;
+
     const secondaryCameraHelper = new THREE.CameraHelper(this.secondaryCamera);
     secondaryCameraHelper.name = `${this.secondaryCamera.name}_helper`;
     this.secondaryCamera.userData['helper'] = secondaryCameraHelper;
-    secondaryCameraHelper.visible = true; 
-    
+    secondaryCameraHelper.visible = true;
+
     this.scene.add(this.editorCamera, this.secondaryCamera, editorCameraHelper, secondaryCameraHelper);
+    console.log(`[SceneManager] Cámaras creadas. Far plane ajustado a: ${farPlane}`);
   }
 
   private _createRendererAndComposer(width: number, height: number): void {
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
-      antialias: false, // El antialiasing a menudo se maneja en el post-procesamiento
+      antialias: false,
       powerPreference: 'high-performance',
       precision: 'highp',
-      // ================== SOLUCIÓN DEFINITIVA PARPADEO ==================
-      // Activamos el buffer de profundidad logarítmico.
-      // Esto resuelve los problemas de precisión (Z-fighting) en escenas de gran escala.
+      // Mantenemos el logarithmicDepthBuffer. Es la mejor solución para
+      // el parpadeo (Z-fighting) en escenas de gran escala.
       logarithmicDepthBuffer: true
-      // ================== FIN SOLUCIÓN PARPADEO ==================
     });
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    
+
     const renderPass = new RenderPass(this.scene, this.activeCamera);
 
     this.bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 1.0, 0.6, 0.85);
@@ -208,5 +223,6 @@ export class SceneManagerService {
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(renderPass);
     this.composer.addPass(this.finalPass);
+    console.log("[SceneManager] Renderer y Composer creados con logarithmicDepthBuffer activado.");
   }
 }
