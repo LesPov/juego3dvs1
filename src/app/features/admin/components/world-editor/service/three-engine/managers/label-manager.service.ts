@@ -15,9 +15,9 @@ const LABEL_PADDING = 10;
 
 // --- Para OBJETOS CON MODELO 3D ---
 // Se reduce drásticamente para que la etiqueta sea pequeña y proporcional al modelo.
-const MODEL_LABEL_SCALE_FACTOR = 1.0; 
+const MODEL_LABEL_SCALE_FACTOR = 0.5; 
 // Se ajusta a 1.1 para que la etiqueta se posicione justo encima del borde del objeto.
-const MODEL_LABEL_Y_OFFSET_MULTIPLIER = 1.1; 
+const MODEL_LABEL_Y_OFFSET_MULTIPLIER = 0.05; 
 
 // --- Para OBJETOS POR DEFECTO (Billboards, imágenes, etc.) ---
 // Mantenemos los valores originales que funcionan bien para estos casos.
