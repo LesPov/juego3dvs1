@@ -22,25 +22,32 @@ export interface IntersectedObjectInfo {
     object: THREE.Object3D;
 }
 
-const INSTANCES_TO_CHECK_PER_FRAME = 10000000000000;
-const BASE_VISIBILITY_DISTANCE = 100000000;
+const INSTANCES_TO_CHECK_PER_FRAME = 10000000;
+const BASE_VISIBILITY_DISTANCE = 90000000;
 const MAX_PERCEPTUAL_DISTANCE = 10000000000000;
 const PERSPECTIVE_VISIBILITY_MULTIPLIER = 0.08;
 const FADE_IN_SPEED = 3.0;
 const FADE_OUT_SPEED = 7.0;
 const VISIBILITY_HYSTERESIS_FACTOR = 1.05;
-
-// ================== SOLUCIÓN OBJETOS TENUES ==================
-// --- Constantes para el efecto de "niebla" a distancia ---
-const FOG_START_DISTANCE_MULTIPLIER = 0.7; // La niebla empieza al 70% de la distancia de visibilidad del objeto.
-const FOG_DENSITY = 0.95; // Qué tan densa es la niebla. 1.0 significa que el objeto será invisible en el borde.
-// ================== FIN SOLUCIÓN OBJETOS TENUES ==================
-
+const FOG_START_DISTANCE_MULTIPLIER = 0.7;
+const FOG_DENSITY = 0.95;
 const DEEP_SPACE_SCALE_BOOST = 10.0;
 const ORTHO_ZOOM_VISIBILITY_MULTIPLIER = 5.0;
 const ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR = 12.0;
 const MAX_INTENSITY = 8.0;
 const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
+
+// ====================================================================
+// ✨ INICIO DE CONSTANTES DE ATENUACIÓN DE BRILLO (RADIO AMPLIADO) ✨
+// ====================================================================
+// Define qué tan lejos (en múltiplos del radio del objeto) empieza a desvanecerse el brillo al acercarse.
+const PROXIMITY_FADE_START_MULTIPLIER = 20.0; 
+// Define qué tan cerca (en múltiplos del radio) el brillo llega a CERO para ver el modelo.
+const PROXIMITY_FADE_END_MULTIPLIER = 8.0;   
+// ====================================================================
+// ✨ FIN DE CONSTANTES DE ATENUACIÓN DE BRILLO ✨
+// ====================================================================
+
 
 @Injectable()
 export class EngineService implements OnDestroy {
@@ -149,9 +156,6 @@ export class EngineService implements OnDestroy {
     const isCameraAnimating = this.cameraManager.update(delta);
     this.interactionService.update();
     this.labelManager.update();
-    
-    // No ajustamos clipping planes con logarithmic depth buffer, puede causar problemas.
-    // this.adjustCameraClippingPlanes(); 
     
     if (this.cameraManager.activeCameraType === 'secondary') {
       const controls = this.controlsManager.getControls();
@@ -394,8 +398,6 @@ export class EngineService implements OnDestroy {
     }
   }
 
-  // ================== SOLUCIÓN OBJETOS TENUES ==================
-  // --- Añadida lógica de niebla manual para atenuar objetos lejanos ---
   private _calculateInstanceIntensity(data: CelestialInstanceData, camera: THREE.Camera, isOrthographic: boolean, bloomDampeningFactor: number, personalVisibilityDist: number): number {
     const distance = data.position.distanceTo(camera.position);
     const maxScale = Math.max(data.scale.x, data.scale.y, data.scale.z);
@@ -407,7 +409,6 @@ export class EngineService implements OnDestroy {
     
     finalIntensity = Math.min(finalIntensity, MAX_INTENSITY) * bloomDampeningFactor * data.brightness * proximityFade;
     
-    // Aplicamos el efecto de niebla solo en perspectiva
     if (!isOrthographic) {
         const fogStartDistance = personalVisibilityDist * FOG_START_DISTANCE_MULTIPLIER;
         if (distance > fogStartDistance) {
@@ -418,33 +419,62 @@ export class EngineService implements OnDestroy {
 
     return finalIntensity;
   }
-  // ================== FIN SOLUCIÓN OBJETOS TENUES ==================
-
+  
+  // ====================================================================
+  // ✨ INICIO DE LA LÓGICA DE ATENUACIÓN DE BRILLO FINAL ✨
+  // ====================================================================
   private updateDynamicCelestialModels(delta: number): void {
       this.dynamicCelestialModels.forEach(model => {
           if (!model.userData['isDynamicCelestialModel']) return;
-          const distance = this.sceneManager.activeCamera.position.distanceTo(model.position);
-          const maxScale = Math.max(model.scale.x, model.scale.y, model.scale.z);
-          const originalIntensity = model.userData['originalEmissiveIntensity'] || 1.0;
-          const baseIntensity = model.userData['baseEmissiveIntensity'] || 0.1;
-          
-          const fadeFactor = THREE.MathUtils.clamp(THREE.MathUtils.inverseLerp(maxScale * 80.0, maxScale * 10.0, distance), 0.0, 1.0);
-          let targetIntensity = THREE.MathUtils.lerp(originalIntensity, baseIntensity, fadeFactor);
-          
-          const proximityFade = THREE.MathUtils.smoothstep(distance, maxScale * 1.5, maxScale * 3.0);
-          targetIntensity *= proximityFade;
 
+          // Paso 1: Usar el tamaño del modelo para que la atenuación sea proporcional.
+          // Se calcula la bounding sphere una sola vez para optimizar.
+          if (!model.userData['boundingSphere']) {
+              const sphere = new THREE.Sphere();
+              this.tempBox.setFromObject(model, true);
+              model.userData['boundingSphere'] = this.tempBox.getBoundingSphere(sphere);
+          }
+          const radius = model.userData['boundingSphere'].radius;
+          if (radius === 0) return;
+
+          // Paso 2: Obtener datos clave del modelo y la cámara.
+          const distance = this.sceneManager.activeCamera.position.distanceTo(model.position);
+          const originalEmissiveIntensity = model.userData['originalEmissiveIntensity'] || 1.0;
+          const baseEmissiveIntensity = model.userData['baseEmissiveIntensity'] || 0.1;
+
+          // --- LÓGICA DE DOBLE ATENUACIÓN ---
+
+          // a) Atenuación a larga distancia (para que se desvanezca como los otros objetos)
+          const farFalloffStart = radius * 80.0;
+          const farFalloffEnd = radius * 860.0;
+          const farFalloffAlpha = THREE.MathUtils.clamp(THREE.MathUtils.inverseLerp(farFalloffStart, farFalloffEnd, distance), 0, 1);
+          const intensityAfterFalloff = THREE.MathUtils.lerp(originalEmissiveIntensity, baseEmissiveIntensity, farFalloffAlpha);
+
+          // b) Atenuación por proximidad (para apagar el brillo al acercarse)
+          const proximityFadeStart = radius * PROXIMITY_FADE_START_MULTIPLIER;
+          const proximityFadeEnd = radius * PROXIMITY_FADE_END_MULTIPLIER;
+          const proximityFadeFactor = THREE.MathUtils.smoothstep(distance, proximityFadeEnd, proximityFadeStart);
+
+          // Paso 3: Combinar ambos factores. La intensidad final es la de larga distancia,
+          // multiplicada por el factor de proximidad.
+          const targetIntensity = intensityAfterFalloff * proximityFadeFactor;
+
+          // Paso 4: Aplicar la intensidad objetivo de forma suave a todos los materiales emisivos.
           model.traverse(child => {
               if (child instanceof THREE.Mesh) {
                 const material = child.material as THREE.MeshStandardMaterial;
-                if (material.emissiveIntensity !== undefined) {
-                    material.emissiveIntensity = THREE.MathUtils.lerp(material.emissiveIntensity, targetIntensity, delta * 5);
+                if (material && material.emissiveIntensity !== undefined) {
+                    // El LERP es la clave para una transición sin parpadeos.
+                    material.emissiveIntensity = THREE.MathUtils.lerp(material.emissiveIntensity, targetIntensity, 5.0 * delta);
                 }
               }
           });
       });
   }
-  
+  // ====================================================================
+  // ✨ FIN DE LA LÓGICA DE ATENUACIÓN DE BRILLO FINAL ✨
+  // ====================================================================
+
   public setTravelSpeedMultiplier(multiplier: number): void {
     this.cameraManager.setTravelSpeedMultiplier(multiplier);
   }

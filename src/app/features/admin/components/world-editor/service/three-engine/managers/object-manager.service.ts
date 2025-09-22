@@ -70,7 +70,6 @@ export class ObjectManagerService {
   private sharedPlaneGeometry = new THREE.PlaneGeometry(1, 1);
   private sharedCircleGeometry = new THREE.CircleGeometry(6.0, 32);
 
-  // Helpers para evitar crear objetos en el bucle
   private tempBox = new THREE.Box3();
   private tempSize = new THREE.Vector3();
   private tempCenter = new THREE.Vector3();
@@ -162,8 +161,6 @@ export class ObjectManagerService {
       
       this.applyTransformations(modelWrapper, objData);
       
-      // ✅ CORRECCIÓN: Usamos notación de corchetes para evitar el error de TypeScript.
-      // Marcamos este objeto para que el LabelManager sepa cómo posicionar su etiqueta.
       modelWrapper.userData['isNormalizedModel'] = true;
 
       this.labelManager.registerObject(modelWrapper);
@@ -183,31 +180,45 @@ export class ObjectManagerService {
     model.scale.set(scaleFactor, scaleFactor, scaleFactor);
   }
 
+  // ====================================================================
+  // ✨ INICIO DE LA LÓGICA DE PREPARACIÓN DEL MODELO SIMPLIFICADA ✨
+  // ====================================================================
   private _setupCelestialModel(modelWrapper: THREE.Group, gltf: GLTF, objData: SceneObjectResponse): void {
     const galaxyInfo = objData.galaxyData;
+    const emissiveColor = new THREE.Color(sanitizeHexColor(galaxyInfo?.emissiveColor, '#ffffff'));
+    
+    // 1. Definimos la intensidad de brillo máxima (cuando está lejos).
     const farIntensity = galaxyInfo ? THREE.MathUtils.clamp(galaxyInfo.emissiveIntensity, 1.0, 7.0) : 1.0;
 
+    // 2. Guardamos los datos necesarios para que el EngineService los controle.
     modelWrapper.userData['isDynamicCelestialModel'] = true;
     modelWrapper.userData['originalEmissiveIntensity'] = farIntensity;
-    modelWrapper.userData['baseEmissiveIntensity'] = 0.5;
+    modelWrapper.userData['baseEmissiveIntensity'] = 0.1; // Valor base cuando está muy lejos
 
-    modelWrapper.layers.enable(BLOOM_LAYER);
+    // 3. Recorremos el modelo para aplicar las propiedades de brillo.
     modelWrapper.traverse(child => {
       if (child instanceof THREE.Mesh) {
+        // Todos los objetos que deben brillar necesitan estar en la capa de BLOOM.
         child.layers.enable(BLOOM_LAYER);
+        const material = child.material as THREE.MeshStandardMaterial;
+        if (material) {
+            // Asignamos el color del brillo.
+            material.emissive = emissiveColor;
+            // La intensidad inicial es la máxima, el EngineService la atenuará.
+            material.emissiveIntensity = farIntensity;
+        }
       }
     });
 
-    const auraColor = new THREE.Color(sanitizeHexColor(galaxyInfo?.emissiveColor, '#ffffff'));
-    const lightPower = (galaxyInfo?.emissiveIntensity || 1.0) * 20.0;
-    const lightDistance = Math.max(objData.scale.x, objData.scale.y, objData.scale.z) * 50;
-    const coreLight = new THREE.PointLight(auraColor, lightPower, lightDistance);
-    coreLight.name = `${objData.name}_CoreLight`;
-    coreLight.layers.enable(BLOOM_LAYER);
-    modelWrapper.add(coreLight);
+    // 4. Eliminamos la luz puntual individual. La luz ambiental global se encarga de la iluminación base.
+    const coreLight = modelWrapper.getObjectByName(`${objData.name}_CoreLight`);
+    if(coreLight) modelWrapper.remove(coreLight);
 
     this._setupAnimations(gltf, modelWrapper);
   }
+  // ====================================================================
+  // ✨ FIN DE LA LÓGICA DE PREPARACIÓN DEL MODELO ✨
+  // ====================================================================
 
   private _setupAnimations(gltf: GLTF, modelWrapper: THREE.Group): void {
     if (gltf.animations?.length > 0) {

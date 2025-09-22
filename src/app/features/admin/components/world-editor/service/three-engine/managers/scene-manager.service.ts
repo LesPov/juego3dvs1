@@ -1,5 +1,3 @@
-// src/app/features/admin/pages/world-editor/service/three-engine/managers/scene-manager.service.ts
-
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -8,10 +6,6 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { CelestialInstanceData } from './object-manager.service';
-
-// ====================================================================
-// CONSTANTES
-// ====================================================================
 
 const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
 const UNSELECTABLE_NAMES = ['Luz Ambiental', 'EditorGrid', 'SelectionProxy', 'HoverProxy', 'FocusPivot'];
@@ -54,9 +48,19 @@ export class SceneManagerService {
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x00042B);
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.15);
+    
+    // ====================================================================
+    // ✨ INICIO DE LA SOLUCIÓN DE ILUMINACIÓN DEFINITIVA ✨
+    // ====================================================================
+    // LÓGICA: Aumentamos drásticamente la luz ambiental. Esto asegura que
+    // las texturas de TODOS los modelos sean siempre visibles y no se vean
+    // negras. Es la forma más simple y efectiva de garantizar una iluminación base.
+    const ambientLight = new THREE.AmbientLight(0xffffff, 4.0); // Valor alto para una buena iluminación base
     ambientLight.name = "Luz Ambiental";
     this.scene.add(ambientLight);
+    // ====================================================================
+    // ✨ FIN DE LA SOLUCIÓN DE ILUMINACIÓN ✨
+    // ====================================================================
     
     console.log("[SceneManager] Escena básica y luz ambiental creadas.");
 
@@ -132,19 +136,7 @@ export class SceneManagerService {
 
   private _createCameras(width: number, height: number): void {
     const nearPlane = 0.1;
-    
-    // ==================================================================
-    // ========= INICIO DE LA LÓGICA CORREGIDA ==========================
-    // ==================================================================
-    // ¡CORRECCIÓN CLAVE!
-    // Reducimos el farPlane de 5e15 a 1e14. Sigue siendo una distancia enorme,
-    // pero es un valor más estable que evita que los cálculos del CameraHelper
-    // produzcan NaN. Esto nos permite mantener el logarithmicDepthBuffer activado.
     const farPlane = 1e14; 
-    // ==================================================================
-    // ========= FIN DE LA LÓGICA CORREGIDA =============================
-    // ==================================================================
-    
     const aspect = width / height;
 
     this.editorCamera = new THREE.PerspectiveCamera(50, aspect, nearPlane, farPlane);
@@ -177,8 +169,6 @@ export class SceneManagerService {
       antialias: false,
       powerPreference: 'high-performance',
       precision: 'highp',
-      // Mantenemos el logarithmicDepthBuffer. Es la mejor solución para
-      // el parpadeo (Z-fighting) en escenas de gran escala.
       logarithmicDepthBuffer: true
     });
     this.renderer.setSize(width, height);
