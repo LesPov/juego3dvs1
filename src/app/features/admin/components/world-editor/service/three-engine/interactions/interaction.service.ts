@@ -1,5 +1,3 @@
-// src/app/features/admin/views/world-editor/world-view/service/three-engine/interactions/interaction.service.ts
-
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable } from 'rxjs';
@@ -143,12 +141,33 @@ export class InteractionService {
     );
     
     if (firstValidHit) {
-      const { object: hitObject, instanceId } = firstValidHit;
-      // Si el objeto es instanciado, se crea un proxy para visualizar el hover.
-      const isInstanced = (hitObject as THREE.InstancedMesh).isInstancedMesh && instanceId !== undefined;
+      // ====================================================================
+      // ✨ INICIO DE LA LÓGICA CORREGIDA PARA SELECCIÓN DE MODELOS ✨
+      // ====================================================================
+      // El problema: El rayo puede chocar con una malla HIJA de un modelo.
+      // Necesitamos encontrar el objeto PADRE que es el contenedor principal del modelo.
+      // La solución: Subimos en la jerarquía del objeto hasta encontrar el que es
+      // un hijo directo de la escena. Ese es el objeto que queremos seleccionar.
+      
+      let selectableObject = firstValidHit.object;
+      let current = selectableObject;
+      while (current.parent && current.parent.type !== 'Scene') {
+        current = current.parent;
+      }
+      // Ahora `current` es el objeto de nivel superior en la jerarquía (el modelo completo).
+      selectableObject = current;
+      
+      // ====================================================================
+      // ✨ FIN DE LA LÓGICA CORREGIDA ✨
+      // ====================================================================
+
+      const { instanceId } = firstValidHit;
+
+      // Ahora usamos `selectableObject` en lugar de `hitObject`
+      const isInstanced = (selectableObject as THREE.InstancedMesh).isInstancedMesh && instanceId !== undefined;
       const proxyObject = isInstanced 
-        ? this.entityManager.createOrUpdateHoverProxy(hitObject as THREE.InstancedMesh, instanceId) 
-        : hitObject;
+        ? this.entityManager.createOrUpdateHoverProxy(selectableObject as THREE.InstancedMesh, instanceId) 
+        : selectableObject; // Usamos el objeto padre que encontramos
       
       if (this.preselectedObject?.uuid !== proxyObject.uuid) {
         this.preselectedObject = { uuid: proxyObject.uuid, object: proxyObject };

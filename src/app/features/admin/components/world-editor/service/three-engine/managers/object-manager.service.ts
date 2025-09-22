@@ -70,6 +70,11 @@ export class ObjectManagerService {
   private sharedPlaneGeometry = new THREE.PlaneGeometry(1, 1);
   private sharedCircleGeometry = new THREE.CircleGeometry(6.0, 32);
 
+  // Helpers para evitar crear objetos en el bucle
+  private tempBox = new THREE.Box3();
+  private tempSize = new THREE.Vector3();
+  private tempCenter = new THREE.Vector3();
+
   constructor(private labelManager: LabelManagerService) { }
 
   public createObjectFromData(scene: THREE.Scene, objData: SceneObjectResponse, loader: GLTFLoader): THREE.Object3D | null {
@@ -146,24 +151,48 @@ export class ObjectManagerService {
       return;
     };
     const modelUrl = `${this.backendUrl}${objData.asset.path}`;
+
     loader.load(modelUrl, (gltf) => {
-      this._setupCelestialModel(gltf, objData);
-      this.applyTransformations(gltf.scene, objData);
-      this.labelManager.registerObject(gltf.scene);
-      scene.add(gltf.scene);
+      const modelWrapper = new THREE.Group();
+
+      this._normalizeAndCenterModel(gltf.scene);
+      modelWrapper.add(gltf.scene);
+
+      this._setupCelestialModel(modelWrapper, gltf, objData);
+      
+      this.applyTransformations(modelWrapper, objData);
+      
+      // ✅ CORRECCIÓN: Usamos notación de corchetes para evitar el error de TypeScript.
+      // Marcamos este objeto para que el LabelManager sepa cómo posicionar su etiqueta.
+      modelWrapper.userData['isNormalizedModel'] = true;
+
+      this.labelManager.registerObject(modelWrapper);
+      scene.add(modelWrapper);
     });
   }
 
-  private _setupCelestialModel(gltf: GLTF, objData: SceneObjectResponse): void {
+  private _normalizeAndCenterModel(model: THREE.Object3D): void {
+    this.tempBox.setFromObject(model);
+    this.tempBox.getSize(this.tempSize);
+    this.tempBox.getCenter(this.tempCenter);
+
+    const maxDimension = Math.max(this.tempSize.x, this.tempSize.y, this.tempSize.z);
+    const scaleFactor = maxDimension > 0 ? (1.0 / maxDimension) : 1.0;
+
+    model.position.sub(this.tempCenter);
+    model.scale.set(scaleFactor, scaleFactor, scaleFactor);
+  }
+
+  private _setupCelestialModel(modelWrapper: THREE.Group, gltf: GLTF, objData: SceneObjectResponse): void {
     const galaxyInfo = objData.galaxyData;
     const farIntensity = galaxyInfo ? THREE.MathUtils.clamp(galaxyInfo.emissiveIntensity, 1.0, 7.0) : 1.0;
 
-    gltf.scene.userData['isDynamicCelestialModel'] = true;
-    gltf.scene.userData['originalEmissiveIntensity'] = farIntensity;
-    gltf.scene.userData['baseEmissiveIntensity'] = 0.5;
+    modelWrapper.userData['isDynamicCelestialModel'] = true;
+    modelWrapper.userData['originalEmissiveIntensity'] = farIntensity;
+    modelWrapper.userData['baseEmissiveIntensity'] = 0.5;
 
-    gltf.scene.layers.enable(BLOOM_LAYER);
-    gltf.scene.traverse(child => {
+    modelWrapper.layers.enable(BLOOM_LAYER);
+    modelWrapper.traverse(child => {
       if (child instanceof THREE.Mesh) {
         child.layers.enable(BLOOM_LAYER);
       }
@@ -175,14 +204,16 @@ export class ObjectManagerService {
     const coreLight = new THREE.PointLight(auraColor, lightPower, lightDistance);
     coreLight.name = `${objData.name}_CoreLight`;
     coreLight.layers.enable(BLOOM_LAYER);
-    gltf.scene.add(coreLight);
-    this._setupAnimations(gltf);
+    modelWrapper.add(coreLight);
+
+    this._setupAnimations(gltf, modelWrapper);
   }
-  private _setupAnimations(gltf: GLTF): void {
+
+  private _setupAnimations(gltf: GLTF, modelWrapper: THREE.Group): void {
     if (gltf.animations?.length > 0) {
-      const mixer = new THREE.AnimationMixer(gltf.scene);
+      const mixer = new THREE.AnimationMixer(modelWrapper);
       gltf.animations.forEach(clip => mixer.clipAction(clip).play());
-      gltf.scene.userData['animationMixer'] = mixer;
+      modelWrapper.userData['animationMixer'] = mixer;
     }
   }
 
@@ -208,9 +239,7 @@ export class ObjectManagerService {
     instancedMesh.name = `CelestialObjects_Texture_${texturePath.replace(/[^a-zA-Z0-9]/g, '_')}`;
     instancedMesh.frustumCulled = false;
     instancedMesh.layers.enable(BLOOM_LAYER);
-    // ================== SOLUCIÓN PARPADEO ==================
-    instancedMesh.renderOrder = 1; // Damos prioridad de renderizado para evitar Z-fighting
-    // ================== FIN SOLUCIÓN PARPADEO ==================
+    instancedMesh.renderOrder = 1;
     this._populateInstanceData(instancedMesh, objectsData);
     scene.add(instancedMesh);
   }
@@ -227,9 +256,7 @@ export class ObjectManagerService {
     instancedMesh.name = 'CelestialObjects_Default';
     instancedMesh.frustumCulled = false;
     instancedMesh.layers.enable(BLOOM_LAYER);
-    // ================== SOLUCIÓN PARPADEO ==================
-    instancedMesh.renderOrder = 1; // Damos prioridad de renderizado para evitar Z-fighting
-    // ================== FIN SOLUCIÓN PARPADEO ==================
+    instancedMesh.renderOrder = 1;
     this._populateInstanceData(instancedMesh, objectsData);
     scene.add(instancedMesh);
   }
@@ -259,19 +286,8 @@ export class ObjectManagerService {
       instancedMesh.setColorAt(i, new THREE.Color(0x000000));
 
       const scaleLuminosity = Math.max(1.0, objData.scale.x / 600.0);
-
-      // ================== LÓGICA MEJORADA DE LUMINOSIDAD ==================
-      // ELIMINAMOS ESTO:
-      // const dominantBoost = (galaxyInfo.isDominant ?? false) ? 5.0 : 1.0;
-
-      // Y AÑADIMOS ESTO:
-      // Calculamos un boost basado en el SNR del objeto.
-      // Usamos una escala logarítmica para que el efecto sea suave y no se dispare con valores altos de SNR.
-      // Puedes ajustar los números '50.0' (divisor) y '2.0' (multiplicador) para calibrar el efecto.
       const snr = galaxyInfo.snr || 0;
       const luminosityBoost = 1.0 + Math.log1p(snr / 50.0) * 2.0;
-      // Math.log1p(x) es como Math.log(1 + x), bueno para valores que pueden ser cercanos a cero.
-      // ================== FIN DE LA LÓGICA MEJORADA ==================
 
       const instanceData: CelestialInstanceData = {
         originalColor: visualColor.clone(),
@@ -282,9 +298,8 @@ export class ObjectManagerService {
         originalMatrix: matrix.clone(),
         originalUuid: objData.id.toString(),
         originalName: objData.name,
-        // Usamos el nuevo boost calculado en lugar del antiguo
         luminosity: scaleLuminosity * luminosityBoost,
-        isDominant: galaxyInfo.isDominant ?? false, // Mantenemos el dato por si lo necesitas para otra cosa
+        isDominant: galaxyInfo.isDominant ?? false,
         type: objData.type,
         isManuallyHidden: false,
         brightness: 1.0,
@@ -297,7 +312,6 @@ export class ObjectManagerService {
     instancedMesh.instanceMatrix.needsUpdate = true;
     if (instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
   }
-
 
   private createCamera(scene: THREE.Scene, objData: SceneObjectResponse): THREE.PerspectiveCamera {
     const props = objData.properties || {};

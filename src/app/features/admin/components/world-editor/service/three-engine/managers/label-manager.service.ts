@@ -10,8 +10,20 @@ const LABEL_FONT_SIZE = 72;
 const LABEL_FONT_FAMILY = 'Arial, sans-serif';
 const LABEL_TEXT_COLOR = 'rgba(255, 255, 255, 1)';
 const LABEL_PADDING = 10;
-const LABEL_SCALE_FACTOR = 18.0;
-const LABEL_Y_OFFSET_MULTIPLIER = 80.2; // Multiplicador para la altura de la etiqueta sobre el objeto.
+
+// ✨ LÓGICA FINAL: Factores de escala y altura ajustados para una proporción perfecta
+
+// --- Para OBJETOS CON MODELO 3D ---
+// Se reduce drásticamente para que la etiqueta sea pequeña y proporcional al modelo.
+const MODEL_LABEL_SCALE_FACTOR = 1.0; 
+// Se ajusta a 1.1 para que la etiqueta se posicione justo encima del borde del objeto.
+const MODEL_LABEL_Y_OFFSET_MULTIPLIER = 1.1; 
+
+// --- Para OBJETOS POR DEFECTO (Billboards, imágenes, etc.) ---
+// Mantenemos los valores originales que funcionan bien para estos casos.
+const DEFAULT_LABEL_SCALE_FACTOR = 18.0;
+const DEFAULT_LABEL_Y_OFFSET_MULTIPLIER = 80.2;
+
 
 /**
  * @interface ManagedLabel
@@ -24,6 +36,7 @@ interface ManagedLabel {
   targetPosition: THREE.Vector3;
   targetRadius: number;
   sprite: THREE.Sprite | null;
+  isNormalizedModel: boolean; // Guardaremos aquí si el objeto es un modelo para accederlo fácilmente.
 }
 
 /**
@@ -41,23 +54,19 @@ export class LabelManagerService {
   private tempBox = new THREE.Box3();
   private tempVec3 = new THREE.Vector3();
 
-  /**
-   * Inicializa el servicio con la escena principal.
-   * @param scene - La instancia de la escena de Three.js.
-   */
   public init(scene: THREE.Scene): void {
     this.scene = scene;
   }
 
-  /**
-   * Registra un objeto estándar para que pueda mostrar su etiqueta.
-   * @param object - El objeto 3D a registrar.
-   */
   public registerObject(object: THREE.Object3D): void {
     if (!object.name || this.registeredLabels.has(object.uuid)) return;
 
     this.tempBox.setFromObject(object, true);
-    const radius = this.tempBox.getSize(this.tempVec3).length() / 2;
+    // Usamos la mitad de la altura de la caja contenedora como un "radio" más predecible.
+    const radius = this.tempBox.getSize(this.tempVec3).y / 2;
+
+    // Determinamos si es un modelo al registrarlo
+    const isNormalizedModel = object.userData['isNormalizedModel'] === true;
 
     this.registeredLabels.set(object.uuid, {
       uuid: object.uuid,
@@ -66,13 +75,10 @@ export class LabelManagerService {
       targetPosition: object.position.clone(),
       targetRadius: Math.max(radius, 1.0),
       sprite: null,
+      isNormalizedModel: isNormalizedModel, // Guardamos el estado
     });
   }
 
-  /**
-   * Registra los datos de una instancia celeste para que pueda mostrar su etiqueta.
-   * @param instanceData - Los datos de la instancia celeste.
-   */
   public registerInstancedObject(instanceData: CelestialInstanceData): void {
     if (this.registeredLabels.has(instanceData.originalUuid)) return;
 
@@ -84,26 +90,18 @@ export class LabelManagerService {
       targetPosition: instanceData.position.clone(),
       targetRadius: radius,
       sprite: null,
+      isNormalizedModel: false, // Los objetos instanciados no son modelos 3D en este contexto.
     });
   }
 
-  /**
-   * Muestra la etiqueta para un objeto específico.
-   * @param uuid - El UUID del objeto cuya etiqueta se mostrará.
-   */
   public showLabel(uuid: string): void {
-    if (this.activeLabels.has(uuid)) return; // Ya está activa
-
+    if (this.activeLabels.has(uuid)) return;
     const labelData = this.registeredLabels.get(uuid);
     if (labelData) {
       this._activateLabel(labelData);
     }
   }
 
-  /**
-   * Oculta la etiqueta para un objeto específico.
-   * @param uuid - El UUID del objeto cuya etiqueta se ocultará.
-   */
   public hideLabel(uuid: string): void {
     const labelData = this.activeLabels.get(uuid);
     if (labelData) {
@@ -111,19 +109,11 @@ export class LabelManagerService {
     }
   }
 
-  /**
-   * Oculta todas las etiquetas que estén actualmente visibles.
-   */
   public hideAllLabels(): void {
     const allActiveLabels = [...this.activeLabels.values()];
     allActiveLabels.forEach(label => this._deactivateLabel(label));
   }
 
-  /**
-   * Actualiza el texto de una etiqueta si el nombre de un objeto cambia.
-   * @param uuid - El UUID del objeto.
-   * @param newName - El nuevo nombre.
-   */
   public updateLabelText(uuid: string, newName: string): void {
     const labelData = this.registeredLabels.get(uuid);
     if (labelData) {
@@ -134,29 +124,27 @@ export class LabelManagerService {
     }
   }
 
-  /**
-   * El bucle de actualización, llamado desde EngineService.
-   * Actualiza la posición de las etiquetas visibles para que sigan a sus objetos.
-   */
-  public update(): void { // << ✨ CORRECCIÓN: Se elimina el parámetro 'camera'
+  public update(): void {
     this.activeLabels.forEach((labelData) => {
       if (!labelData.sprite) return;
 
       let targetPosition: THREE.Vector3;
       if (labelData.targetObject) {
-        // Para objetos estándar, obtenemos su posición mundial actual.
         targetPosition = labelData.targetObject.getWorldPosition(this.tempVec3);
       } else {
-        // Para objetos instanciados, la posición es fija.
         targetPosition = labelData.targetPosition;
       }
 
-      const yOffset = labelData.targetRadius * LABEL_Y_OFFSET_MULTIPLIER;
+      // Decidimos qué multiplicador de altura usar basándonos en el tipo de objeto.
+      const yOffsetMultiplier = labelData.isNormalizedModel 
+          ? MODEL_LABEL_Y_OFFSET_MULTIPLIER 
+          : DEFAULT_LABEL_Y_OFFSET_MULTIPLIER;
+      
+      const yOffset = labelData.targetRadius * yOffsetMultiplier;
       labelData.sprite.position.copy(targetPosition).add(new THREE.Vector3(0, yOffset, 0));
     });
   }
 
-  /** Limpia todas las etiquetas y registros. */
   public clear(): void {
     this.hideAllLabels();
     this.labelPool.forEach(sprite => {
@@ -180,7 +168,7 @@ export class LabelManagerService {
 
     this.scene.add(sprite);
     this.activeLabels.set(labelData.uuid, labelData);
-    this.update(); // Llama a update una vez para posicionar la etiqueta inmediatamente.
+    this.update();
   }
 
   private _deactivateLabel(labelData: ManagedLabel): void {
@@ -222,10 +210,8 @@ export class LabelManagerService {
     context.font = font;
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-
     context.shadowColor = 'rgba(0, 0, 0, 0.9)';
     context.shadowBlur = 10;
-
     context.fillStyle = LABEL_TEXT_COLOR;
     context.fillText(labelData.name, canvas.width / 2, canvas.height / 2);
 
@@ -233,8 +219,13 @@ export class LabelManagerService {
     texture.needsUpdate = true;
     sprite.material.map = texture;
 
+    // Decidimos qué factor de escala usar basándonos en el tipo de objeto.
+    const scaleFactor = labelData.isNormalizedModel 
+        ? MODEL_LABEL_SCALE_FACTOR 
+        : DEFAULT_LABEL_SCALE_FACTOR;
+
     const aspect = canvas.width / canvas.height;
-    const baseScale = labelData.targetRadius * LABEL_SCALE_FACTOR;
+    const baseScale = labelData.targetRadius * scaleFactor;
     sprite.scale.set(baseScale * aspect, baseScale, 1.0);
   }
 }
