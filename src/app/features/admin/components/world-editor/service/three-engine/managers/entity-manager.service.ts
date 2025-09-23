@@ -120,11 +120,9 @@ export class EntityManagerService {
     if (celestialInstance) {
       const { data, mesh } = celestialInstance;
       const selectionProxy = this.objectManager.createSelectionProxy(mesh.geometry);
-      const pos = new THREE.Vector3(), quat = new THREE.Quaternion(), scale = new THREE.Vector3();
-      data.originalMatrix.decompose(pos, quat, scale);
-
-      selectionProxy.position.copy(pos);
-      selectionProxy.scale.copy(scale)
+      // Usamos data.position y data.scale para asegurar que no hay mutaciones.
+      selectionProxy.position.copy(data.position);
+      selectionProxy.scale.copy(data.scale)
         .multiplyScalar(PROXY_SCALE_MULTIPLIER)
         .multiplyScalar(DEEP_SPACE_SCALE_BOOST);
       selectionProxy.uuid = data.originalUuid;
@@ -140,26 +138,46 @@ export class EntityManagerService {
 
   public createOrUpdateHoverProxy(instancedMesh: THREE.InstancedMesh, instanceId: number): THREE.Mesh {
     if (!this.hoverProxy) {
-      this.hoverProxy = this.objectManager.createSelectionProxy(instancedMesh.geometry);
-      this.hoverProxy.name = 'HoverProxy';
-      this.scene.add(this.hoverProxy);
+      // El ObjectManager crea el aro con su material azul.
+      const newProxy = this.objectManager.createHoverProxy(instancedMesh.geometry);
+      newProxy.name = 'HoverProxy';
+      this.scene.add(newProxy);
+      this.hoverProxy = newProxy;
     }
 
     const allData: CelestialInstanceData[] = instancedMesh.userData['celestialData'];
     const data = allData[instanceId];
     if (data) {
+      // Si el objeto que estamos sobrevolando es el que ya está seleccionado, no hacemos nada.
+      // Esto evita que el aro azul aparezca encima del amarillo.
+      if (this.selectionManager.isObjectSelected(data.originalUuid)) {
+        if (this.hoverProxy) {
+          this.hoverProxy.visible = false; // Simplemente ocultamos el proxy.
+        }
+        // Limpiamos el estado del hover anterior si lo hubiera.
+        if (this.lastHoveredUuid && this.lastHoveredUuid !== data.originalUuid) {
+            if (!this.selectionManager.isObjectSelected(this.lastHoveredUuid)) {
+                this.labelManager.hideLabel(this.lastHoveredUuid);
+            }
+        }
+        this.lastHoveredUuid = null;
+        return this.hoverProxy!; // Devolvemos el proxy existente pero oculto.
+      }
+        
       const pos = new THREE.Vector3(), quat = new THREE.Quaternion(), scale = new THREE.Vector3();
       data.originalMatrix.decompose(pos, quat, scale);
 
       this.hoverProxy.position.copy(pos);
-      this.hoverProxy.scale.copy(scale)
+      // La escala se RECALCULA desde cero cada vez, esto evita el bug de "crecimiento".
+      // Se usa data.scale en lugar de decomponer la matriz para mayor seguridad.
+      this.hoverProxy.scale.copy(data.scale)
         .multiplyScalar(PROXY_SCALE_MULTIPLIER)
         .multiplyScalar(DEEP_SPACE_SCALE_BOOST);
       this.hoverProxy.uuid = data.originalUuid;
+      this.hoverProxy.visible = true; // ✨ Nos aseguramos de que sea visible
 
       if (this.lastHoveredUuid && this.lastHoveredUuid !== data.originalUuid) {
-        const isSelected = this.selectionManager.isObjectSelected(this.lastHoveredUuid);
-        if (!isSelected) {
+        if (!this.selectionManager.isObjectSelected(this.lastHoveredUuid)) {
             this.labelManager.hideLabel(this.lastHoveredUuid);
         }
       }

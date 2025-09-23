@@ -286,7 +286,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
 
           // ¡CORRECCIÓN PRINCIPAL!
           // Creamos un objeto que satisface completamente la interfaz SceneObjectResponse
-        foundObject = {
+          foundObject = {
             id: parseInt(uuid, 10) || 0,
             name: entity.name,
             type: objectType,

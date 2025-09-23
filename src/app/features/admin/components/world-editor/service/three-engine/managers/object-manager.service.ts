@@ -381,6 +381,19 @@ export class ObjectManagerService {
     return proxyMesh;
   }
 
+  public createHoverProxy(geometry: THREE.BufferGeometry): THREE.Mesh {
+    const proxyMaterial = new THREE.MeshBasicMaterial({
+      color: 0x0099ff, // Un azul cian brillante para el hover
+      wireframe: true,
+      transparent: true,
+      opacity: 0.7,
+      depthWrite: false
+    });
+    const proxyMesh = new THREE.Mesh(geometry, proxyMaterial);
+    proxyMesh.name = 'HoverProxy';
+    return proxyMesh;
+  }
+
   public isSharedGeometry(geometry: THREE.BufferGeometry): boolean {
     return geometry === this.sharedCircleGeometry || geometry === this.sharedPlaneGeometry;
   }

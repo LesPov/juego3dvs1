@@ -1,3 +1,5 @@
+// src/app/features/admin/views/world-editor/world-view/service/three-engine/core/engine.service.ts
+
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
@@ -18,8 +20,8 @@ import { InteractionService } from '../interactions/interaction.service';
 import { LabelManagerService } from '../managers/label-manager.service';
 
 export interface IntersectedObjectInfo {
-    uuid: string;
-    object: THREE.Object3D;
+  uuid: string;
+  object: THREE.Object3D;
 }
 
 const INSTANCES_TO_CHECK_PER_FRAME = 10000000;
@@ -41,9 +43,9 @@ const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
 // ✨ INICIO DE CONSTANTES DE ATENUACIÓN DE BRILLO (RADIO AMPLIADO) ✨
 // ====================================================================
 // Define qué tan lejos (en múltiplos del radio del objeto) empieza a desvanecerse el brillo al acercarse.
-const PROXIMITY_FADE_START_MULTIPLIER = 20.0; 
+const PROXIMITY_FADE_START_MULTIPLIER = 20.0;
 // Define qué tan cerca (en múltiplos del radio) el brillo llega a CERO para ver el modelo.
-const PROXIMITY_FADE_END_MULTIPLIER = 8.0;   
+const PROXIMITY_FADE_END_MULTIPLIER = 8.0;
 // ====================================================================
 // ✨ FIN DE CONSTANTES DE ATENUACIÓN DE BRILLO ✨
 // ====================================================================
@@ -60,11 +62,11 @@ export class EngineService implements OnDestroy {
   public isFlyModeActive$: Observable<boolean>;
   public cameraMode$: Observable<CameraMode>;
   public sceneManager!: SceneManagerService;
-  
+
   private transformEndSubject = new Subject<void>();
   private cameraOrientationSubject = new BehaviorSubject<THREE.Quaternion>(new THREE.Quaternion());
   private cameraPositionSubject = new BehaviorSubject<THREE.Vector3>(new THREE.Vector3());
-  
+
   private selectedObject?: THREE.Object3D;
   private clock = new THREE.Clock();
   private animationFrameId?: number;
@@ -81,10 +83,10 @@ export class EngineService implements OnDestroy {
   private tempColor = new THREE.Color();
   private tempBox = new THREE.Box3();
   private tempVec3 = new THREE.Vector3();
-  
+
   private dynamicCelestialModels: THREE.Group[] = [];
   private originalSceneBackground: THREE.Color | THREE.Texture | null = null;
-  
+
   constructor(
     sceneManager: SceneManagerService,
     private entityManager: EntityManagerService,
@@ -101,7 +103,7 @@ export class EngineService implements OnDestroy {
     this.sceneManager = sceneManager;
     this.focusPivot = new THREE.Object3D();
     this.focusPivot.name = 'FocusPivot';
-    
+
     this.axisLockState$ = this.interactionService.axisLockState$;
     this.onTransformEnd$ = this.transformEndSubject.asObservable().pipe(debounceTime(500));
     this.isFlyModeActive$ = this.controlsManager.isFlyModeActive$;
@@ -109,10 +111,10 @@ export class EngineService implements OnDestroy {
     this.cameraPosition$ = this.cameraPositionSubject.asObservable();
     this.cameraMode$ = this.cameraManager.cameraMode$.asObservable();
   }
-  
+
   public init(canvasRef: ElementRef<HTMLCanvasElement>): void {
     const canvas = canvasRef.nativeElement;
-    
+
     this.sceneManager.setupBasicScene(canvas);
     this.sceneManager.scene.add(this.focusPivot);
     this.entityManager.init(this.sceneManager.scene);
@@ -128,18 +130,20 @@ export class EngineService implements OnDestroy {
     const parent = this.sceneManager.canvas.parentElement!;
     const initialSize = new THREE.Vector2(parent.clientWidth, parent.clientHeight);
     this.selectionManager.init(this.sceneManager.scene, this.sceneManager.activeCamera, initialSize);
-    
+
     this.selectionManager.getPasses().forEach(pass => this.sceneManager.composer.addPass(pass));
 
+    // ✨ MODIFICACIÓN: Se pasa la instancia de `eventManager` a `interactionService`.
     this.interactionService.init({
-        sceneManager: this.sceneManager,
-        cameraManager: this.cameraManager,
-        entityManager: this.entityManager,
-        controlsManager: this.controlsManager,
-        selectionManager: this.selectionManager,
-        interactionHelperManager: this.interactionHelperManager,
-        dragInteractionManager: this.dragInteractionManager,
-        engine: this
+      sceneManager: this.sceneManager,
+      cameraManager: this.cameraManager,
+      entityManager: this.entityManager,
+      controlsManager: this.controlsManager,
+      selectionManager: this.selectionManager,
+      interactionHelperManager: this.interactionHelperManager,
+      dragInteractionManager: this.dragInteractionManager,
+      engine: this,
+      eventManager: this.eventManager // <-- Conexión clave
     });
 
     this.precompileShaders();
@@ -147,23 +151,23 @@ export class EngineService implements OnDestroy {
     this.controlsManager.enableNavigation();
     this.animate();
   }
-  
+
   private animate = () => {
     this.animationFrameId = requestAnimationFrame(this.animate);
     this.statsManager.begin();
     const delta = this.clock.getDelta();
-    
+
     const isCameraAnimating = this.cameraManager.update(delta);
     this.interactionService.update();
     this.labelManager.update();
-    
+
     if (this.cameraManager.activeCameraType === 'secondary') {
       const controls = this.controlsManager.getControls();
       this.sceneManager.editorCamera.getWorldPosition(controls.target);
     }
     this.sceneManager.secondaryCamera.userData['helper']?.update();
     this.sceneManager.editorCamera.userData['helper']?.update();
-    
+
     if (!isCameraAnimating) {
       const cameraMoved = this.controlsManager.update(delta, this.eventManager.keyMap);
       if (cameraMoved) {
@@ -190,7 +194,7 @@ export class EngineService implements OnDestroy {
 
     this.statsManager.end();
   };
-  
+
   private renderSceneWithSelectiveBloom(): void {
     this.originalSceneBackground = this.sceneManager.scene.background;
     this.sceneManager.scene.background = null;
@@ -210,13 +214,13 @@ export class EngineService implements OnDestroy {
     this.controlsManager.ngOnDestroy();
     if (this.sceneManager.renderer) this.sceneManager.renderer.dispose();
   };
-  
+
   public setActiveSelectionByUuid(uuid: string | null): void {
     const currentUuid = this.selectedObject?.uuid;
     if (currentUuid === uuid) return;
-    
+
     if (currentUuid && currentUuid !== uuid) {
-        this.labelManager.hideLabel(currentUuid);
+      this.labelManager.hideLabel(currentUuid);
     }
 
     this.selectionManager.setSelectedObjects([]);
@@ -226,7 +230,7 @@ export class EngineService implements OnDestroy {
     this.selectedObject = undefined;
     this.interactionService.setSelectedObject(undefined);
     this.interactionService.setToolMode('select');
-    
+
     this.entityManager.selectObjectByUuid(uuid, this.focusPivot);
 
     if (uuid) {
@@ -238,49 +242,42 @@ export class EngineService implements OnDestroy {
         this.labelManager.showLabel(uuid);
       }
     }
-    
+
     this.onObjectSelected$.next(uuid);
   }
-  
+
   public setToolMode(mode: ToolMode): void {
     this.interactionService.setToolMode(mode);
   }
-  
+
   private onKeyDown = (e: KeyboardEvent) => {
-    const key = e.key.toLowerCase();
-    
-    if (key === 'escape') {
-        this.controlsManager.exitFlyMode();
-        return;
-    }
-    
-    if (key === 'c' && !(e.target instanceof HTMLInputElement)) {
-      e.preventDefault();
-      this.toggleActiveCamera();
-    }
-    
     this.interactionService.handleKeyDown(e);
   };
-  
+
   private onCanvasMouseDown = (e: MouseEvent) => {
     this.interactionService.handleMouseDown(e);
   };
-  
+
   private subscribeToEvents(): void {
     this.cameraMode$.subscribe(mode => this.selectionManager.updateOutlineParameters(mode));
-    
+
     const controls = this.controlsManager.getControls();
     controls.addEventListener('end', this.handleTransformEnd);
     controls.addEventListener('change', this.onControlsChange);
-    
+
     this.eventManager.windowResize$.subscribe(this.onWindowResize);
-    this.eventManager.keyDown$.subscribe(this.onKeyDown);
-    this.eventManager.canvasMouseDown$.subscribe(this.onCanvasMouseDown);
-    
+    // ✨ Se eliminan las suscripciones a keydown y mousedown de aquí
+    // porque ahora las maneja directamente el ControlsManager y el InteractionService
+    // a través de los observables del EventManager.
+
     this.controlsSubscription = this.dragInteractionManager.onDragEnd$.subscribe(() => {
       this.handleTransformEnd();
       if (this.selectedObject) this.interactionHelperManager.updateHelperPositions(this.selectedObject);
     });
+
+    // ✨ Nuevas suscripciones centralizadas
+    this.eventManager.keyDown$.subscribe(this.onKeyDown);
+    this.eventManager.canvasMouseDown$.subscribe(this.onCanvasMouseDown);
   }
 
   private precompileShaders(): void {
@@ -296,20 +293,20 @@ export class EngineService implements OnDestroy {
     dummyGeometry.dispose();
     dummyMaterial.dispose();
   }
-  
+
   public populateScene(objects: SceneObjectResponse[], onProgress: (p: number) => void, onLoaded: () => void): void {
     if (!this.sceneManager.scene) return;
     this.entityManager.clearScene();
     this.dynamicCelestialModels = [];
-    
+
     const celestialTypes = ['galaxy_normal', 'galaxy_bright', 'meteor', 'galaxy_far', 'galaxy_medium', 'model'];
     const celestialObjectsData = objects.filter(o => celestialTypes.includes(o.type));
     const standardObjectsData = objects.filter(o => !celestialTypes.includes(o.type));
-    
+
     this.entityManager.objectManager.createCelestialObjectsInstanced(
       this.sceneManager.scene, celestialObjectsData, this.entityManager.getGltfLoader()
     );
-    
+
     const loadingManager = this.entityManager.getLoadingManager();
     loadingManager.onProgress = (_, loaded, total) => onProgress((loaded / total) * 100);
     loadingManager.onLoad = () => {
@@ -320,81 +317,81 @@ export class EngineService implements OnDestroy {
         if (obj.userData['isDynamicCelestialModel']) this.dynamicCelestialModels.push(obj as THREE.Group);
       });
     };
-    
+
     standardObjectsData.forEach(o => this.entityManager.createObjectFromData(o));
-    
+
     const hasModelsToLoad = standardObjectsData.some(o => o.type === 'model' && o.asset?.path) ||
-                            celestialObjectsData.some(o => o.asset?.type === 'model_glb');
+      celestialObjectsData.some(o => o.asset?.type === 'model_glb');
     if (!hasModelsToLoad && loadingManager.onLoad) setTimeout(() => loadingManager.onLoad!(), 0);
   }
-  
+
   private updateVisibleCelestialInstances(instancedMesh: THREE.InstancedMesh, delta: number): void {
-      const allData: CelestialInstanceData[] = instancedMesh.userData['celestialData'];
-      if (!allData || allData.length === 0) return;
+    const allData: CelestialInstanceData[] = instancedMesh.userData['celestialData'];
+    if (!allData || allData.length === 0) return;
 
-      this.updateCameraFrustum();
-      let needsColorUpdate = false, needsMatrixUpdate = false;
-      const camera = this.sceneManager.activeCamera;
-      const isOrthographic = this.cameraManager.cameraMode$.getValue() === 'orthographic';
+    this.updateCameraFrustum();
+    let needsColorUpdate = false, needsMatrixUpdate = false;
+    const camera = this.sceneManager.activeCamera;
+    const isOrthographic = this.cameraManager.cameraMode$.getValue() === 'orthographic';
 
-      let visibilityFactor = 1.0, bloomDampeningFactor = 1.0;
-      if (isOrthographic && this.baseOrthoMatrixElement > 0) {
-          const orthoCam = camera as THREE.OrthographicCamera;
-          const zoomRatio = this.baseOrthoMatrixElement / orthoCam.projectionMatrix.elements[0];
-          visibilityFactor = Math.max(0.1, zoomRatio * ORTHO_ZOOM_VISIBILITY_MULTIPLIER);
-          bloomDampeningFactor = Math.min(1.0, ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR / zoomRatio);
+    let visibilityFactor = 1.0, bloomDampeningFactor = 1.0;
+    if (isOrthographic && this.baseOrthoMatrixElement > 0) {
+      const orthoCam = camera as THREE.OrthographicCamera;
+      const zoomRatio = this.baseOrthoMatrixElement / orthoCam.projectionMatrix.elements[0];
+      visibilityFactor = Math.max(0.1, zoomRatio * ORTHO_ZOOM_VISIBILITY_MULTIPLIER);
+      bloomDampeningFactor = Math.min(1.0, ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR / zoomRatio);
+    }
+
+    const totalInstances = allData.length;
+    const startIndex = (instancedMesh.userData['updateIndexCounter'] = (instancedMesh.userData['updateIndexCounter'] || 0) % totalInstances);
+    const checkCount = Math.min(totalInstances, Math.ceil(INSTANCES_TO_CHECK_PER_FRAME / 5));
+
+    for (let i = 0; i < checkCount; i++) {
+      const idx = (startIndex + i) % totalInstances;
+      const data = allData[idx];
+      if (data.isManuallyHidden) continue;
+
+      const personalVisibilityDist = Math.min(BASE_VISIBILITY_DISTANCE * data.luminosity, MAX_PERCEPTUAL_DISTANCE) * visibilityFactor * (isOrthographic ? 1.0 : PERSPECTIVE_VISIBILITY_MULTIPLIER);
+      const shouldBeVisible = this._isInstanceVisible(data, camera, personalVisibilityDist);
+      const targetIntensity = shouldBeVisible ? this._calculateInstanceIntensity(data, camera, isOrthographic, bloomDampeningFactor, personalVisibilityDist) : 0.0;
+
+      const fadeSpeed = targetIntensity > data.currentIntensity ? FADE_IN_SPEED : FADE_OUT_SPEED;
+      data.currentIntensity = THREE.MathUtils.lerp(data.currentIntensity, targetIntensity, 1.0 - Math.exp(-fadeSpeed * delta));
+
+      if (data.currentIntensity < 0.001) {
+        data.currentIntensity = 0.0;
       }
-      
-      const totalInstances = allData.length;
-      const startIndex = (instancedMesh.userData['updateIndexCounter'] = (instancedMesh.userData['updateIndexCounter'] || 0) % totalInstances);
-      const checkCount = Math.min(totalInstances, Math.ceil(INSTANCES_TO_CHECK_PER_FRAME / 5));
 
-      for (let i = 0; i < checkCount; i++) {
-          const idx = (startIndex + i) % totalInstances;
-          const data = allData[idx];
-          if (data.isManuallyHidden) continue;
-          
-          const personalVisibilityDist = Math.min(BASE_VISIBILITY_DISTANCE * data.luminosity, MAX_PERCEPTUAL_DISTANCE) * visibilityFactor * (isOrthographic ? 1.0 : PERSPECTIVE_VISIBILITY_MULTIPLIER);
-          const shouldBeVisible = this._isInstanceVisible(data, camera, personalVisibilityDist);
-          const targetIntensity = shouldBeVisible ? this._calculateInstanceIntensity(data, camera, isOrthographic, bloomDampeningFactor, personalVisibilityDist) : 0.0;
-
-          const fadeSpeed = targetIntensity > data.currentIntensity ? FADE_IN_SPEED : FADE_OUT_SPEED;
-          data.currentIntensity = THREE.MathUtils.lerp(data.currentIntensity, targetIntensity, 1.0 - Math.exp(-fadeSpeed * delta));
-
-          if (data.currentIntensity < 0.001) {
-              data.currentIntensity = 0.0;
-          }
-
-          if (data.currentIntensity > 0) {
-              this.tempMatrix.compose(data.position, camera.quaternion, this.tempScale.copy(data.scale).multiplyScalar(DEEP_SPACE_SCALE_BOOST));
-              instancedMesh.setMatrixAt(idx, this.tempMatrix);
-              needsMatrixUpdate = true;
-          }
-          
-          instancedMesh.setColorAt(idx, this.tempColor.copy(data.originalColor).multiplyScalar(data.currentIntensity));
-          needsColorUpdate = true;
+      if (data.currentIntensity > 0) {
+        this.tempMatrix.compose(data.position, camera.quaternion, this.tempScale.copy(data.scale).multiplyScalar(DEEP_SPACE_SCALE_BOOST));
+        instancedMesh.setMatrixAt(idx, this.tempMatrix);
+        needsMatrixUpdate = true;
       }
-      
-      instancedMesh.userData['updateIndexCounter'] += checkCount;
-      if (needsColorUpdate && instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
-      if (needsMatrixUpdate) instancedMesh.instanceMatrix.needsUpdate = true;
+
+      instancedMesh.setColorAt(idx, this.tempColor.copy(data.originalColor).multiplyScalar(data.currentIntensity));
+      needsColorUpdate = true;
+    }
+
+    instancedMesh.userData['updateIndexCounter'] += checkCount;
+    if (needsColorUpdate && instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
+    if (needsMatrixUpdate) instancedMesh.instanceMatrix.needsUpdate = true;
   }
-  
+
   private _isInstanceVisible(data: CelestialInstanceData, camera: THREE.Camera, personalVisibilityDist: number): boolean {
     this.boundingSphere.center.copy(data.position);
     this.boundingSphere.radius = Math.max(data.scale.x, data.scale.y, data.scale.z) * DEEP_SPACE_SCALE_BOOST;
     if (!this.frustum.intersectsSphere(this.boundingSphere)) return false;
 
     if (this.cameraManager.cameraMode$.getValue() === 'orthographic') {
-        return true;
+      return true;
     }
-    
+
     const distance = data.position.distanceTo(camera.position);
 
     if (data.currentIntensity > 0) {
-        return distance <= (personalVisibilityDist * VISIBILITY_HYSTERESIS_FACTOR);
+      return distance <= (personalVisibilityDist * VISIBILITY_HYSTERESIS_FACTOR);
     } else {
-        return distance <= personalVisibilityDist;
+      return distance <= personalVisibilityDist;
     }
   }
 
@@ -404,81 +401,61 @@ export class EngineService implements OnDestroy {
 
     const falloff = THREE.MathUtils.clamp(THREE.MathUtils.inverseLerp(maxScale * 80.0, maxScale * 10.0, distance), 0.0, 1.0);
     let finalIntensity = THREE.MathUtils.lerp(data.emissiveIntensity, data.baseEmissiveIntensity, falloff);
-    
+
     const proximityFade = THREE.MathUtils.smoothstep(distance, maxScale * 1.5, maxScale * 3.0);
-    
+
     finalIntensity = Math.min(finalIntensity, MAX_INTENSITY) * bloomDampeningFactor * data.brightness * proximityFade;
-    
+
     if (!isOrthographic) {
-        const fogStartDistance = personalVisibilityDist * FOG_START_DISTANCE_MULTIPLIER;
-        if (distance > fogStartDistance) {
-            const fogFactor = THREE.MathUtils.inverseLerp(fogStartDistance, personalVisibilityDist, distance);
-            finalIntensity *= (1.0 - fogFactor * FOG_DENSITY);
-        }
+      const fogStartDistance = personalVisibilityDist * FOG_START_DISTANCE_MULTIPLIER;
+      if (distance > fogStartDistance) {
+        const fogFactor = THREE.MathUtils.inverseLerp(fogStartDistance, personalVisibilityDist, distance);
+        finalIntensity *= (1.0 - fogFactor * FOG_DENSITY);
+      }
     }
 
     return finalIntensity;
   }
-  
-  // ====================================================================
-  // ✨ INICIO DE LA LÓGICA DE ATENUACIÓN DE BRILLO FINAL ✨
-  // ====================================================================
+
   private updateDynamicCelestialModels(delta: number): void {
-      this.dynamicCelestialModels.forEach(model => {
-          if (!model.userData['isDynamicCelestialModel']) return;
+    this.dynamicCelestialModels.forEach(model => {
+      if (!model.userData['isDynamicCelestialModel']) return;
 
-          // Paso 1: Usar el tamaño del modelo para que la atenuación sea proporcional.
-          // Se calcula la bounding sphere una sola vez para optimizar.
-          if (!model.userData['boundingSphere']) {
-              const sphere = new THREE.Sphere();
-              this.tempBox.setFromObject(model, true);
-              model.userData['boundingSphere'] = this.tempBox.getBoundingSphere(sphere);
+      if (!model.userData['boundingSphere']) {
+        const sphere = new THREE.Sphere();
+        this.tempBox.setFromObject(model, true);
+        model.userData['boundingSphere'] = this.tempBox.getBoundingSphere(sphere);
+      }
+      const radius = model.userData['boundingSphere'].radius;
+      if (radius === 0) return;
+
+      const distance = this.sceneManager.activeCamera.position.distanceTo(model.position);
+      const originalEmissiveIntensity = model.userData['originalEmissiveIntensity'] || 1.0;
+      const baseEmissiveIntensity = model.userData['baseEmissiveIntensity'] || 0.1;
+
+      const farFalloffStart = radius * 80.0;
+      const farFalloffEnd = radius * 860.0;
+      const farFalloffAlpha = THREE.MathUtils.clamp(THREE.MathUtils.inverseLerp(farFalloffStart, farFalloffEnd, distance), 0, 1);
+      const intensityAfterFalloff = THREE.MathUtils.lerp(originalEmissiveIntensity, baseEmissiveIntensity, farFalloffAlpha);
+
+      const proximityFadeStart = 20.0 * radius;
+      const proximityFadeEnd = 8.0 * radius;
+      const proximityFadeFactor = THREE.MathUtils.smoothstep(distance, proximityFadeEnd, proximityFadeStart);
+
+      const targetIntensity = intensityAfterFalloff * proximityFadeFactor;
+
+      model.traverse(child => {
+        if (child instanceof THREE.Mesh) {
+          const material = child.material as THREE.MeshStandardMaterial;
+          if (material && material.emissiveIntensity !== undefined) {
+            material.emissiveIntensity = THREE.MathUtils.lerp(material.emissiveIntensity, targetIntensity, 5.0 * delta);
           }
-          const radius = model.userData['boundingSphere'].radius;
-          if (radius === 0) return;
-
-          // Paso 2: Obtener datos clave del modelo y la cámara.
-          const distance = this.sceneManager.activeCamera.position.distanceTo(model.position);
-          const originalEmissiveIntensity = model.userData['originalEmissiveIntensity'] || 1.0;
-          const baseEmissiveIntensity = model.userData['baseEmissiveIntensity'] || 0.1;
-
-          // --- LÓGICA DE DOBLE ATENUACIÓN ---
-
-          // a) Atenuación a larga distancia (para que se desvanezca como los otros objetos)
-          const farFalloffStart = radius * 80.0;
-          const farFalloffEnd = radius * 860.0;
-          const farFalloffAlpha = THREE.MathUtils.clamp(THREE.MathUtils.inverseLerp(farFalloffStart, farFalloffEnd, distance), 0, 1);
-          const intensityAfterFalloff = THREE.MathUtils.lerp(originalEmissiveIntensity, baseEmissiveIntensity, farFalloffAlpha);
-
-          // b) Atenuación por proximidad (para apagar el brillo al acercarse)
-          const proximityFadeStart = radius * PROXIMITY_FADE_START_MULTIPLIER;
-          const proximityFadeEnd = radius * PROXIMITY_FADE_END_MULTIPLIER;
-          const proximityFadeFactor = THREE.MathUtils.smoothstep(distance, proximityFadeEnd, proximityFadeStart);
-
-          // Paso 3: Combinar ambos factores. La intensidad final es la de larga distancia,
-          // multiplicada por el factor de proximidad.
-          const targetIntensity = intensityAfterFalloff * proximityFadeFactor;
-
-          // Paso 4: Aplicar la intensidad objetivo de forma suave a todos los materiales emisivos.
-          model.traverse(child => {
-              if (child instanceof THREE.Mesh) {
-                const material = child.material as THREE.MeshStandardMaterial;
-                if (material && material.emissiveIntensity !== undefined) {
-                    // El LERP es la clave para una transición sin parpadeos.
-                    material.emissiveIntensity = THREE.MathUtils.lerp(material.emissiveIntensity, targetIntensity, 5.0 * delta);
-                }
-              }
-          });
+        }
       });
-  }
-  // ====================================================================
-  // ✨ FIN DE LA LÓGICA DE ATENUACIÓN DE BRILLO FINAL ✨
-  // ====================================================================
-
-  public setTravelSpeedMultiplier(multiplier: number): void {
-    this.cameraManager.setTravelSpeedMultiplier(multiplier);
+    });
   }
 
+  public setTravelSpeedMultiplier(multiplier: number): void { this.cameraManager.setTravelSpeedMultiplier(multiplier); }
   public onWindowResize = () => this.sceneManager.onWindowResize();
   public toggleActiveCamera(): void { this.cameraManager.toggleActiveCamera(this.selectedObject); }
   public toggleCameraMode(): void { this.cameraManager.toggleCameraMode(); }
@@ -493,7 +470,7 @@ export class EngineService implements OnDestroy {
   public frameScene = () => this.cameraManager.frameScene();
   public focusOnObject = (uuid: string) => this.cameraManager.focusOnObject(uuid);
   public getCurrentToolMode = (): ToolMode => this.controlsManager.getCurrentToolMode();
-  
+
   public updateObjectTransform = (uuid: string, path: 'position' | 'rotation' | 'scale', value: { x: number; y: number; z: number; }) => {
     const standardObject = this.entityManager.getObjectByUuid(uuid);
     if (standardObject && standardObject.name !== 'SelectionProxy') {
@@ -501,23 +478,23 @@ export class EngineService implements OnDestroy {
       if (path === 'position') this.interactionHelperManager.updateHelperPositions(standardObject);
       return;
     }
-    
+
     const instanceInfo = this.entityManager._findCelestialInstance(uuid);
     if (instanceInfo) {
       const { mesh, instanceIndex, data } = instanceInfo;
       const tempQuaternion = new THREE.Quaternion(), tempScale = new THREE.Vector3();
       data.originalMatrix.decompose(new THREE.Vector3(), tempQuaternion, tempScale);
-      
+
       switch (path) {
         case 'position': data.position.set(value.x, value.y, value.z); break;
         case 'rotation': tempQuaternion.setFromEuler(new THREE.Euler(value.x, value.y, value.z)); break;
         case 'scale': data.scale.set(value.x, value.y, value.z); tempScale.copy(data.scale); break;
       }
-      
+
       data.originalMatrix.compose(data.position, tempQuaternion, tempScale);
       mesh.setMatrixAt(instanceIndex, data.originalMatrix);
       mesh.instanceMatrix.needsUpdate = true;
-      
+
       const selectionProxy = this.sceneManager.scene.getObjectByName('SelectionProxy');
       if (selectionProxy && selectionProxy.uuid === uuid) {
         selectionProxy.position.copy(data.position);
@@ -525,10 +502,10 @@ export class EngineService implements OnDestroy {
       }
     }
   };
-  
+
   private handleTransformEnd = () => {
     if (!this.selectedObject) return;
-    
+
     if (this.selectedObject.name === 'SelectionProxy') {
       const instanceInfo = this.entityManager._findCelestialInstance(this.selectedObject.uuid);
       if (instanceInfo) {
@@ -539,7 +516,7 @@ export class EngineService implements OnDestroy {
         mesh.instanceMatrix.needsUpdate = true;
       }
     }
-    
+
     this.transformEndSubject.next();
   };
 

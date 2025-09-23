@@ -1,6 +1,9 @@
+// src/app/features/admin/views/world-editor/world-view/service/three-engine/interactions/event-manager.service.ts
+
 import { Injectable, OnDestroy } from '@angular/core';
 import { fromEvent, Observable, Subject } from 'rxjs';
-import { map, share, takeUntil } from 'rxjs/operators';
+import { share, takeUntil } from 'rxjs/operators';
+import * as THREE from 'three';
 
 /**
  * @Injectable
@@ -21,6 +24,16 @@ export class EventManagerService implements OnDestroy {
   public canvasMouseDown$: Observable<MouseEvent>;
   public windowResize$: Observable<Event>;
 
+  // ✨ NUEVO: Observable para el movimiento del ratón sobre el canvas.
+  public canvasMouseMove$: Observable<MouseEvent>;
+  
+  // ✨ NUEVO: Rastreador de posición del ratón en coordenadas normalizadas.
+  /**
+   * Almacena las coordenadas del ratón normalizadas (-1 a +1),
+   * listas para ser usadas por el Raycaster en la vista 2D.
+   */
+  public readonly mousePosition = new THREE.Vector2();
+
   public readonly keyMap = new Map<string, boolean>();
 
   // =============================================================================
@@ -35,23 +48,15 @@ export class EventManagerService implements OnDestroy {
   // =============================================================================
 
   constructor() {
-    this.keyDown$ = fromEvent<KeyboardEvent>(window, 'keydown').pipe(
-      takeUntil(this.destroy$),
-      share()
-    );
-
-    this.keyUp$ = fromEvent<KeyboardEvent>(window, 'keyup').pipe(
-      takeUntil(this.destroy$),
-      share()
-    );
-
-    this.windowResize$ = fromEvent(window, 'resize').pipe(
-      takeUntil(this.destroy$),
-      share()
-    );
+    // Se configuran los observables globales que no dependen del canvas
+    this.keyDown$ = fromEvent<KeyboardEvent>(window, 'keydown').pipe(takeUntil(this.destroy$), share());
+    this.keyUp$ = fromEvent<KeyboardEvent>(window, 'keyup').pipe(takeUntil(this.destroy$), share());
+    this.windowResize$ = fromEvent(window, 'resize').pipe(takeUntil(this.destroy$), share());
     
-    // Este observable se inicializa aquí pero se conecta en 'init'
+    // Se inicializan los observables dependientes del canvas como Subjects
+    // que se conectarán en el método `init`.
     this.canvasMouseDown$ = new Subject<MouseEvent>().asObservable();
+    this.canvasMouseMove$ = new Subject<MouseEvent>().asObservable();
 
     this.subscribeToKeyEvents();
   }
@@ -62,22 +67,31 @@ export class EventManagerService implements OnDestroy {
    */
   public init(canvas: HTMLCanvasElement): void {
     this.canvas = canvas;
-    this.canvasMouseDown$ = fromEvent<MouseEvent>(this.canvas, 'mousedown').pipe(
-      takeUntil(this.destroy$),
-      share()
-    );
+
+    // Conecta los Subjects a los eventos reales del DOM ahora que tenemos el canvas.
+    this.canvasMouseDown$ = fromEvent<MouseEvent>(this.canvas, 'mousedown').pipe(takeUntil(this.destroy$), share());
+    this.canvasMouseMove$ = fromEvent<MouseEvent>(this.canvas, 'mousemove').pipe(takeUntil(this.destroy$), share());
+    
+    // ✨ Se activa el rastreo de la posición del ratón.
+    this.subscribeToMouseEvents();
   }
 
-  /**
-   * Se suscribe internamente a los eventos de teclado para mantener el estado de `keyMap`.
-   */
   private subscribeToKeyEvents(): void {
-    this.keyDown$.subscribe(event => {
-      this.keyMap.set(event.key.toLowerCase(), true);
-    });
+    this.keyDown$.subscribe(event => this.keyMap.set(event.key.toLowerCase(), true));
+    this.keyUp$.subscribe(event => this.keyMap.set(event.key.toLowerCase(), false));
+  }
 
-    this.keyUp$.subscribe(event => {
-      this.keyMap.set(event.key.toLowerCase(), false);
+  // ✨ NUEVO: Método para suscribirse a los eventos del ratón.
+  private subscribeToMouseEvents(): void {
+    this.canvasMouseMove$.subscribe(event => {
+      if (!this.canvas) return;
+      
+      const rect = this.canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+
+      this.mousePosition.x = (x / rect.width) * 2 - 1;
+      this.mousePosition.y = -(y / rect.height) * 2 + 1;
     });
   }
 
