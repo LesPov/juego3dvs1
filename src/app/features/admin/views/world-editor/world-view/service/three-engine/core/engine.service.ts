@@ -25,19 +25,53 @@ export interface IntersectedObjectInfo {
 }
 
 const INSTANCES_TO_CHECK_PER_FRAME = 10000000;
-const BASE_VISIBILITY_DISTANCE = 250000000;
-const MAX_PERCEPTUAL_DISTANCE = 10000000000000;
-const PERSPECTIVE_VISIBILITY_MULTIPLIER = 0.08;
-const FADE_IN_SPEED = 3.0;
-const FADE_OUT_SPEED = 7.0;
-const VISIBILITY_HYSTERESIS_FACTOR = 100.05;
-const FOG_START_DISTANCE_MULTIPLIER = 0.01;
+
+// ==============================================================================
+// ✨ INICIO DE AJUSTES DE PROFUNDIDAD, SUAVIDAD Y BRILLO ✨
+// ==============================================================================
+// LÓGICA: Para abarcar un universo expandido y asegurar una experiencia visual fluida,
+// se han realizado los siguientes ajustes clave:
+
+// 1. RANGO VISUAL CÓSMICO: La distancia de visibilidad se ha expandido enormemente para
+//    coincidir con la profundidad del universo definida en el script de Python.
+//    Esto permite que los objetos más lejanos sean renderizados.
+const BASE_VISIBILITY_DISTANCE = 8_000_000_000_000; // Antes: 90000000
+const MAX_PERCEPTUAL_DISTANCE = 10_000_000_000_000; // Se mantiene un límite superior razonable
+const PERSPECTIVE_VISIBILITY_MULTIPLIER = 1.0;      // Antes: 0.08. Se establece en 1.0 para no limitar el rango.
+
+// 2. TRANSICIONES SUAVES: Las velocidades de aparición y desaparición se han reducido
+//    para que los objetos se desvanezcan suavemente en la distancia, eliminando
+//    el parpadeo y creando un efecto de inmersión más natural.
+const FADE_IN_SPEED = 1.5;  // Antes: 3.0
+const FADE_OUT_SPEED = 3.0; // Antes: 7.0
+
+// 3. INTENSIDAD DE BRILLO REALISTA: El límite de intensidad de brillo se ha aumentado
+//    drásticamente para coincidir con los valores generados por el script de Python.
+//    Esto asegura que los objetos lejanos brillen intensamente como deberían, en lugar de verse tenues.
+const MAX_INTENSITY = 120.0; // Antes: 8.0
+
+// ==============================================================================
+// ✨ FIN DE AJUSTES ✨
+// ==============================================================================
+
+const VISIBILITY_HYSTERESIS_FACTOR = 1.05;
+const FOG_START_DISTANCE_MULTIPLIER = 0.7;
 const FOG_DENSITY = 0.95;
-const DEEP_SPACE_SCALE_BOOST = 15.0;
+const DEEP_SPACE_SCALE_BOOST = 10.0;
 const ORTHO_ZOOM_VISIBILITY_MULTIPLIER = 5.0;
 const ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR = 12.0;
-const MAX_INTENSITY = 8.0;
 const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
+
+// ====================================================================
+// ✨ INICIO DE CONSTANTES DE ATENUACIÓN DE BRILLO (RADIO AMPLIADO) ✨
+// ====================================================================
+// Define qué tan lejos (en múltiplos del radio del objeto) empieza a desvanecerse el brillo al acercarse.
+const PROXIMITY_FADE_START_MULTIPLIER = 20.0;
+// Define qué tan cerca (en múltiplos del radio) el brillo llega a CERO para ver el modelo.
+const PROXIMITY_FADE_END_MULTIPLIER = 8.0;
+// ====================================================================
+// ✨ FIN DE CONSTANTES DE ATENUACIÓN DE BRILLO ✨
+// ====================================================================
 
 
 @Injectable()
