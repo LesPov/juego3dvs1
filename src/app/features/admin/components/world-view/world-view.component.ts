@@ -14,9 +14,9 @@ import { BrujulaComponent } from '../world-editor/brujula/brujula.component';
 import { PropertiesPanelComponent, PropertyUpdate } from '../world-editor/properties-panel/properties-panel.component';
 import { SceneSettingsPanelComponent } from '../world-editor/scene-settings-panel/scene-settings-panel.component';
 import { SceneComponent } from '../world-editor/scene/scene.component';
-import { EngineService } from '../world-editor/service/three-engine/core/engine.service';
 import { SceneEntity } from '../world-editor/service/three-engine/managers/entity-manager.service';
 import { ToolbarComponent } from '../world-editor/toolbar/toolbar.component';
+import { EngineService } from '../world-editor/service/three-engine/core/engine.service';
 
 export interface EntityGroup {
   type: string;
