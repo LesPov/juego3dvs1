@@ -11,7 +11,6 @@ import { SelectionManagerService } from './selection-manager.service';
 import { EntityManagerService } from '../managers/entity-manager.service';
 import { CameraManagerService } from '../managers/camera-manager.service';
 import { EngineService, IntersectedObjectInfo } from '../core/engine.service';
-// ✨ NUEVA DEPENDENCIA: EventManagerService es crucial para la nueva funcionalidad.
 import { EventManagerService } from './event-manager.service';
 
 /**
@@ -27,7 +26,6 @@ export class InteractionService {
 
   public axisLockState$: Observable<'x' | 'y' | 'z' | null>;
 
-  // Dependencias
   private sceneManager!: EngineService['sceneManager'];
   private cameraManager!: CameraManagerService;
   private entityManager!: EntityManagerService;
@@ -36,16 +34,13 @@ export class InteractionService {
   private interactionHelperManager!: InteractionHelperManagerService;
   private dragInteractionManager!: DragInteractionManagerService;
   private engine!: EngineService;
-  // ✨ Referencia al servicio de eventos.
   private eventManager!: EventManagerService;
 
-  // Estado interno
   private preselectedObject: IntersectedObjectInfo | null = null;
   private selectedObject?: THREE.Object3D;
   private axisLock: 'x' | 'y' | 'z' | null = null;
   private axisLockStateSubject = new BehaviorSubject<'x' | 'y' | 'z' | null>(null);
 
-  // Herramientas
   private raycaster = new THREE.Raycaster();
   private centerScreen = new THREE.Vector2(0, 0);
 
@@ -62,7 +57,6 @@ export class InteractionService {
     interactionHelperManager: InteractionHelperManagerService,
     dragInteractionManager: DragInteractionManagerService,
     engine: EngineService,
-    // ✨ Se añade EventManagerService a las dependencias de inicialización.
     eventManager: EventManagerService
   }): void {
     this.sceneManager = dependencies.sceneManager;
@@ -73,9 +67,9 @@ export class InteractionService {
     this.interactionHelperManager = dependencies.interactionHelperManager;
     this.dragInteractionManager = dependencies.dragInteractionManager;
     this.engine = dependencies.engine;
-    this.eventManager = dependencies.eventManager; // Se guarda la referencia
+    this.eventManager = dependencies.eventManager;
   }
-  
+
   public update(): void {
     this.updateHoverEffect();
   }
@@ -83,14 +77,13 @@ export class InteractionService {
   public setSelectedObject(object: THREE.Object3D | undefined): void {
       this.selectedObject = object;
   }
-  
+
   /**
    * Lógica de pre-selección (hover). Lanza un rayo para detectar sobre qué objeto está el cursor.
    * En vista 3D, el rayo sale del centro de la pantalla (mira).
    * En vista 2D, el rayo sale de la posición actual del ratón.
    */
   private updateHoverEffect(): void {
-    // La pre-selección solo funciona si la herramienta activa es 'select'.
     if (this.controlsManager.getCurrentToolMode() !== 'select') {
       if (this.preselectedObject) {
         this.selectionManager.setHoveredObjects([]);
@@ -102,20 +95,20 @@ export class InteractionService {
 
     // ✨ LÓGICA CLAVE: Se elige el origen del rayo según el modo de la cámara.
     const cameraMode = this.cameraManager.cameraMode$.getValue();
-    const rayOrigin = cameraMode === 'orthographic' 
-        ? this.eventManager.mousePosition 
+    const rayOrigin = cameraMode === 'orthographic'
+        ? this.eventManager.mousePosition
         : this.centerScreen;
-    
+
     this.raycaster.setFromCamera(rayOrigin, this.sceneManager.activeCamera);
 
     const intersects = this.raycaster.intersectObjects(this.sceneManager.scene.children, true);
-    
-    const firstValidHit = intersects.find(hit => 
-        !hit.object.name.endsWith('_helper') && 
-        hit.object.visible && 
+
+    const firstValidHit = intersects.find(hit =>
+        !hit.object.name.endsWith('_helper') &&
+        hit.object.visible &&
         !['SelectionProxy', 'HoverProxy', 'EditorGrid', 'FocusPivot'].includes(hit.object.name)
     );
-    
+
     if (firstValidHit) {
       let selectableObject = firstValidHit.object;
       let current = selectableObject;
@@ -123,14 +116,14 @@ export class InteractionService {
         current = current.parent;
       }
       selectableObject = current;
-      
+
       const { instanceId } = firstValidHit;
 
       const isInstanced = (selectableObject as THREE.InstancedMesh).isInstancedMesh && instanceId !== undefined;
-      const proxyObject = isInstanced 
-        ? this.entityManager.createOrUpdateHoverProxy(selectableObject as THREE.InstancedMesh, instanceId) 
+      const proxyObject = isInstanced
+        ? this.entityManager.createOrUpdateHoverProxy(selectableObject as THREE.InstancedMesh, instanceId)
         : selectableObject;
-      
+
       if (this.preselectedObject?.uuid !== proxyObject.uuid) {
         this.preselectedObject = { uuid: proxyObject.uuid, object: proxyObject };
         this.selectionManager.setHoveredObjects([this.preselectedObject.object]);
@@ -166,8 +159,6 @@ export class InteractionService {
   }
 
   public handleMouseDown(e: MouseEvent): void {
-    // El clic izquierdo selecciona el objeto que está bajo el cursor (pre-seleccionado).
-    // Esta lógica ahora funciona tanto en 2D como en 3D gracias a `updateHoverEffect`.
     if (e.button === 0 && this.preselectedObject) {
       e.preventDefault();
       const hoveredUuid = this.preselectedObject.uuid;
@@ -175,16 +166,16 @@ export class InteractionService {
       this.selectionManager.setHoveredObjects([]);
       this.entityManager.removeHoverProxy();
       this.preselectedObject = null;
-      
+
       const newUuid = this.selectedObject?.uuid === hoveredUuid ? null : hoveredUuid;
-      
+
       this.engine.setActiveSelectionByUuid(newUuid);
     }
   }
 
   public handleKeyDown(e: KeyboardEvent): void {
     const key = e.key.toLowerCase();
-    
+
     if (this.controlsManager.getCurrentToolMode() === 'move' && ['x', 'y', 'z'].includes(key)) {
       this.axisLock = this.axisLock === key ? null : (key as 'x' | 'y' | 'z');
       this.dragInteractionManager.setAxisConstraint(this.axisLock);

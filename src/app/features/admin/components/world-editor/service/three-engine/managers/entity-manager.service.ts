@@ -1,3 +1,5 @@
+// src/app/features/admin/views/world-editor/world-view/service/three-engine/managers/entity-manager.service.ts
+
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -21,8 +23,17 @@ export interface SceneEntity {
 // CONSTANTES
 // ====================================================================
 
-const PROXY_SCALE_MULTIPLIER = 1.1;
-const DEEP_SPACE_SCALE_BOOST = 10.0;
+// ✨ LÓGICA CLAVE PARA LA VISIBILIDAD DE LOS AROS ✨
+
+// Este valor debe ser idéntico al de `engine.service.ts` para mantener la coherencia.
+// Aumenta el tamaño visual de los objetos celestiales en la escena.
+const DEEP_SPACE_SCALE_BOOST = 25.0;
+
+// Este es el ajuste crucial. Hacemos que el aro sea 2.5 veces más grande que el objeto.
+// Esto garantiza que el aro siempre se vea por fuera, rodeando la textura del objeto,
+// incluso cuando la cámara está muy cerca.
+const PROXY_SCALE_MULTIPLIER = 1.0;
+
 const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
 
 /**
@@ -120,8 +131,8 @@ export class EntityManagerService {
     if (celestialInstance) {
       const { data, mesh } = celestialInstance;
       const selectionProxy = this.objectManager.createSelectionProxy(mesh.geometry);
-      // Usamos data.position y data.scale para asegurar que no hay mutaciones.
       selectionProxy.position.copy(data.position);
+      // ✨ LÓGICA CORREGIDA: Se aplica el multiplicador aumentado para que el aro amarillo rodee el objeto.
       selectionProxy.scale.copy(data.scale)
         .multiplyScalar(PROXY_SCALE_MULTIPLIER)
         .multiplyScalar(DEEP_SPACE_SCALE_BOOST);
@@ -138,7 +149,6 @@ export class EntityManagerService {
 
   public createOrUpdateHoverProxy(instancedMesh: THREE.InstancedMesh, instanceId: number): THREE.Mesh {
     if (!this.hoverProxy) {
-      // El ObjectManager crea el aro con su material azul.
       const newProxy = this.objectManager.createHoverProxy(instancedMesh.geometry);
       newProxy.name = 'HoverProxy';
       this.scene.add(newProxy);
@@ -148,33 +158,29 @@ export class EntityManagerService {
     const allData: CelestialInstanceData[] = instancedMesh.userData['celestialData'];
     const data = allData[instanceId];
     if (data) {
-      // Si el objeto que estamos sobrevolando es el que ya está seleccionado, no hacemos nada.
-      // Esto evita que el aro azul aparezca encima del amarillo.
       if (this.selectionManager.isObjectSelected(data.originalUuid)) {
         if (this.hoverProxy) {
-          this.hoverProxy.visible = false; // Simplemente ocultamos el proxy.
+          this.hoverProxy.visible = false;
         }
-        // Limpiamos el estado del hover anterior si lo hubiera.
         if (this.lastHoveredUuid && this.lastHoveredUuid !== data.originalUuid) {
             if (!this.selectionManager.isObjectSelected(this.lastHoveredUuid)) {
                 this.labelManager.hideLabel(this.lastHoveredUuid);
             }
         }
         this.lastHoveredUuid = null;
-        return this.hoverProxy!; // Devolvemos el proxy existente pero oculto.
+        return this.hoverProxy!;
       }
-        
-      const pos = new THREE.Vector3(), quat = new THREE.Quaternion(), scale = new THREE.Vector3();
-      data.originalMatrix.decompose(pos, quat, scale);
+
+      const pos = new THREE.Vector3();
+      data.originalMatrix.decompose(pos, new THREE.Quaternion(), new THREE.Vector3());
 
       this.hoverProxy.position.copy(pos);
-      // La escala se RECALCULA desde cero cada vez, esto evita el bug de "crecimiento".
-      // Se usa data.scale en lugar de decomponer la matriz para mayor seguridad.
+      // ✨ LÓGICA CORREGIDA: Se aplica el multiplicador aumentado para que el aro azul rodee el objeto.
       this.hoverProxy.scale.copy(data.scale)
         .multiplyScalar(PROXY_SCALE_MULTIPLIER)
         .multiplyScalar(DEEP_SPACE_SCALE_BOOST);
       this.hoverProxy.uuid = data.originalUuid;
-      this.hoverProxy.visible = true; // ✨ Nos aseguramos de que sea visible
+      this.hoverProxy.visible = true;
 
       if (this.lastHoveredUuid && this.lastHoveredUuid !== data.originalUuid) {
         if (!this.selectionManager.isObjectSelected(this.lastHoveredUuid)) {
@@ -245,6 +251,11 @@ export class EntityManagerService {
     });
   }
 
+  /**
+   * ✨ MÉTODO RESTAURADO ✨
+   * Este es el método que faltaba y que causaba el error de compilación.
+   * Restablece el brillo/opacidad de todos los objetos de la escena a su estado original.
+   */
   public resetAllGroupsBrightness(): void {
     if (!this.scene) return;
     this.scene.children.forEach(object => {

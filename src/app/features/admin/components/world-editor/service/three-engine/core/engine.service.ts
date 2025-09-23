@@ -33,7 +33,8 @@ const FADE_OUT_SPEED = 7.0;
 const VISIBILITY_HYSTERESIS_FACTOR = 100.05;
 const FOG_START_DISTANCE_MULTIPLIER = 0.01;
 const FOG_DENSITY = 0.95;
-const DEEP_SPACE_SCALE_BOOST = 15.0;
+// ✨ LÓGICA: Se establece un valor de escalado visual base. Este valor debe ser el mismo en EntityManagerService.
+const DEEP_SPACE_SCALE_BOOST = 25.0;
 const ORTHO_ZOOM_VISIBILITY_MULTIPLIER = 5.0;
 const ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR = 12.0;
 const MAX_INTENSITY = 8.0;
@@ -122,7 +123,6 @@ export class EngineService implements OnDestroy {
 
     this.selectionManager.getPasses().forEach(pass => this.sceneManager.composer.addPass(pass));
 
-    // ✨ MODIFICACIÓN: Se pasa la instancia de `eventManager` a `interactionService`.
     this.interactionService.init({
       sceneManager: this.sceneManager,
       cameraManager: this.cameraManager,
@@ -132,7 +132,7 @@ export class EngineService implements OnDestroy {
       interactionHelperManager: this.interactionHelperManager,
       dragInteractionManager: this.dragInteractionManager,
       engine: this,
-      eventManager: this.eventManager // <-- Conexión clave
+      eventManager: this.eventManager
     });
 
     this.precompileShaders();
@@ -255,16 +255,12 @@ export class EngineService implements OnDestroy {
     controls.addEventListener('change', this.onControlsChange);
 
     this.eventManager.windowResize$.subscribe(this.onWindowResize);
-    // ✨ Se eliminan las suscripciones a keydown y mousedown de aquí
-    // porque ahora las maneja directamente el ControlsManager y el InteractionService
-    // a través de los observables del EventManager.
 
     this.controlsSubscription = this.dragInteractionManager.onDragEnd$.subscribe(() => {
       this.handleTransformEnd();
       if (this.selectedObject) this.interactionHelperManager.updateHelperPositions(this.selectedObject);
     });
 
-    // ✨ Nuevas suscripciones centralizadas
     this.eventManager.keyDown$.subscribe(this.onKeyDown);
     this.eventManager.canvasMouseDown$.subscribe(this.onCanvasMouseDown);
   }
@@ -487,7 +483,7 @@ export class EngineService implements OnDestroy {
       const selectionProxy = this.sceneManager.scene.getObjectByName('SelectionProxy');
       if (selectionProxy && selectionProxy.uuid === uuid) {
         selectionProxy.position.copy(data.position);
-        selectionProxy.scale.copy(data.scale).multiplyScalar(7.0);
+        selectionProxy.scale.copy(data.scale).multiplyScalar(DEEP_SPACE_SCALE_BOOST);
       }
     }
   };

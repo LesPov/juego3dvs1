@@ -1,3 +1,5 @@
+// src/app/features/admin/views/world-editor/world-view/service/three-engine/interactions/selection-manager.service.ts
+
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass.js';
@@ -9,7 +11,7 @@ import { CameraMode } from '../managers/camera-manager.service';
 
 const PERSPECTIVE_PARAMS = {
   edgeStrength: 10.0,
-  edgeGlow: 1.0, 
+  edgeGlow: 1.0,
   edgeThickness: 2.5,
 };
 
@@ -26,7 +28,7 @@ export class SelectionManagerService {
 
   private hoverOutlinePass!: OutlinePass;
   private selectOutlinePass!: OutlinePass;
-  
+
   public init(scene: THREE.Scene, camera: THREE.Camera, initialSize: THREE.Vector2): void {
     this.hoverOutlinePass = new OutlinePass(initialSize, scene, camera);
     this.hoverOutlinePass.pulsePeriod = 0;
@@ -46,12 +48,12 @@ export class SelectionManagerService {
   public getPasses(): OutlinePass[] {
     return [this.hoverOutlinePass, this.selectOutlinePass];
   }
-  
+
   public updateOutlineParameters(mode: CameraMode): void {
     if (!this.hoverOutlinePass || !this.selectOutlinePass) return;
-    
+
     const params = mode === 'orthographic' ? ORTHOGRAPHIC_PARAMS : PERSPECTIVE_PARAMS;
-    
+
     [this.hoverOutlinePass, this.selectOutlinePass].forEach(pass => {
         pass.edgeStrength = params.edgeStrength;
         pass.edgeGlow = params.edgeGlow;
@@ -64,7 +66,7 @@ export class SelectionManagerService {
 
     const currentlySelectedUuid = this.selectOutlinePass.selectedObjects[0]?.uuid;
     const isHoveringSelected = objects.length > 0 && objects[0].uuid === currentlySelectedUuid;
-    
+
     if (objects.length > 0 && !isHoveringSelected) {
       this.hoverOutlinePass.selectedObjects = objects;
       this.hoverOutlinePass.enabled = true;
@@ -84,7 +86,7 @@ export class SelectionManagerService {
     this.selectOutlinePass.selectedObjects = objects;
     this.selectOutlinePass.enabled = objects.length > 0;
   }
-  
+
   public setCamera(camera: THREE.Camera): void {
     if (this.hoverOutlinePass) this.hoverOutlinePass.renderCamera = camera;
     if (this.selectOutlinePass) this.selectOutlinePass.renderCamera = camera;

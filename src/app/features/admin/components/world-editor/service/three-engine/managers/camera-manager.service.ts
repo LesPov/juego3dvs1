@@ -1,3 +1,5 @@
+// src/app/features/admin/views/world-editor/world-view/service/three-engine/managers/camera-manager.service.ts
+
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject } from 'rxjs';
@@ -34,7 +36,7 @@ export class CameraManagerService {
   private lastPerspectiveState: { position: THREE.Vector3, target: THREE.Vector3 } | null = null;
   private lastOrthographicState: { position: THREE.Vector3, target: THREE.Vector3 } | null = null;
   private lastEditorTarget = new THREE.Vector3();
-  
+
   private tempBox = new THREE.Box3();
   private tempBoxSize = new THREE.Vector3();
   private tempWorldPos = new THREE.Vector3();
@@ -45,10 +47,10 @@ export class CameraManagerService {
   private cameraAnimationTarget: AnimationState2D | AnimationState3D | null = null;
   private cameraInitialState: AnimationState2D | AnimationState3D | null = null;
   private cameraAnimationDuration = 1000;
-  
+
   private travelSpeedMultiplier: number = 1.0;
   private animationProgress: number = 0;
-  
+
   private isCameraOrbiting = false;
   private orbitTarget: THREE.Vector3 | null = null;
   private orbitStartTime = 0;
@@ -57,7 +59,7 @@ export class CameraManagerService {
 
   private readonly BASE_TRAVEL_SPEED = 1000000000;
   private readonly ORBIT_DURATION = 4000;
-  
+
   constructor(
     private sceneManager: SceneManagerService,
     private controlsManager: ControlsManagerService,
@@ -76,7 +78,7 @@ export class CameraManagerService {
   public setTravelSpeedMultiplier(multiplier: number): void {
     this.travelSpeedMultiplier = Math.max(0, multiplier);
   }
-  
+
   public update(delta: number): boolean {
     if (this.isCameraAnimating) {
       if (this.travelSpeedMultiplier > 0) {
@@ -134,7 +136,7 @@ export class CameraManagerService {
       this.switchToPerspectiveView();
     }
   }
-  
+
   public setCameraView(axisName: string | null, state?: { position: THREE.Vector3, target: THREE.Vector3 }): number {
     const controls = this.controlsManager.getControls();
     if (!controls) return 0;
@@ -197,6 +199,7 @@ export class CameraManagerService {
   }
 
   public switchToPerspectiveView(): void {
+    // ✨ LÓGICA RESTAURADA: Esta línea ahora funcionará porque el método existe en EntityManagerService.
     this.entityManager.resetAllGroupsBrightness();
     const controls = this.controlsManager.getControls();
     if (!controls) return;
@@ -242,7 +245,7 @@ export class CameraManagerService {
     controls.target.copy(center);
     controls.update();
   }
-  
+
   public focusOnObject(uuid: string): void {
     if (this.isCameraAnimating) this.isCameraAnimating = false;
     if (this.isCameraOrbiting) this.isCameraOrbiting = false;
@@ -270,7 +273,7 @@ export class CameraManagerService {
     const duration = (travelDistance / this.BASE_TRAVEL_SPEED) * 1000;
     this._startAnimation({ position: camera.position.clone(), target: controls.target.clone() }, { position: finalCamPos, target: targetPoint }, duration);
   }
-  
+
   private _focusOnObject2D(object: THREE.Object3D): void {
     const camera = this.sceneManager.activeCamera as THREE.OrthographicCamera;
     const controls = this.controlsManager.getControls();
@@ -306,7 +309,7 @@ export class CameraManagerService {
     this.controlsManager.getControls().enabled = false;
     this.controlsManager.exitFlyMode();
   }
-  
+
   private _updateCameraAnimation(delta: number): void {
     if (!this.isCameraAnimating || !this.cameraAnimationTarget || !this.cameraInitialState) return;
     const durationInSeconds = this.cameraAnimationDuration / 1000;
@@ -375,6 +378,6 @@ export class CameraManagerService {
     this.interactionHelperManager.setCamera(newActiveCamera);
     this.dragInteractionManager.setCamera(newActiveCamera);
     this.controlsManager.setCamera(newActiveCamera as THREE.PerspectiveCamera | THREE.OrthographicCamera);
-    this.controlsManager.getControls().update(); 
+    this.controlsManager.getControls().update();
   }
 }

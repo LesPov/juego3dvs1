@@ -1,3 +1,5 @@
+// src/app/features/admin/views/world-editor/world-view/service/three-engine/managers/label-manager.service.ts
+
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { CelestialInstanceData } from './object-manager.service';
@@ -15,14 +17,16 @@ const LABEL_PADDING = 10;
 
 // --- Para OBJETOS CON MODELO 3D ---
 // Se reduce drásticamente para que la etiqueta sea pequeña y proporcional al modelo.
-const MODEL_LABEL_SCALE_FACTOR = 0.5; 
-// Se ajusta a 1.1 para que la etiqueta se posicione justo encima del borde del objeto.
-const MODEL_LABEL_Y_OFFSET_MULTIPLIER = 0.05; 
+const MODEL_LABEL_SCALE_FACTOR = 0.5;
+// Se ajusta para que la etiqueta se posicione justo encima del borde del objeto.
+const MODEL_LABEL_Y_OFFSET_MULTIPLIER = 1.1;
 
-// --- Para OBJETOS POR DEFECTO (Billboards, imágenes, etc.) ---
-// Mantenemos los valores originales que funcionan bien para estos casos.
-const DEFAULT_LABEL_SCALE_FACTOR = 18.0;
-const DEFAULT_LABEL_Y_OFFSET_MULTIPLIER = 80.2;
+// --- Para OBJETOS POR DEFECTO (Billboards, galaxias, etc.) ---
+// ✨ LÓGICA CORREGIDA: Se aumentan drásticamente estos valores para compensar el
+// `DEEP_SPACE_SCALE_BOOST` que agranda visualmente los objetos celestiales.
+// Esto hará que las etiquetas sean más grandes y se posicionen mucho más arriba.
+const DEFAULT_LABEL_SCALE_FACTOR = 45.0;
+const DEFAULT_LABEL_Y_OFFSET_MULTIPLIER = 200.0;
 
 
 /**
@@ -136,10 +140,12 @@ export class LabelManagerService {
       }
 
       // Decidimos qué multiplicador de altura usar basándonos en el tipo de objeto.
-      const yOffsetMultiplier = labelData.isNormalizedModel 
-          ? MODEL_LABEL_Y_OFFSET_MULTIPLIER 
+      const yOffsetMultiplier = labelData.isNormalizedModel
+          ? MODEL_LABEL_Y_OFFSET_MULTIPLIER
           : DEFAULT_LABEL_Y_OFFSET_MULTIPLIER;
-      
+
+      // ✨ LÓGICA: Ahora con el multiplicador corregido, el yOffset será mucho mayor
+      // para los objetos celestiales, posicionando la etiqueta correctamente por encima de ellos.
       const yOffset = labelData.targetRadius * yOffsetMultiplier;
       labelData.sprite.position.copy(targetPosition).add(new THREE.Vector3(0, yOffset, 0));
     });
@@ -220,11 +226,13 @@ export class LabelManagerService {
     sprite.material.map = texture;
 
     // Decidimos qué factor de escala usar basándonos en el tipo de objeto.
-    const scaleFactor = labelData.isNormalizedModel 
-        ? MODEL_LABEL_SCALE_FACTOR 
+    const scaleFactor = labelData.isNormalizedModel
+        ? MODEL_LABEL_SCALE_FACTOR
         : DEFAULT_LABEL_SCALE_FACTOR;
 
     const aspect = canvas.width / canvas.height;
+    // ✨ LÓGICA: El `baseScale` ahora será mucho mayor para objetos celestiales,
+    // haciendo la etiqueta más grande y legible a distancia.
     const baseScale = labelData.targetRadius * scaleFactor;
     sprite.scale.set(baseScale * aspect, baseScale, 1.0);
   }
