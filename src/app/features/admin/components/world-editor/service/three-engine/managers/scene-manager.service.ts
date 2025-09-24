@@ -102,7 +102,8 @@ export class SceneManagerService {
       new THREE.ShaderMaterial({
         uniforms: {
           baseTexture: { value: null },
-          bloomTexture: { value: this.bloomComposer.renderTarget2.texture }
+          bloomTexture: { value: this.bloomComposer.renderTarget2.texture },
+          brightness: { value: 2.5 } // Valor inicial para ajustar la luminosidad
         },
         vertexShader: `
           varying vec2 vUv;
@@ -114,9 +115,10 @@ export class SceneManagerService {
         fragmentShader: `
           uniform sampler2D baseTexture;
           uniform sampler2D bloomTexture;
+          uniform float brightness; // Declaramos el uniform de brillo
           varying vec2 vUv;
           void main() {
-            gl_FragColor = ( texture2D( baseTexture, vUv ) + vec4( 1.0 ) * texture2D( bloomTexture, vUv ) );
+            gl_FragColor = ( texture2D( baseTexture, vUv ) * brightness + vec4( 1.0 ) * texture2D( bloomTexture, vUv ) );
           }
         `
       }), 'baseTexture'
