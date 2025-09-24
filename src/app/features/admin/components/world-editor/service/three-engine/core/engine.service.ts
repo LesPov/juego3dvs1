@@ -1,5 +1,3 @@
-// src/app/features/admin/views/world-editor/world-view/service/three-engine/core/engine.service.ts
-
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
@@ -34,10 +32,11 @@ const VISIBILITY_HYSTERESIS_FACTOR = 100.05;
 const FOG_START_DISTANCE_MULTIPLIER = 0.01;
 const FOG_DENSITY = 0.95;
 // ✨ LÓGICA: Se establece un valor de escalado visual base. Este valor debe ser el mismo en EntityManagerService.
-const DEEP_SPACE_SCALE_BOOST = 25.0;
+const DEEP_SPACE_SCALE_BOOST = 80.0;
 const ORTHO_ZOOM_VISIBILITY_MULTIPLIER = 5.0;
 const ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR = 12.0;
 const MAX_INTENSITY = 8.0;
+const ORTHO_MAX_INTENSITY = 1.5;
 const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
 
 
@@ -389,7 +388,8 @@ export class EngineService implements OnDestroy {
 
     const proximityFade = THREE.MathUtils.smoothstep(distance, maxScale * 1.5, maxScale * 3.0);
 
-    finalIntensity = Math.min(finalIntensity, MAX_INTENSITY) * bloomDampeningFactor * data.brightness * proximityFade;
+    const maxIntensity = isOrthographic ? ORTHO_MAX_INTENSITY : MAX_INTENSITY;
+    finalIntensity = Math.min(finalIntensity, maxIntensity) * bloomDampeningFactor * data.brightness * proximityFade;
 
     if (!isOrthographic) {
       const fogStartDistance = personalVisibilityDist * FOG_START_DISTANCE_MULTIPLIER;
