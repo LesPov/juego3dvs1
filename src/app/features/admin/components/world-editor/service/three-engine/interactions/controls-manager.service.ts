@@ -58,7 +58,7 @@ export class ControlsManagerService implements OnDestroy {
   private isFlyModeActiveSubject = new BehaviorSubject<boolean>(false);
 
   // Constantes de movimiento para el modo "fly"
-  private readonly MOVEMENT_SPEED = 100_000_000.0;
+  private readonly MOVEMENT_SPEED = 1000_000_000.0;
   private readonly BOOST_MULTIPLIER = 100.0;
   private readonly LOOK_SPEED = 0.002;
 

@@ -140,7 +140,7 @@ export class SceneManagerService {
     const aspect = width / height;
 
     this.editorCamera = new THREE.PerspectiveCamera(50, aspect, nearPlane, farPlane);
-    this.editorCamera.position.set(0, 50, 15_000_000_000);
+    this.editorCamera.position.set(0, 50, 50_000_000_000);
     this.editorCamera.lookAt(0, 0, 0);
     this.editorCamera.name = 'Cámara del Editor';
     this.editorCamera.userData = { apiType: 'camera', originalNear: nearPlane, originalFar: farPlane };
