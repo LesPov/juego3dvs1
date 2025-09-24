@@ -30,6 +30,156 @@ export class SceneManagerService {
 
   private controls!: OrbitControls;
 
+  private _createCameras(width: number, height: number): void {
+    const nearPlane = 0.1;
+    const farPlane = 1e14;
+    const aspect = width / height;
+
+    this.editorCamera = new THREE.PerspectiveCamera(50, aspect, nearPlane, farPlane);
+    this.editorCamera.position.set(0, 50, 300_000_000_000);
+    this.editorCamera.lookAt(0, 0, 0);
+    this.editorCamera.name = 'Cámara del Editor';
+    this.editorCamera.userData = { apiType: 'camera', originalNear: nearPlane, originalFar: farPlane };
+
+    this.secondaryCamera = new THREE.PerspectiveCamera(50, aspect, nearPlane, farPlane);
+    this.secondaryCamera.name = 'Cámara Secundaria';
+    this.secondaryCamera.userData = { apiType: 'camera', initialOffset: new THREE.Vector3(0, 4, 15) };
+
+    const editorCameraHelper = new THREE.CameraHelper(this.editorCamera);
+    editorCameraHelper.name = `${this.editorCamera.name}_helper`;
+    this.editorCamera.userData['helper'] = editorCameraHelper;
+    editorCameraHelper.visible = false;
+
+    const secondaryCameraHelper = new THREE.CameraHelper(this.secondaryCamera);
+    secondaryCameraHelper.name = `${this.secondaryCamera.name}_helper`;
+    this.secondaryCamera.userData['helper'] = secondaryCameraHelper;
+    secondaryCameraHelper.visible = true;
+
+    this.scene.add(this.editorCamera, this.secondaryCamera, editorCameraHelper, secondaryCameraHelper);
+    console.log(`[SceneManager] Cámaras creadas. Far plane ajustado a: ${farPlane}`);
+  }
+
+  private _createRendererAndComposer(width: number, height: number): void {
+    // 1. Configuración optimizada del renderer
+    this.renderer = new THREE.WebGLRenderer({
+      canvas: this.canvas,
+      antialias: false,
+      powerPreference: 'high-performance',
+      precision: 'mediump',
+      logarithmicDepthBuffer: true,
+      stencil: false,
+      depth: true
+    });
+
+    // Optimizaciones del renderer
+    this.renderer.setSize(width, height);
+    this.renderer.setPixelRatio(1);
+    this.renderer.toneMapping = THREE.NoToneMapping;
+    // Reemplazar outputEncoding por outputColorSpace
+    this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+
+    // Limitar el tamaño máximo de texturas
+    this.renderer.capabilities.maxTextureSize = 2048;
+
+    // Configuración de passes más ligera
+    const renderPass = new RenderPass(this.scene, this.activeCamera);
+
+    this.bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(width / 2, height / 2), // Reducir resolución del bloom
+      0.5,
+      0.75,
+      0.3
+    );
+
+    // Configurar composers con menor resolución
+    this.bloomComposer = new EffectComposer(this.renderer);
+    this.bloomComposer.renderToScreen = false;
+    this.bloomComposer.addPass(renderPass);
+    this.bloomComposer.addPass(this.bloomPass);
+
+    // 5. Creamos el finalPass
+    this.finalPass = new ShaderPass(
+      new THREE.ShaderMaterial({
+        uniforms: {
+          baseTexture: { value: null },
+          bloomTexture: { value: this.bloomComposer.renderTarget2.texture }
+        },
+        vertexShader: `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+          }
+        `,
+        fragmentShader: `
+          uniform sampler2D baseTexture;
+          uniform sampler2D bloomTexture;
+          varying vec2 vUv;
+          void main() {
+            gl_FragColor = ( texture2D( baseTexture, vUv ) + vec4( 1.0 ) * texture2D( bloomTexture, vUv ) );
+          }
+        `
+      }), 'baseTexture'
+    );
+    this.finalPass.needsSwap = true;
+
+    // 6. Inicializamos el composer principal
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(renderPass);
+    this.composer.addPass(this.finalPass);
+
+    // 7. Ajustamos los tamaños de los compositores
+    const pixelRatio = 1;
+    this.bloomComposer.setSize(width * pixelRatio, height * pixelRatio);
+    this.composer.setSize(width * pixelRatio, height * pixelRatio);
+
+    // Limpiar cualquier textura en caché
+    THREE.Cache.clear();
+
+    console.log("[SceneManager] Renderer y Composers inicializados correctamente");
+  }
+
+  private setupContextLossHandling(): void {
+    const canvas = this.renderer.domElement;
+
+    canvas.addEventListener('webglcontextlost', (event) => {
+      event.preventDefault();
+      console.warn('[SceneManager] Contexto WebGL perdido - Intentando recuperar...');
+      this.handleContextLoss();
+    }, false);
+
+    canvas.addEventListener('webglcontextrestored', () => {
+      console.log('[SceneManager] Contexto WebGL restaurado - Reiniciando renderer...');
+      this.handleContextRestore();
+    }, false);
+  }
+
+  private handleContextLoss(): void {
+    // Limpiar recursos
+    this.scene.traverse((object) => {
+      if (object instanceof THREE.Mesh) {
+        if (object.geometry) object.geometry.dispose();
+        if (object.material) {
+          if (Array.isArray(object.material)) {
+            object.material.forEach(material => material.dispose());
+          } else {
+            object.material.dispose();
+          }
+        }
+      }
+    });
+  }
+
+  private handleContextRestore(): void {
+    // Reconfigurar el renderer y los composers
+    const width = this.canvas.clientWidth;
+    const height = this.canvas.clientHeight;
+    this._createRendererAndComposer(width, height);
+
+    // Recargar texturas y materiales
+    this.loadSceneBackground().catch(console.error);
+  }
+
   public setupBasicScene(canvas: HTMLCanvasElement): void {
     this.canvas = canvas;
     const container = this.canvas.parentElement;
@@ -41,67 +191,116 @@ export class SceneManagerService {
     const height = container.clientHeight;
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x000215);
+    // Removemos el color de fondo por defecto ya que será reemplazado por la textura
+    this.scene.background = null;
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 4.0);
     ambientLight.name = "Luz Ambiental";
     this.scene.add(ambientLight);
-    
-    console.log("[SceneManager] Escena básica y luz ambiental creadas.");
 
     this._createCameras(width, height);
     this.activeCamera = this.editorCamera;
 
+    // Importante: Creamos el renderer y los composers después de tener la escena y la cámara
     this._createRendererAndComposer(width, height);
-  }
+    this.setupContextLossHandling(); // Añadir manejo de pérdida de contexto
 
-  // ====================================================================
-  // ✨ INICIO DE LA LÓGICA DE CARGA DE FONDO CON PROMESA ✨
-  // ====================================================================
-  /**
-   * Carga la textura de fondo de la escena y devuelve una Promesa que se resuelve
-   * cuando la textura ha sido cargada y asignada a la escena.
-   * @returns Una `Promise<void>` que indica la finalización de la carga del fondo.
-   */
-  public loadSceneBackground(): Promise<void> {
-    // LÓGICA CLAVE: Se crea una promesa que envolverá todo el proceso de carga de la textura.
-    // Esta promesa será la "garantía" de que el fondo está listo.
-    return new Promise((resolve, reject) => {
-      // Importante: El TextureLoader se crea aquí, SIN el LoadingManager,
-      // porque estamos controlando su ciclo de vida manualmente con la promesa.
-      const textureLoader = new THREE.TextureLoader();
-      
-      textureLoader.load(
-        'assets/textures/NightSky.jpg',
-        (texture) => {
-          // ÉXITO: La textura se ha descargado.
-          texture.mapping = THREE.EquirectangularReflectionMapping;
-          this.scene.background = texture;
-          this.scene.backgroundIntensity = 0.5;
-          this.scene.environment = texture;
-
-          console.log('[SceneManager] Fondo de escena configurado correctamente.');
-          
-          // LÓGICA CLAVE: Resolvemos la promesa AHORA. Esto le indicará al
-          // EngineService que esta tarea específica ha terminado.
-          resolve();
-        },
-        undefined,
-        (error) => {
-          // ERROR: La textura no se pudo cargar.
-          console.error('[SceneManager] Error al cargar la textura de fondo.', error);
-          this.scene.background = new THREE.Color(0x00042B); // Usar color de respaldo
-
-          // Resolvemos igualmente para no bloquear la carga de la aplicación.
-          // El usuario verá un fondo de color sólido en lugar de la imagen.
-          resolve();
-        }
-      );
+    // Iniciamos la carga del fondo inmediatamente
+    this.loadSceneBackground().catch(error => {
+      console.error('[SceneManager] Error al cargar el fondo:', error);
     });
   }
-  // ====================================================================
-  // ✨ FIN DE LA LÓGICA DE CARGA DE FONDO CON PROMESA ✨
-  // ====================================================================
+
+  public loadSceneBackground(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const textureLoader = new THREE.TextureLoader();
+
+      // Crear un canvas temporal para redimensionar la imagen
+      const resizeImage = (image: HTMLImageElement): HTMLCanvasElement => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d')!;
+
+        // Calcular el nuevo tamaño manteniendo la proporción
+        const maxSize = 2048;
+        let width = image.width;
+        let height = image.height;
+
+        if (width > height) {
+          if (width > maxSize) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+        }
+
+        // Aplicar el nuevo tamaño al canvas
+        canvas.width = width;
+        canvas.height = height;
+
+        // Usar algoritmo de suavizado para mejor calidad
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        // Dibujar la imagen redimensionada
+        ctx.drawImage(image, 0, 0, width, height);
+
+        return canvas;
+      };
+
+      // Cargar la imagen primero
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+
+      img.onload = () => {
+        try {
+          // Redimensionar la imagen si es necesario
+          const canvas = resizeImage(img);
+
+          // Crear textura desde el canvas
+          const texture = new THREE.CanvasTexture(canvas);
+          texture.colorSpace = THREE.SRGBColorSpace;
+          texture.minFilter = THREE.LinearFilter;
+          texture.magFilter = THREE.LinearFilter;
+          texture.generateMipmaps = false;
+          texture.mapping = THREE.EquirectangularReflectionMapping;
+          texture.needsUpdate = true;
+
+          // Aplicar la textura a la escena
+          if (this.scene) {
+            this.scene.background = texture;
+            this.scene.environment = texture;
+          }
+
+          // Ajustar el bloom para compensar el fondo
+          if (this.bloomPass) {
+            this.bloomPass.threshold = 0.85;
+            this.bloomPass.strength = 0.75;
+            this.bloomPass.radius = 0.65;
+          }
+
+          console.log('[SceneManager] Fondo cargado y optimizado correctamente');
+          resolve();
+        } catch (error) {
+          console.error('[SceneManager] Error al procesar la textura:', error);
+          this.scene.background = new THREE.Color(0x000215);
+          reject(error);
+        }
+      };
+
+      img.onerror = (error) => {
+        console.error('[SceneManager] Error al cargar la imagen de fondo:', error);
+        this.scene.background = new THREE.Color(0x000215);
+        reject(error);
+      };
+
+      // Iniciar la carga de la imagen
+      img.src = 'assets/textures/NightSky.jpg';
+    });
+  }
 
   public setControls(controls: OrbitControls): void {
     this.controls = controls;
@@ -165,87 +364,5 @@ export class SceneManagerService {
     this.activeCamera.lookAt(0, 0, 0);
     this.controls.target.set(0, 0, 0);
     this.controls.update();
-  }
-
-  private _createCameras(width: number, height: number): void {
-    const nearPlane = 0.1;
-    const farPlane = 1e14; 
-    const aspect = width / height;
-
-    this.editorCamera = new THREE.PerspectiveCamera(50, aspect, nearPlane, farPlane);
-    this.editorCamera.position.set(0, 50, 50_000_000_000);
-    this.editorCamera.lookAt(0, 0, 0);
-    this.editorCamera.name = 'Cámara del Editor';
-    this.editorCamera.userData = { apiType: 'camera', originalNear: nearPlane, originalFar: farPlane };
-
-    this.secondaryCamera = new THREE.PerspectiveCamera(50, aspect, nearPlane, farPlane);
-    this.secondaryCamera.name = 'Cámara Secundaria';
-    this.secondaryCamera.userData = { apiType: 'camera', initialOffset: new THREE.Vector3(0, 4, 15) };
-
-    const editorCameraHelper = new THREE.CameraHelper(this.editorCamera);
-    editorCameraHelper.name = `${this.editorCamera.name}_helper`;
-    this.editorCamera.userData['helper'] = editorCameraHelper;
-    editorCameraHelper.visible = false;
-
-    const secondaryCameraHelper = new THREE.CameraHelper(this.secondaryCamera);
-    secondaryCameraHelper.name = `${this.secondaryCamera.name}_helper`;
-    this.secondaryCamera.userData['helper'] = secondaryCameraHelper;
-    secondaryCameraHelper.visible = true;
-
-    this.scene.add(this.editorCamera, this.secondaryCamera, editorCameraHelper, secondaryCameraHelper);
-    console.log(`[SceneManager] Cámaras creadas. Far plane ajustado a: ${farPlane}`);
-  }
-
-  private _createRendererAndComposer(width: number, height: number): void {
-    this.renderer = new THREE.WebGLRenderer({
-      canvas: this.canvas,
-      antialias: false,
-      powerPreference: 'high-performance',
-      precision: 'highp',
-      logarithmicDepthBuffer: true
-    });
-    this.renderer.setSize(width, height);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-
-    const renderPass = new RenderPass(this.scene, this.activeCamera);
-
-    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 1.0, 0.6, 0.85);
-
-    this.bloomComposer = new EffectComposer(this.renderer);
-    this.bloomComposer.renderToScreen = false;
-    this.bloomComposer.addPass(renderPass);
-    this.bloomComposer.addPass(this.bloomPass);
-
-    this.finalPass = new ShaderPass(
-      new THREE.ShaderMaterial({
-        uniforms: {
-          baseTexture: { value: null },
-          bloomTexture: { value: this.bloomComposer.renderTarget2.texture }
-        },
-        vertexShader: `
-          varying vec2 vUv;
-          void main() {
-            vUv = uv;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
-          }
-        `,
-        fragmentShader: `
-          uniform sampler2D baseTexture;
-          uniform sampler2D bloomTexture;
-          varying vec2 vUv;
-          void main() {
-            gl_FragColor = ( texture2D( baseTexture, vUv ) + vec4( 1.0 ) * texture2D( bloomTexture, vUv ) );
-          }
-        `
-      }), 'baseTexture'
-    );
-    this.finalPass.needsSwap = true;
-
-    this.composer = new EffectComposer(this.renderer);
-    this.composer.addPass(renderPass);
-    this.composer.addPass(this.finalPass);
-    console.log("[SceneManager] Renderer y Composer creados con logarithmicDepthBuffer activado.");
   }
 }

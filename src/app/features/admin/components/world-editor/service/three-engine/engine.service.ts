@@ -288,65 +288,66 @@ export class EngineService implements OnDestroy {
     this.entityManager.clearScene();
     this.dynamicCelestialModels = [];
 
-    // ====================================================================
-    // ✨ INICIO DE LA LÓGICA DE CARGA SINCRONIZADA ✨
-    // ====================================================================
+    // LÓGICA CLAVE: Se crean promesas para ambas tareas asíncronas: cargar el fondo y cargar los objetos.
+    const backgroundPromise = this.sceneManager.loadSceneBackground();
 
-    // LÓGICA CLAVE: Invocamos la carga del fondo inmediatamente. Esto devuelve una
-    // promesa que podemos "esperar" más tarde. La descarga comienza en paralelo.
-    const backgroundReadyPromise = this.sceneManager.loadSceneBackground();
+    const objectsPromise = new Promise<void>((resolve, reject) => {
+      try {
+        const celestialTypes = ['galaxy_normal', 'galaxy_bright', 'meteor', 'galaxy_far', 'galaxy_medium', 'model'];
+        const celestialObjectsData = objects.filter(o => celestialTypes.includes(o.type));
+        const standardObjectsData = objects.filter(o => !celestialTypes.includes(o.type));
 
-    const celestialTypes = ['galaxy_normal', 'galaxy_bright', 'meteor', 'galaxy_far', 'galaxy_medium', 'model'];
-    const celestialObjectsData = objects.filter(o => celestialTypes.includes(o.type));
-    const standardObjectsData = objects.filter(o => !celestialTypes.includes(o.type));
+        this.entityManager.objectManager.createCelestialObjectsInstanced(
+          this.sceneManager.scene, celestialObjectsData, this.entityManager.getGltfLoader()
+        );
 
-    this.entityManager.objectManager.createCelestialObjectsInstanced(
-      this.sceneManager.scene, celestialObjectsData, this.entityManager.getGltfLoader()
-    );
+        const loadingManager = this.entityManager.getLoadingManager();
+        
+        // El progreso se mantiene igual.
+        loadingManager.onProgress = (_, loaded, total) => onProgress((loaded / total) * 100);
+        
+        loadingManager.onLoad = () => {
+          console.log('[EngineService] Todos los modelos 3D han sido cargados.');
+          this.entityManager.publishSceneEntities();
+          this.sceneManager.scene.traverse(obj => {
+            if (obj.userData['isDynamicCelestialModel']) this.dynamicCelestialModels.push(obj as THREE.Group);
+          });
+          // Se resuelve la promesa de los objetos cuando el LoadingManager termina.
+          resolve();
+        };
 
-    const loadingManager = this.entityManager.getLoadingManager();
-    loadingManager.onProgress = (_, loaded, total) => onProgress((loaded / total) * 100);
-    
-    // Convertimos el callback onLoad en una función asíncrona para poder usar 'await'.
-    loadingManager.onLoad = async () => {
-      console.log('[EngineService] Todos los modelos 3D han sido descargados.');
+        standardObjectsData.forEach(o => this.entityManager.createObjectFromData(o));
 
-      // LÓGICA CLAVE: Pausamos la ejecución aquí hasta que la promesa del fondo se resuelva.
-      // Si el fondo ya se cargó, esto se resolverá instantáneamente.
-      // Si los modelos terminaron primero, esperará aquí a que el fondo termine.
-      await backgroundReadyPromise;
-      console.log('[EngineService] El fondo de la escena está cargado y aplicado.');
+        const hasModelsToLoad = standardObjectsData.some(o => o.type === 'model' && o.asset?.path) ||
+          celestialObjectsData.some(o => o.asset?.type === 'model_glb');
+        
+        // Si no hay modelos que cargar, se dispara `onLoad` manualmente para resolver la promesa.
+        if (!hasModelsToLoad && loadingManager.onLoad) {
+          setTimeout(() => loadingManager.onLoad!(), 0);
+        }
+      } catch (error) {
+        reject(error); // Rechaza la promesa si hay un error en la configuración.
+      }
+    });
+
+    // LÓGICA CLAVE: Promise.all espera a que TODAS las promesas en el array se completen.
+    Promise.all([backgroundPromise, objectsPromise]).then(() => {
+      // Este bloque se ejecuta solo cuando AMBAS tareas (fondo y objetos) han finalizado con éxito.
+      console.log('[EngineService] Fondo y modelos cargados. Compilando la escena final.');
       
-      // Como garantía final, forzamos un pre-renderizado ahora que SABEMOS que
-      // todos los assets están listos.
       this.sceneManager.renderer.compile(this.sceneManager.scene, this.sceneManager.activeCamera);
-      this.sceneManager.composer.render();
       
-      console.log('[EngineService] Pre-renderizado completo. La carga ha finalizado.');
-
-      // Solo AHORA, cuando estamos 100% seguros de que todo está listo,
-      // llamamos al callback que oculta la barra de carga en la UI.
+      // Se llama a onLoaded() para indicar que el proceso de carga ha terminado.
       onLoaded();
       
-      this.entityManager.publishSceneEntities();
-      this.sceneManager.scene.traverse(obj => {
-        if (obj.userData['isDynamicCelestialModel']) this.dynamicCelestialModels.push(obj as THREE.Group);
-      });
-    };
-    // ====================================================================
-    // ✨ FIN DE LA LÓGICA DE CARGA SINCRONIZADA ✨
-    // ====================================================================
+      console.log('[EngineService] Carga de la escena completada.');
 
-    standardObjectsData.forEach(o => this.entityManager.createObjectFromData(o));
-
-    const hasModelsToLoad = standardObjectsData.some(o => o.type === 'model' && o.asset?.path) ||
-      celestialObjectsData.some(o => o.asset?.type === 'model_glb');
-    
-    // Si no hay modelos, el onLoad del manager no se disparará solo.
-    // Lo disparamos manualmente para que ejecute la lógica de espera de la promesa del fondo.
-    if (!hasModelsToLoad && loadingManager.onLoad) {
-      setTimeout(() => loadingManager.onLoad!(), 0);
-    }
+    }).catch(error => {
+      // Es buena práctica manejar posibles errores que puedan ocurrir en cualquiera de las promesas.
+      console.error('[EngineService] Ocurrió un error durante la carga de la escena:', error);
+      // Aún así se llama a onLoaded() para que la UI no se quede bloqueada en un estado de carga.
+      onLoaded();
+    });
   }
 
   private updateVisibleCelestialInstances(instancedMesh: THREE.InstancedMesh, delta: number): void {

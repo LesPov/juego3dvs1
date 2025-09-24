@@ -68,7 +68,7 @@ export class ObjectManagerService {
   private glowTexture: THREE.CanvasTexture | null = null;
 
   private sharedPlaneGeometry = new THREE.PlaneGeometry(1, 1);
-  private sharedCircleGeometry = new THREE.CircleGeometry(6.0, 32);
+  private sharedCircleGeometry = new THREE.CircleGeometry(12.0, 32);
 
   private tempBox = new THREE.Box3();
   private tempSize = new THREE.Vector3();
@@ -158,9 +158,9 @@ export class ObjectManagerService {
       modelWrapper.add(gltf.scene);
 
       this._setupCelestialModel(modelWrapper, gltf, objData);
-      
+
       this.applyTransformations(modelWrapper, objData);
-      
+
       modelWrapper.userData['isNormalizedModel'] = true;
 
       this.labelManager.registerObject(modelWrapper);
@@ -185,34 +185,71 @@ export class ObjectManagerService {
   // ====================================================================
   private _setupCelestialModel(modelWrapper: THREE.Group, gltf: GLTF, objData: SceneObjectResponse): void {
     const galaxyInfo = objData.galaxyData;
-    const emissiveColor = new THREE.Color(sanitizeHexColor(galaxyInfo?.emissiveColor, '#ffffff'));
-    
-    // 1. Definimos la intensidad de brillo máxima (cuando está lejos).
-    const farIntensity = galaxyInfo ? THREE.MathUtils.clamp(galaxyInfo.emissiveIntensity, 1.0, 7.0) : 1.0;
+    // const emissiveColor = new THREE.Color(sanitizeHexColor(galaxyInfo?.emissiveColor, '#ffffff')); // Keep for reference if needed
 
-    // 2. Guardamos los datos necesarios para que el EngineService los controle.
+    // Configuración mejorada para modelos 3D
     modelWrapper.userData['isDynamicCelestialModel'] = true;
-    modelWrapper.userData['originalEmissiveIntensity'] = farIntensity;
-    modelWrapper.userData['baseEmissiveIntensity'] = 0.1; // Valor base cuando está muy lejos
+    modelWrapper.userData['originalEmissiveIntensity'] = galaxyInfo ?
+      THREE.MathUtils.clamp(galaxyInfo.emissiveIntensity, 1.0, 7.0) : 1.0;
+    modelWrapper.userData['baseEmissiveIntensity'] = 0.1;
+    modelWrapper.renderOrder = 2; // Mayor renderOrder para asegurar que se dibuje después de los billboards
 
-    // 3. Recorremos el modelo para aplicar las propiedades de brillo.
     modelWrapper.traverse(child => {
       if (child instanceof THREE.Mesh) {
-        // Todos los objetos que deben brillar necesitan estar en la capa de BLOOM.
-        child.layers.enable(BLOOM_LAYER);
-        const material = child.material as THREE.MeshStandardMaterial;
-        if (material) {
-            // Asignamos el color del brillo.
-            material.emissive = emissiveColor;
-            // La intensidad inicial es la máxima, el EngineService la atenuará.
-            material.emissiveIntensity = farIntensity;
+        if (child.material) {
+          const material = child.material as THREE.MeshStandardMaterial;
+
+          // Resetear propiedades de emisión para asegurar que las texturas GLTF no sean sobrescritas
+          // y permitir que el mapa de color base se muestre. Confiamos en que GLTFLoader
+          // configure correctamente material.map y otras texturas PBR.
+          material.emissive.setHex(0x000000); // Color de emisión a negro por defecto
+          material.emissiveIntensity = 0;    // Intensidad de emisión a cero por defecto
+
+          material.envMapIntensity = 0.5; // Mantener envMapIntensity ya que ayuda con materiales PBR
+          material.metalness = 0.3;
+          material.roughness = 0.7;
+
+          // Asegurar que el material no es transparente a menos que se defina explícitamente en GLTF
+          // y que el manejo de la profundidad sea correcto.
+          material.transparent = material.transparent || false; // Mantener la transparencia original si la establece GLTF
+          material.depthWrite = true;
+          material.depthTest = true;
+          material.alphaTest = 0.0;
+          material.blending = THREE.NormalBlending;
+
+          // Optimizaciones adicionales
+          material.flatShading = true;
+          material.fog = false;
+          material.dithering = false;
+
+          // Asegurar que la configuración de la textura es correcta si existe un mapa
+          if (material.map) {
+            material.map.minFilter = THREE.LinearFilter;
+            material.map.magFilter = THREE.LinearFilter;
+            material.map.generateMipmaps = false;
+            material.map.colorSpace = THREE.SRGBColorSpace;
+            material.map.needsUpdate = true;
+          }
         }
+
+        // Asegurar que la geometría está optimizada
+        if (child.geometry) {
+          child.geometry.computeBoundingSphere();
+          child.geometry.computeBoundingBox();
+        }
+
+        // Configuración de capas y renderizado
+        child.layers.enable(BLOOM_LAYER);
+        child.renderOrder = 2;
+        child.frustumCulled = true;
+        child.castShadow = false;
+        child.receiveShadow = false;
       }
     });
 
     // 4. Eliminamos la luz puntual individual. La luz ambiental global se encarga de la iluminación base.
     const coreLight = modelWrapper.getObjectByName(`${objData.name}_CoreLight`);
-    if(coreLight) modelWrapper.remove(coreLight);
+    if (coreLight) modelWrapper.remove(coreLight);
 
     this._setupAnimations(gltf, modelWrapper);
   }
@@ -242,15 +279,16 @@ export class ObjectManagerService {
       transparent: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
-      side: THREE.DoubleSide
+      depthTest: true,
+      side: THREE.DoubleSide,
+      alphaTest: 0.01
     });
 
     const instancedMesh = new THREE.InstancedMesh(this.sharedCircleGeometry, material, objectsData.length);
-
     instancedMesh.name = `CelestialObjects_Texture_${texturePath.replace(/[^a-zA-Z0-9]/g, '_')}`;
     instancedMesh.frustumCulled = false;
     instancedMesh.layers.enable(BLOOM_LAYER);
-    instancedMesh.renderOrder = 1;
+    instancedMesh.renderOrder = 1; // Menor renderOrder para que se dibuje antes que los modelos 3D
     this._populateInstanceData(instancedMesh, objectsData);
     scene.add(instancedMesh);
   }
@@ -260,10 +298,12 @@ export class ObjectManagerService {
       map: this._createGlowTexture(),
       transparent: true,
       blending: THREE.AdditiveBlending,
-      depthWrite: false
+      depthWrite: false,
+      depthTest: true,
+      alphaTest: 0.01
     });
-    const instancedMesh = new THREE.InstancedMesh(this.sharedCircleGeometry, material, objectsData.length);
 
+    const instancedMesh = new THREE.InstancedMesh(this.sharedCircleGeometry, material, objectsData.length);
     instancedMesh.name = 'CelestialObjects_Default';
     instancedMesh.frustumCulled = false;
     instancedMesh.layers.enable(BLOOM_LAYER);

@@ -1,5 +1,6 @@
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 import { ControlsManagerService } from '../interactions/controls-manager.service';
@@ -23,7 +24,7 @@ export interface IntersectedObjectInfo {
 }
 
 const INSTANCES_TO_CHECK_PER_FRAME = 10000000;
-const BASE_VISIBILITY_DISTANCE = 550000000;
+const BASE_VISIBILITY_DISTANCE = 1000000000;
 const MAX_PERCEPTUAL_DISTANCE = 10000000000000;
 const PERSPECTIVE_VISIBILITY_MULTIPLIER = 0.08;
 const FADE_IN_SPEED = 3.0;
@@ -105,9 +106,47 @@ export class EngineService implements OnDestroy {
     const canvas = canvasRef.nativeElement;
 
     this.sceneManager.setupBasicScene(canvas);
+
+    // ====================================================================
+    // ✨ INICIO DE LA LÓGICA DE ILUMINACIÓN GLOBAL ✨
+    // ====================================================================
+    // Se añade una luz ambiental para asegurar que los modelos 3D con materiales
+    // estándar (MeshStandardMaterial) tengan una iluminación base y no se vean
+    // completamente negros. Esta luz ilumina todas las caras de un objeto por igual
+    // y solo afecta a los objetos con materiales que reaccionan a la luz.
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.5); // Luz blanca, intensidad moderada
+    ambientLight.name = 'GlobalAmbientLight';
+    this.sceneManager.scene.add(ambientLight);
+
+    // Se añade una luz direccional para simular una fuente de luz principal (como el sol).
+    // Esto crea reflejos y sombras, dando a los objetos 3D una mayor sensación de
+    // volumen y profundidad, lo que mejora drásticamente su apariencia visual.
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5); // Luz blanca, intensidad más sutil
+    directionalLight.position.set(5, 10, 7.5); // Posicionada para iluminar desde un ángulo superior
+    directionalLight.name = 'GlobalDirectionalLight';
+    this.sceneManager.scene.add(directionalLight);
+    // ====================================================================
+    // ✨ FIN DE LA LÓGICA DE ILUMINACIÓN GLOBAL ✨
+    // ====================================================================
+
+    // ====================================================================
+    // ✨ INICIO DE LA LÓGICA DE ENVMAP ✨
+    // ====================================================================
+    // Se añade un mapa de entorno para mejorar la apariencia de los materiales
+    // PBR (como MeshStandardMaterial), proporcionando reflejos y una iluminación
+    // más realista. Esto es crucial para que las texturas se vean correctamente
+    // y los modelos no parezcan planos o sin vida.
+    const environment = new RoomEnvironment();
+    const pmremGenerator = new THREE.PMREMGenerator(this.sceneManager.renderer);
+    this.sceneManager.scene.environment = pmremGenerator.fromScene(environment).texture;
+    environment.dispose();
+    pmremGenerator.dispose();
+    // ====================================================================
+    // ✨ FIN DE LA LÓGICA DE ENVMAP ✨
+    // ====================================================================
+
     this.sceneManager.scene.add(this.focusPivot);
     this.entityManager.init(this.sceneManager.scene);
-    
     this.labelManager.init(this.sceneManager.scene);
     this.statsManager.init();
     this.controlsManager.init(this.sceneManager.editorCamera, canvas, this.sceneManager.scene, this.focusPivot);
@@ -284,14 +323,6 @@ export class EngineService implements OnDestroy {
     this.entityManager.clearScene();
     this.dynamicCelestialModels = [];
 
-    // ====================================================================
-    // ✨ INICIO DE LA LÓGICA DE CARGA SINCRONIZADA ✨
-    // ====================================================================
-
-    // LÓGICA CLAVE: Invocamos la carga del fondo inmediatamente. Esto devuelve una
-    // promesa que podemos "esperar" más tarde. La descarga comienza en paralelo.
-    const backgroundReadyPromise = this.sceneManager.loadSceneBackground();
-
     const celestialTypes = ['galaxy_normal', 'galaxy_bright', 'meteor', 'galaxy_far', 'galaxy_medium', 'model'];
     const celestialObjectsData = objects.filter(o => celestialTypes.includes(o.type));
     const standardObjectsData = objects.filter(o => !celestialTypes.includes(o.type));
@@ -302,47 +333,20 @@ export class EngineService implements OnDestroy {
 
     const loadingManager = this.entityManager.getLoadingManager();
     loadingManager.onProgress = (_, loaded, total) => onProgress((loaded / total) * 100);
-    
-    // Convertimos el callback onLoad en una función asíncrona para poder usar 'await'.
-    loadingManager.onLoad = async () => {
-      console.log('[EngineService] Todos los modelos 3D han sido descargados.');
-
-      // LÓGICA CLAVE: Pausamos la ejecución aquí hasta que la promesa del fondo se resuelva.
-      // Si el fondo ya se cargó, esto se resolverá instantáneamente.
-      // Si los modelos terminaron primero, esperará aquí a que el fondo termine.
-      await backgroundReadyPromise;
-      console.log('[EngineService] El fondo de la escena está cargado y aplicado.');
-      
-      // Como garantía final, forzamos un pre-renderizado ahora que SABEMOS que
-      // todos los assets están listos.
+    loadingManager.onLoad = () => {
       this.sceneManager.renderer.compile(this.sceneManager.scene, this.sceneManager.activeCamera);
-      this.sceneManager.composer.render();
-      
-      console.log('[EngineService] Pre-renderizado completo. La carga ha finalizado.');
-
-      // Solo AHORA, cuando estamos 100% seguros de que todo está listo,
-      // llamamos al callback que oculta la barra de carga en la UI.
       onLoaded();
-      
       this.entityManager.publishSceneEntities();
       this.sceneManager.scene.traverse(obj => {
         if (obj.userData['isDynamicCelestialModel']) this.dynamicCelestialModels.push(obj as THREE.Group);
       });
     };
-    // ====================================================================
-    // ✨ FIN DE LA LÓGICA DE CARGA SINCRONIZADA ✨
-    // ====================================================================
 
     standardObjectsData.forEach(o => this.entityManager.createObjectFromData(o));
 
     const hasModelsToLoad = standardObjectsData.some(o => o.type === 'model' && o.asset?.path) ||
       celestialObjectsData.some(o => o.asset?.type === 'model_glb');
-    
-    // Si no hay modelos, el onLoad del manager no se disparará solo.
-    // Lo disparamos manualmente para que ejecute la lógica de espera de la promesa del fondo.
-    if (!hasModelsToLoad && loadingManager.onLoad) {
-      setTimeout(() => loadingManager.onLoad!(), 0);
-    }
+    if (!hasModelsToLoad && loadingManager.onLoad) setTimeout(() => loadingManager.onLoad!(), 0);
   }
 
   private updateVisibleCelestialInstances(instancedMesh: THREE.InstancedMesh, delta: number): void {
