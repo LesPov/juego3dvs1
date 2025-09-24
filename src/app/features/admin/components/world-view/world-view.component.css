@@ -608,7 +608,7 @@
 .image-modal-content {
   position: relative;
   cursor: default;
-  width: 100vw;
+  width:92vw;
   height: 80vh;
   display: flex;
 }

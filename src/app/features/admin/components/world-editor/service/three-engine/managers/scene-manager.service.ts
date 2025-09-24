@@ -11,12 +11,6 @@ const CELESTIAL_MESH_PREFIX = 'CelestialObjects_';
 const UNSELECTABLE_NAMES = ['Luz Ambiental', 'EditorGrid', 'SelectionProxy', 'HoverProxy', 'FocusPivot'];
 
 
-/**
- * @class SceneManagerService
- * @description
- * Es el fundamento del entorno 3D. Su responsabilidad es crear y configurar los componentes
- * esenciales de Three.js: escena, renderizador, cámaras y compositor de post-procesamiento.
- */
 @Injectable({ providedIn: 'root' })
 export class SceneManagerService {
 
@@ -47,56 +41,11 @@ export class SceneManagerService {
     const height = container.clientHeight;
 
     this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x000215);
 
-    // ====================================================================
-    // ✨ INICIO DE LA LÓGICA PARA EL FONDO DE ESCENA ✨
-    // ====================================================================
-    // LÓGICA: Se utiliza un TextureLoader para cargar una imagen y establecerla como
-    // el fondo de la escena. Esto reemplaza el color sólido anterior.
-    // La imagen se mapea de forma equirectangular para crear un efecto de "skybox"
-    // o cúpula celestial, haciendo que el entorno se sienta inmersivo.
-    const textureLoader = new THREE.TextureLoader();
-    textureLoader.load(
-      'assets/textures/NightSky.jpg', // Ruta a la imagen de fondo.
-      (texture) => {
-        // El mapeo equirectangular es crucial para que la textura envuelva la escena correctamente.
-        texture.mapping = THREE.EquirectangularReflectionMapping;
-        this.scene.background = texture;
-
-        // LÓGICA: Ajustar la intensidad del fondo para oscurecer la imagen y hacerla menos brillante.
-        // Un valor de 1.0 es el brillo original. Valores menores lo oscurecen, permitiendo
-        // que el tono oscuro del espacio sea más prominente. Se establece en 0.4.
-        this.scene.backgroundIntensity = 0.4;
-        
-        // Opcional pero recomendado: Usar el mismo mapa como entorno para que los
-        // materiales reflectantes (PBR) reflejen el cielo y se integren mejor.
-        this.scene.environment = texture;
-
-        console.log('[SceneManager] Fondo de escena configurado con imagen equirectangular y brillo ajustado.');
-      },
-      undefined, // Callback de progreso, no se usa aquí.
-      (error) => {
-        console.error('[SceneManager] Error al cargar la textura de fondo. Se usará un color sólido como alternativa.', error);
-        // Si la imagen no se puede cargar, se establece un color de fondo de respaldo.
-        this.scene.background = new THREE.Color(0x00042B);
-      }
-    );
-    // ====================================================================
-    // ✨ FIN DE LA LÓGICA PARA EL FONDO DE ESCENA ✨
-    // ====================================================================
-
-    // ====================================================================
-    // ✨ INICIO DE LA SOLUCIÓN DE ILUMINACIÓN DEFINITIVA ✨
-    // ====================================================================
-    // LÓGICA: Aumentamos drásticamente la luz ambiental. Esto asegura que
-    // las texturas de TODOS los modelos sean siempre visibles y no se vean
-    // negras. Es la forma más simple y efectiva de garantizar una iluminación base.
-    const ambientLight = new THREE.AmbientLight(0xffffff, 4.0); // Valor alto para una buena iluminación base
+    const ambientLight = new THREE.AmbientLight(0xffffff, 4.0);
     ambientLight.name = "Luz Ambiental";
     this.scene.add(ambientLight);
-    // ====================================================================
-    // ✨ FIN DE LA SOLUCIÓN DE ILUMINACIÓN ✨
-    // ====================================================================
     
     console.log("[SceneManager] Escena básica y luz ambiental creadas.");
 
@@ -105,6 +54,54 @@ export class SceneManagerService {
 
     this._createRendererAndComposer(width, height);
   }
+
+  // ====================================================================
+  // ✨ INICIO DE LA LÓGICA DE CARGA DE FONDO CON PROMESA ✨
+  // ====================================================================
+  /**
+   * Carga la textura de fondo de la escena y devuelve una Promesa que se resuelve
+   * cuando la textura ha sido cargada y asignada a la escena.
+   * @returns Una `Promise<void>` que indica la finalización de la carga del fondo.
+   */
+  public loadSceneBackground(): Promise<void> {
+    // LÓGICA CLAVE: Se crea una promesa que envolverá todo el proceso de carga de la textura.
+    // Esta promesa será la "garantía" de que el fondo está listo.
+    return new Promise((resolve, reject) => {
+      // Importante: El TextureLoader se crea aquí, SIN el LoadingManager,
+      // porque estamos controlando su ciclo de vida manualmente con la promesa.
+      const textureLoader = new THREE.TextureLoader();
+      
+      textureLoader.load(
+        'assets/textures/NightSky.jpg',
+        (texture) => {
+          // ÉXITO: La textura se ha descargado.
+          texture.mapping = THREE.EquirectangularReflectionMapping;
+          this.scene.background = texture;
+          this.scene.backgroundIntensity = 0.5;
+          this.scene.environment = texture;
+
+          console.log('[SceneManager] Fondo de escena configurado correctamente.');
+          
+          // LÓGICA CLAVE: Resolvemos la promesa AHORA. Esto le indicará al
+          // EngineService que esta tarea específica ha terminado.
+          resolve();
+        },
+        undefined,
+        (error) => {
+          // ERROR: La textura no se pudo cargar.
+          console.error('[SceneManager] Error al cargar la textura de fondo.', error);
+          this.scene.background = new THREE.Color(0x00042B); // Usar color de respaldo
+
+          // Resolvemos igualmente para no bloquear la carga de la aplicación.
+          // El usuario verá un fondo de color sólido en lugar de la imagen.
+          resolve();
+        }
+      );
+    });
+  }
+  // ====================================================================
+  // ✨ FIN DE LA LÓGICA DE CARGA DE FONDO CON PROMESA ✨
+  // ====================================================================
 
   public setControls(controls: OrbitControls): void {
     this.controls = controls;

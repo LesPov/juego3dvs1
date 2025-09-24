@@ -150,6 +150,10 @@ export class EngineService implements OnDestroy {
     this.interactionService.update();
     this.labelManager.update();
 
+    // ✨ LÓGICA: Se actualiza el gestor de selección en cada frame para permitir
+    // que los contornos se ajusten dinámicamente a la distancia de la cámara.
+    this.selectionManager.update(this.sceneManager.activeCamera);
+
     if (this.cameraManager.activeCameraType === 'secondary') {
       const controls = this.controlsManager.getControls();
       this.sceneManager.editorCamera.getWorldPosition(controls.target);
