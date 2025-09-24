@@ -266,7 +266,18 @@ export class CameraManagerService {
     const targetPoint = this.tempBox.getCenter(new THREE.Vector3());
     const objectSize = this.tempBox.getSize(new THREE.Vector3()).length();
     const distanceToObject = Math.max(objectSize * 2.5, 10);
-    const cameraDirection = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
+
+    // ====================================================================
+    // ✨ INICIO DE LA LÓGICA DE ENFOQUE MEJORADA ✨
+    // ====================================================================
+    // LÓGICA: En lugar de mantener la dirección de la cámara actual, calculamos la
+    // dirección desde la posición actual de la cámara hacia el centro del nuevo objeto.
+    // Esto asegura que la cámara "vuele" en línea recta hacia el objeto.
+    const cameraDirection = new THREE.Vector3().subVectors(camera.position, targetPoint).normalize();
+    // ====================================================================
+    // ✨ FIN DE LA LÓGICA DE ENFOQUE MEJORADA ✨
+    // ====================================================================
+
     if (cameraDirection.lengthSq() === 0) cameraDirection.set(0, 0.5, 1).normalize();
     const finalCamPos = new THREE.Vector3().copy(targetPoint).addScaledVector(cameraDirection, distanceToObject);
     const travelDistance = camera.position.distanceTo(finalCamPos);
@@ -315,16 +326,30 @@ export class CameraManagerService {
     const durationInSeconds = this.cameraAnimationDuration / 1000;
     const progressIncrement = (delta / durationInSeconds) * this.travelSpeedMultiplier;
     this.animationProgress = Math.min(this.animationProgress + progressIncrement, 1.0);
-    const alpha = 1 - Math.pow(1 - this.animationProgress, 5);
+
+    // ====================================================================
+    // ✨ INICIO DE LA LÓGICA DE ANIMACIÓN MEJORADA ✨
+    // ====================================================================
+    // LÓGICA: Se usan dos curvas de interpolación (easing) distintas para que la
+    // rotación de la cámara sea más rápida que su traslación.
+    // - targetAlpha (easeOutQuint): Hace que la cámara se oriente rápidamente al objetivo.
+    // - positionAlpha (easeOutCubic): Mueve la cámara de forma más suave, sobre todo al final.
+    // El resultado es que la cámara primero "mira" y luego "viaja".
+    const targetAlpha = 1 - Math.pow(1 - this.animationProgress, 5); // Curva rápida para la rotación
+    const positionAlpha = 1 - Math.pow(1 - this.animationProgress, 3); // Curva suave para la posición
+    // ====================================================================
+    // ✨ FIN DE LA LÓGICA DE ANIMACIÓN MEJORADA ✨
+    // ====================================================================
+
     const camera = this.sceneManager.activeCamera;
     const controls = this.controlsManager.getControls();
-    camera.position.lerpVectors(this.cameraInitialState.position, this.cameraAnimationTarget.position, alpha);
-    controls.target.lerpVectors(this.cameraInitialState.target, this.cameraAnimationTarget.target, alpha);
+    camera.position.lerpVectors(this.cameraInitialState.position, this.cameraAnimationTarget.position, positionAlpha);
+    controls.target.lerpVectors(this.cameraInitialState.target, this.cameraAnimationTarget.target, targetAlpha);
     if ('left' in this.cameraInitialState && 'left' in this.cameraAnimationTarget && camera instanceof THREE.OrthographicCamera) {
-        camera.left = THREE.MathUtils.lerp(this.cameraInitialState.left, this.cameraAnimationTarget.left, alpha);
-        camera.right = THREE.MathUtils.lerp(this.cameraInitialState.right, this.cameraAnimationTarget.right, alpha);
-        camera.top = THREE.MathUtils.lerp(this.cameraInitialState.top, this.cameraAnimationTarget.top, alpha);
-        camera.bottom = THREE.MathUtils.lerp(this.cameraInitialState.bottom, this.cameraAnimationTarget.bottom, alpha);
+        camera.left = THREE.MathUtils.lerp(this.cameraInitialState.left, this.cameraAnimationTarget.left, positionAlpha);
+        camera.right = THREE.MathUtils.lerp(this.cameraInitialState.right, this.cameraAnimationTarget.right, positionAlpha);
+        camera.top = THREE.MathUtils.lerp(this.cameraInitialState.top, this.cameraAnimationTarget.top, positionAlpha);
+        camera.bottom = THREE.MathUtils.lerp(this.cameraInitialState.bottom, this.cameraAnimationTarget.bottom, positionAlpha);
         camera.updateProjectionMatrix();
     }
     controls.update();

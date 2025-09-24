@@ -47,8 +47,44 @@ export class SceneManagerService {
     const height = container.clientHeight;
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x00042B);
-    
+
+    // ====================================================================
+    // ✨ INICIO DE LA LÓGICA PARA EL FONDO DE ESCENA ✨
+    // ====================================================================
+    // LÓGICA: Se utiliza un TextureLoader para cargar una imagen y establecerla como
+    // el fondo de la escena. Esto reemplaza el color sólido anterior.
+    // La imagen se mapea de forma equirectangular para crear un efecto de "skybox"
+    // o cúpula celestial, haciendo que el entorno se sienta inmersivo.
+    const textureLoader = new THREE.TextureLoader();
+    textureLoader.load(
+      'assets/textures/NightSky.jpg', // Ruta a la imagen de fondo.
+      (texture) => {
+        // El mapeo equirectangular es crucial para que la textura envuelva la escena correctamente.
+        texture.mapping = THREE.EquirectangularReflectionMapping;
+        this.scene.background = texture;
+
+        // LÓGICA: Ajustar la intensidad del fondo para oscurecer la imagen y hacerla menos brillante.
+        // Un valor de 1.0 es el brillo original. Valores menores lo oscurecen, permitiendo
+        // que el tono oscuro del espacio sea más prominente. Se establece en 0.4.
+        this.scene.backgroundIntensity = 0.4;
+        
+        // Opcional pero recomendado: Usar el mismo mapa como entorno para que los
+        // materiales reflectantes (PBR) reflejen el cielo y se integren mejor.
+        this.scene.environment = texture;
+
+        console.log('[SceneManager] Fondo de escena configurado con imagen equirectangular y brillo ajustado.');
+      },
+      undefined, // Callback de progreso, no se usa aquí.
+      (error) => {
+        console.error('[SceneManager] Error al cargar la textura de fondo. Se usará un color sólido como alternativa.', error);
+        // Si la imagen no se puede cargar, se establece un color de fondo de respaldo.
+        this.scene.background = new THREE.Color(0x00042B);
+      }
+    );
+    // ====================================================================
+    // ✨ FIN DE LA LÓGICA PARA EL FONDO DE ESCENA ✨
+    // ====================================================================
+
     // ====================================================================
     // ✨ INICIO DE LA SOLUCIÓN DE ILUMINACIÓN DEFINITIVA ✨
     // ====================================================================
