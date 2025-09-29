@@ -273,7 +273,25 @@ export class SceneManagerService {
 
           // Aplicar la textura a la escena
           if (this.scene) {
-            this.scene.background = texture;
+            // Se crea una esfera gigante que servirá como fondo de la escena.
+            // Esto soluciona problemas de movimiento y renderizado del fondo cuando la cámara está muy lejos.
+            // ✨ LÓGICA: El radio se aumenta para ser mayor que el objeto más lejano (~1.4e15)
+            // y un poco menor que el far plane de la cámara (5e15).
+            const skySphereGeometry = new THREE.SphereGeometry(4e15, 32, 32);
+            const skySphereMaterial = new THREE.MeshBasicMaterial({
+              map: texture,
+              side: THREE.BackSide,
+              depthWrite: false, // Asegura que siempre se renderice detrás de otros objetos.
+              fog: false // No es afectado por la niebla.
+            });
+
+            const skySphere = new THREE.Mesh(skySphereGeometry, skySphereMaterial);
+            skySphere.name = 'SkySphere';
+            // Un valor de renderOrder bajo asegura que se renderice primero (al fondo).
+            skySphere.renderOrder = -1;
+            this.scene.add(skySphere);
+
+            // El environment se mantiene para los reflejos en los objetos PBR.
             this.scene.environment = texture;
           }
 
@@ -368,3 +386,4 @@ export class SceneManagerService {
     this.controls.update();
   }
 }
+ 
