@@ -23,7 +23,7 @@ export interface IntersectedObjectInfo {
   object: THREE.Object3D;
 }
 
-const INSTANCES_TO_CHECK_PER_FRAME = 10000000;
+const INSTANCES_TO_CHECK_PER_FRAME = 20000;
 const BASE_VISIBILITY_DISTANCE = 10000000000;
 const MAX_PERCEPTUAL_DISTANCE = 1000000000000000;
 const PERSPECTIVE_VISIBILITY_MULTIPLIER = 0.08;
@@ -75,7 +75,7 @@ export class EngineService implements OnDestroy {
   private tempVec3 = new THREE.Vector3();
 
   private dynamicCelestialModels: THREE.Group[] = [];
-  private originalSceneBackground: THREE.Color | THREE.Texture | null = null;
+
 
   constructor(
     sceneManager: SceneManagerService,
@@ -212,21 +212,23 @@ export class EngineService implements OnDestroy {
         skySphere.visible = !isOrthographic;
     }
 
-    this.originalSceneBackground = this.sceneManager.scene.background;
+    const originalBackground = this.sceneManager.scene.background;
     
-    const mainRenderBackground = isOrthographic 
-        ? new THREE.Color(0x000000) 
-        : this.originalSceneBackground;
-
+    // For the bloom pass, we render glowing objects against a black background.
     this.sceneManager.scene.background = null;
     this.sceneManager.activeCamera.layers.set(BLOOM_LAYER);
     this.sceneManager.bloomComposer.render();
 
-    this.sceneManager.scene.background = mainRenderBackground;
+    // For the final pass, we render all objects.
+    // In orthographic mode, a black background improves clarity.
+    this.sceneManager.scene.background = isOrthographic 
+        ? new THREE.Color(0x000000) 
+        : originalBackground;
     this.sceneManager.activeCamera.layers.enableAll();
     this.sceneManager.composer.render();
 
-    this.sceneManager.scene.background = this.originalSceneBackground;
+    // Restore the original background to avoid side effects in the next frame.
+    this.sceneManager.scene.background = originalBackground;
   }
 
 

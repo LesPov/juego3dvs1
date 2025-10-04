@@ -218,7 +218,7 @@ export class ObjectManagerService {
       try {
         const templateUrl = asset.path;
         // Aumentamos el nivel de zoom para obtener texturas de mayor resolución y calidad.
-        const zoomLevel = 4; // Nivel 4 (32x16 = 512 tiles) para una calidad superior.
+        const zoomLevel = 2; // Nivel 2 (8x4 = 32 tiles) para máxima compatibilidad y rendimiento.
         const numCols = Math.pow(2, zoomLevel + 1);
         const numRows = Math.pow(2, zoomLevel);
         
