@@ -314,11 +314,6 @@ export class EngineService implements OnDestroy {
     dummyMaterial.dispose();
   }
 
-  /**
-   * --- ✨ ¡LÓGICA SIMPLIFICADA Y CORREGIDA! ✨ ---
-   * Elimina la agrupación previa de objetos. Ahora, cada objeto se pasa
-   * individualmente al EntityManager, que se encargará de decidir cómo crearlo.
-   */
   public populateScene(objects: SceneObjectResponse[], onProgress: (p: number) => void, onLoaded: () => void): void {
     if (!this.sceneManager.scene) return;
     this.entityManager.clearScene();
@@ -327,25 +322,21 @@ export class EngineService implements OnDestroy {
     const objectsForInstancing: SceneObjectResponse[] = [];
     const individualObjects: SceneObjectResponse[] = [];
 
-    // Clasificamos cada objeto según su tipo de renderizado.
     for (const obj of objects) {
       const isWmtsPlanet = obj.asset?.path.includes('{TileMatrix}');
       const isGltfModel = obj.asset?.type === 'model_glb';
       const isStandardPrimitive = ['cube', 'sphere', 'cone', 'torus', 'floor'].includes(obj.type);
       const isLightOrCamera = ['camera', 'directionalLight', 'ambientLight', 'pointLight'].includes(obj.type);
 
-      // Si es un objeto "especial" que requiere su propia geometría, va a la lista de individuales.
       if (isWmtsPlanet || isGltfModel || isStandardPrimitive || isLightOrCamera) {
         individualObjects.push(obj);
       } else {
-        // Todo lo demás (galaxias, estrellas, etc.) se agrupa para instancing.
         objectsForInstancing.push(obj);
       }
     }
     
     console.log(`[EngineService] Clasificación: ${individualObjects.length} objetos individuales, ${objectsForInstancing.length} para instancing.`);
 
-    // 1. Creamos el gran grupo de objetos instanciados de una sola vez para el rendimiento.
     if (objectsForInstancing.length > 0) {
       this.entityManager.objectManager.createCelestialObjectsInstanced(
         this.sceneManager.scene,
@@ -354,7 +345,6 @@ export class EngineService implements OnDestroy {
       );
     }
 
-    // 2. Creamos los objetos individuales, que usarán el LoadingManager si son modelos.
     const loadingManager = this.entityManager.getLoadingManager();
     loadingManager.onProgress = (_, loaded, total) => onProgress((loaded / total) * 100);
     loadingManager.onLoad = () => {
@@ -368,8 +358,6 @@ export class EngineService implements OnDestroy {
 
     individualObjects.forEach(o => this.entityManager.createObjectFromData(o));
 
-    // Si no hay modelos 3D en la lista de individuales, disparamos onLoaded manualmente
-    // para que la barra de progreso no se quede atascada.
     const hasModelsToLoad = individualObjects.some(o => o.asset?.type === 'model_glb');
     if (!hasModelsToLoad && loadingManager.onLoad) {
       setTimeout(() => loadingManager.onLoad!(), 0);

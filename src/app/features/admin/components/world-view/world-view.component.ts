@@ -262,30 +262,19 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     this.subscriptions.add(transformSub); this.subscriptions.add(propertyUpdateSub); this.subscriptions.add(entitiesSub); this.subscriptions.add(brightnessSub); this.subscriptions.add(cameraModeSub); this.subscriptions.add(selectionSub);
   }
 
-  // ==================================================================
-  // ========= INICIO DE LA LÓGICA CORREGIDA ==========================
-  // ==================================================================
   private handleSelectionChange(uuid: string | null): void {
     this.cdr.detectChanges();
     if (uuid) {
       let foundObject: SceneObjectResponse | undefined | null = this.sceneObjects.find(o => o.id.toString() === uuid);
 
-      // Si el objeto no está en nuestra lista (sceneObjects), significa que es un objeto
-      // que solo existe en la escena 3D. Debemos crear un objeto temporal para poder seleccionarlo.
       if (!foundObject) {
         const entity = this.allEntities.find(e => e.uuid === uuid);
-
-        // El motor ya ha seleccionado el objeto, así que podemos pedirle el objeto 3D
-        // real para leer sus propiedades de transformación (posición, rotación, escala).
         const liveObject = this.engineService.getGizmoAttachedObject();
 
-        // Nos aseguramos de tener la entidad y el objeto 3D real antes de continuar
         if (entity && liveObject && liveObject.uuid === uuid) {
 
           const objectType = (entity.type === 'Model' ? 'model' : entity.type) as SceneObjectType;
 
-          // ¡CORRECCIÓN PRINCIPAL!
-          // Creamos un objeto que satisface completamente la interfaz SceneObjectResponse
           foundObject = {
             id: parseInt(uuid, 10) || 0,
             name: entity.name,
@@ -293,12 +282,11 @@ export class WorldViewComponent implements OnInit, OnDestroy {
             episodeId: this.episodeId || 0,
             asset: null,
             assetId: null,
-            status: 'active', // Usamos un valor válido por defecto de 'SceneObjectStatus'
+            status: 'active',
             properties: {},
             position: { x: liveObject.position.x, y: liveObject.position.y, z: liveObject.position.z },
             rotation: { x: liveObject.rotation.x, y: liveObject.rotation.y, z: liveObject.rotation.z },
             scale: { x: liveObject.scale.x, y: liveObject.scale.y, z: liveObject.scale.z },
-            // galaxyData se deja como 'undefined', ya que no tenemos esa información.
           };
         }
       }
@@ -308,11 +296,9 @@ export class WorldViewComponent implements OnInit, OnDestroy {
         this.selectedObject = { ...foundObject };
         this.selectPropertiesTab('object');
       } else {
-        // Si después de intentar todo no encontramos el objeto, deseleccionamos.
         this.deselectObject();
       }
     } else {
-      // Si el uuid es nulo, es una deselección.
       this.selectedEntityUuid = null;
       this.selectedObject = null;
       this.selectPropertiesTab('scene');
@@ -320,9 +306,6 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     this.selectedEntityUuid$.next(this.selectedEntityUuid);
     this.cdr.detectChanges();
   }
-  // ==================================================================
-  // ========= FIN DE LA LÓGICA CORREGIDA =============================
-  // ==================================================================
 
   public onEntitySelect(entity: SceneEntity): void {
     if (entity.uuid.startsWith('placeholder-')) {
@@ -336,8 +319,10 @@ export class WorldViewComponent implements OnInit, OnDestroy {
 
   public onTravelSpeedChange(event: Event): void {
     const slider = event.target as HTMLInputElement;
-    const speedMultiplier = parseFloat(slider.value);
-    this.cameraTravelSpeedMultiplier = speedMultiplier;
+    const rawValue = parseFloat(slider.value);
+    const speedMultiplier = Math.pow(rawValue, 2);
+
+    this.cameraTravelSpeedMultiplier = rawValue;
     this.engineService.setTravelSpeedMultiplier(speedMultiplier);
   }
 

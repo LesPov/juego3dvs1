@@ -1,5 +1,3 @@
-// src/app/features/admin/views/world-editor/world-view/service/three-engine/managers/camera-manager.service.ts
-
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { BehaviorSubject } from 'rxjs';
@@ -199,7 +197,6 @@ export class CameraManagerService {
   }
 
   public switchToPerspectiveView(): void {
-    // ✨ LÓGICA RESTAURADA: Esta línea ahora funcionará porque el método existe en EntityManagerService.
     this.entityManager.resetAllGroupsBrightness();
     const controls = this.controlsManager.getControls();
     if (!controls) return;
@@ -261,28 +258,48 @@ export class CameraManagerService {
   private _focusOnObject3D(object: THREE.Object3D): void {
     const controls = this.controlsManager.getControls();
     const camera = this.sceneManager.activeCamera;
+    
+    // Calcula la caja y el centro del objeto objetivo.
     this.tempBox.setFromObject(object, true);
     if (this.tempBox.isEmpty()) this.tempBox.setFromCenterAndSize(object.position, new THREE.Vector3(1, 1, 1));
     const targetPoint = this.tempBox.getCenter(new THREE.Vector3());
     const objectSize = this.tempBox.getSize(new THREE.Vector3()).length();
     const distanceToObject = Math.max(objectSize * 2.5, 10);
 
-    // ====================================================================
-    // ✨ INICIO DE LA LÓGICA DE ENFOQUE MEJORADA ✨
-    // ====================================================================
-    // LÓGICA: En lugar de mantener la dirección de la cámara actual, calculamos la
-    // dirección desde la posición actual de la cámara hacia el centro del nuevo objeto.
-    // Esto asegura que la cámara "vuele" en línea recta hacia el objeto.
-    const cameraDirection = new THREE.Vector3().subVectors(camera.position, targetPoint).normalize();
-    // ====================================================================
-    // ✨ FIN DE LA LÓGICA DE ENFOQUE MEJORADA ✨
-    // ====================================================================
+    // ✨ INICIO DE LA MEJORA CLAVE ✨
+    // En lugar de usar `controls.target`, que puede estar en cualquier lugar,
+    // calculamos un punto inicial de "mirada" que está directamente en frente
+    // de la cámara. Esto asegura que la animación de rotación comience
+    // desde la dirección actual a la que mira el usuario.
+    const currentLookDirection = new THREE.Vector3();
+    camera.getWorldDirection(currentLookDirection);
 
+    const distanceToCurrentTarget = Math.max(camera.position.distanceTo(controls.target), 1000); // Evita distancias cero.
+    
+    // Este es el punto de partida "efectivo" para la interpolación del objetivo.
+    // Representa el centro de la vista actual del usuario.
+    const effectiveInitialTarget = new THREE.Vector3()
+      .copy(camera.position)
+      .add(currentLookDirection.multiplyScalar(distanceToCurrentTarget));
+
+    // Mantenemos la lógica de conservar el ángulo de visión.
+    const cameraDirection = new THREE.Vector3().subVectors(camera.position, targetPoint).normalize();
     if (cameraDirection.lengthSq() === 0) cameraDirection.set(0, 0.5, 1).normalize();
+    
     const finalCamPos = new THREE.Vector3().copy(targetPoint).addScaledVector(cameraDirection, distanceToObject);
+    
+    // Calculamos la duración basada en la distancia a recorrer.
     const travelDistance = camera.position.distanceTo(finalCamPos);
     const duration = (travelDistance / this.BASE_TRAVEL_SPEED) * 1000;
-    this._startAnimation({ position: camera.position.clone(), target: controls.target.clone() }, { position: finalCamPos, target: targetPoint }, duration);
+
+    // Iniciamos la animación usando el `effectiveInitialTarget` en lugar del `controls.target` original.
+    // Esto es lo que produce la animación de giro suave.
+    this._startAnimation(
+      { position: camera.position.clone(), target: effectiveInitialTarget },
+      { position: finalCamPos, target: targetPoint },
+      duration
+    );
+    // ✨ FIN DE LA MEJORA CLAVE ✨
   }
 
   private _focusOnObject2D(object: THREE.Object3D): void {
@@ -327,24 +344,17 @@ export class CameraManagerService {
     const progressIncrement = (delta / durationInSeconds) * this.travelSpeedMultiplier;
     this.animationProgress = Math.min(this.animationProgress + progressIncrement, 1.0);
 
-    // ====================================================================
-    // ✨ INICIO DE LA LÓGICA DE ANIMACIÓN MEJORADA ✨
-    // ====================================================================
-    // LÓGICA: Se usan dos curvas de interpolación (easing) distintas para que la
-    // rotación de la cámara sea más rápida que su traslación.
-    // - targetAlpha (easeOutQuint): Hace que la cámara se oriente rápidamente al objetivo.
-    // - positionAlpha (easeOutCubic): Mueve la cámara de forma más suave, sobre todo al final.
-    // El resultado es que la cámara primero "mira" y luego "viaja".
-    const targetAlpha = 1 - Math.pow(1 - this.animationProgress, 5); // Curva rápida para la rotación
-    const positionAlpha = 1 - Math.pow(1 - this.animationProgress, 3); // Curva suave para la posición
-    // ====================================================================
-    // ✨ FIN DE LA LÓGICA DE ANIMACIÓN MEJORADA ✨
-    // ====================================================================
+    // Estas curvas de interpolación separadas son excelentes.
+    // La rotación (target) es más rápida y agresiva al principio que la traslación (position).
+    // Esto da la sensación de que la cámara primero "mira" y luego "vuela".
+    const targetAlpha = 1 - Math.pow(1 - this.animationProgress, 5);
+    const positionAlpha = 1 - Math.pow(1 - this.animationProgress, 3);
 
     const camera = this.sceneManager.activeCamera;
     const controls = this.controlsManager.getControls();
     camera.position.lerpVectors(this.cameraInitialState.position, this.cameraAnimationTarget.position, positionAlpha);
     controls.target.lerpVectors(this.cameraInitialState.target, this.cameraAnimationTarget.target, targetAlpha);
+    
     if ('left' in this.cameraInitialState && 'left' in this.cameraAnimationTarget && camera instanceof THREE.OrthographicCamera) {
         camera.left = THREE.MathUtils.lerp(this.cameraInitialState.left, this.cameraAnimationTarget.left, positionAlpha);
         camera.right = THREE.MathUtils.lerp(this.cameraInitialState.right, this.cameraAnimationTarget.right, positionAlpha);

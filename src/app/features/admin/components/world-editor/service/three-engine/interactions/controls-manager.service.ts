@@ -1,5 +1,3 @@
-// src/app/features/admin/views/world-editor/world-view/service/three-engine/interactions/controls-manager.service.ts
-
 import { Injectable, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -7,41 +5,13 @@ import { TransformControls } from 'three/examples/jsm/controls/TransformControls
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { ToolMode } from '../../../toolbar/toolbar.component';
 
-/**
- * @class ControlsManagerService
- * @description
- * Este servicio es el **gestor central para la navegación y manipulación de objetos** en la escena 3D.
- * Encapsula la lógica de `OrbitControls` (para navegación general), `TransformControls` (el gizmo de
- * mover, rotar, escalar) y un sistema de control de cámara en primera persona ("fly mode").
- *
- * Funciones clave:
- * - Inicializa y configura `OrbitControls` y `TransformControls`.
- * - Gestiona un sistema de control dual: permite orbitar/panear con el ratón o entrar en un
- *   modo "vuelo" (tipo videojuego) bloqueando el cursor.
- * - Maneja de forma inteligente la transición entre el modo órbita y el modo vuelo, ajustando el
- *   punto de enfoque (`target`) para una experiencia de usuario intuitiva.
- * - Proporciona una API para adjuntar/desadjuntar el gizmo de `TransformControls` a los objetos.
- * - Adapta el comportamiento de los controles para diferentes cámaras (editor vs. secundaria) y
- *   modos de proyección (perspectiva vs. ortográfica).
- */
 @Injectable({ providedIn: 'root' })
 export class ControlsManagerService implements OnDestroy {
 
-  // ====================================================================
-  // OBSERVABLES Y ESTADO PÚBLICO
-  // ====================================================================
-
-  /** Emite un evento cuando una operación de `TransformControls` (arrastrar el gizmo) ha finalizado. */
   public onTransformEnd$: Observable<void>;
-  /** Emite `true` si el modo "fly" (cursor bloqueado) está activo, `false` en caso contrario. */
   public isFlyModeActive$: Observable<boolean>;
-  /** Habilita/deshabilita el modo de vuelo. Principalmente para la cámara del editor. */
   public isFlyEnabled = false;
 
-  // ====================================================================
-  // ESTADO INTERNO
-  // ====================================================================
-  
   private orbitControls!: OrbitControls;
   private transformControls!: TransformControls;
   private camera!: THREE.PerspectiveCamera | THREE.OrthographicCamera;
@@ -57,12 +27,10 @@ export class ControlsManagerService implements OnDestroy {
   private transformEndSubject = new Subject<void>();
   private isFlyModeActiveSubject = new BehaviorSubject<boolean>(false);
 
-  // Constantes de movimiento para el modo "fly"
   private readonly MOVEMENT_SPEED = 8_000_000.0;
-  private readonly BOOST_MULTIPLIER = 10.0;
+  private readonly BOOST_MULTIPLIER = 9_000.0;
   private readonly LOOK_SPEED = 0.002;
 
-  // Objetos temporales para optimización (evitar `new` en bucles)
   private tempVector = new THREE.Vector3();
   private panOffset = new THREE.Vector3();
 
@@ -71,17 +39,6 @@ export class ControlsManagerService implements OnDestroy {
     this.isFlyModeActive$ = this.isFlyModeActiveSubject.asObservable();
   }
 
-  // ====================================================================
-  // INICIALIZACIÓN Y CICLO DE VIDA
-  // ====================================================================
-
-  /**
-   * Inicializa el servicio con los componentes esenciales de la escena.
-   * @param camera - La cámara inicial.
-   * @param domElement - El elemento `<canvas>` donde se renderiza la escena.
-   * @param scene - La escena de Three.js.
-   * @param focusPivot - Objeto de pivote para la cámara (firma mantenida por consistencia).
-   */
   public init(camera: THREE.PerspectiveCamera, domElement: HTMLElement, scene: THREE.Scene, focusPivot: THREE.Object3D): void {
     this.camera = camera;
     this.domElement = domElement;
@@ -93,9 +50,6 @@ export class ControlsManagerService implements OnDestroy {
     this.addEventListeners();
   }
 
-  /**
-   * Limpia los recursos y listeners al destruir el servicio para evitar fugas de memoria.
-   */
   public ngOnDestroy = () => {
     if (this.domElement && !this.isTouchDevice) {
       this.domElement.removeEventListener('mousedown', this.onMouseDown);
@@ -110,13 +64,6 @@ export class ControlsManagerService implements OnDestroy {
     this.unlockCursor();
   };
   
-  /**
-   * Se ejecuta en cada frame desde `EngineService.animate`.
-   * Actualiza el estado de los controles de órbita y gestiona el movimiento en modo "fly".
-   * @param delta - El tiempo transcurrido desde el último frame.
-   * @param keyMap - Un mapa del estado actual de las teclas presionadas.
-   * @returns `true` si la cámara se movió en este frame.
-   */
   public update = (delta: number, keyMap: Map<string, boolean>): boolean => {
     let moved = false;
     if (this.isFlyEnabled && document.pointerLockElement === this.domElement) {
@@ -127,10 +74,6 @@ export class ControlsManagerService implements OnDestroy {
     }
     return moved;
   };
-
-  // ====================================================================
-  // API PÚBLICA - CONTROL Y CONFIGURACIÓN
-  // ====================================================================
   
   public enableNavigation(): void { this.isOrbitEnabled = true; if (!this.isTouchDevice) this.isFlyEnabled = true; }
   public disableNavigation(): void { this.isOrbitEnabled = false; this.isFlyEnabled = false; this.unlockCursor(); }
@@ -170,17 +113,9 @@ export class ControlsManagerService implements OnDestroy {
   public attach = (object: THREE.Object3D) => { this.transformControls.attach(object); this.transformControls.enabled = true; };
   public detach = () => { this.transformControls.detach(); this.transformControls.enabled = false; };
   
-  // ====================================================================
-  // GETTERS PÚBLICOS
-  // ====================================================================
-
   public getCurrentToolMode = (): ToolMode => this.currentToolMode;
   public getControls = (): OrbitControls => this.orbitControls;
   public getGizmoObject = (): THREE.Object3D | undefined => this.transformControls.object;
-
-  // ====================================================================
-  // CREACIÓN Y CONFIGURACIÓN INTERNA
-  // ====================================================================
 
   private createOrbitControls(camera: THREE.Camera, domElement: HTMLElement): void {
     this.orbitControls = new OrbitControls(camera, domElement);
@@ -204,9 +139,6 @@ export class ControlsManagerService implements OnDestroy {
     });
     this.transformControls.addEventListener('objectChange', () => this.transformEndSubject.next());
     this.transformControls.enabled = false;
-    // ✅ CORRECCIÓN ELIMINADA: La línea `scene.add(this.transformControls)` se ha quitado.
-    // `TransformControls` NO es un Object3D y no debe añadirse a la escena.
-    // El control maneja su propia visibilidad al usar .attach() y .detach().
   }
   
   private addEventListeners = () => {
@@ -219,10 +151,6 @@ export class ControlsManagerService implements OnDestroy {
       document.addEventListener('pointerlockchange', this.onPointerLockChange);
     }
   };
-
-  // ====================================================================
-  // MANEJADORES DE EVENTOS DEL DOM
-  // ====================================================================
   
   private onMouseDown = (event: MouseEvent) => {
     if (this.transformControls.dragging) return;
@@ -307,10 +235,6 @@ export class ControlsManagerService implements OnDestroy {
     }
   };
 
-  // ====================================================================
-  // LÓGICA DE MOVIMIENTO
-  // ====================================================================
-
   private handleKeyboardFly(delta: number, keyMap: Map<string, boolean>): boolean {
     if (document.pointerLockElement !== this.domElement) return false;
     const moveDirection = new THREE.Vector3();
@@ -335,10 +259,6 @@ export class ControlsManagerService implements OnDestroy {
     return false;
   }
   
-  // ====================================================================
-  // HELPERS PRIVADOS
-  // ====================================================================
-
   private lockCursor = () => {
     if (this.isFlyEnabled && !this.isOrbiting && !this.isPanning && !this.transformControls.dragging) {
       this.domElement.requestPointerLock();
