@@ -10,10 +10,20 @@ export type AnalysisType =
   | 'PLANETARY_BODY'
   | 'NEBULA';
 
+/**
+ * --- ✨ INTERFAZ MEJORADA PARA ASSETS ✨ ---
+ * Representa un Asset devuelto por la API.
+ */
 export interface AssetResponse {
   id: number;
   name: string;
+  // Se mantiene el tipo ENUM del backend para una consistencia total.
   type: 'model_glb' | 'video_mp4' | 'texture_png' | 'texture_jpg' | 'sound_mp3';
+  /**
+   * La ruta del asset.
+   * - Para archivos locales, será una ruta relativa (ej: /uploads/assets/modelo.glb).
+   * - Para texturas WMTS, será una PLANTILLA de URL (ej: .../{TileMatrix}/{TileRow}/{TileCol}.jpg).
+   */
   path: string;
 }
 
@@ -94,8 +104,6 @@ export class AdminService {
     return this.http.post<CreateEpisodeResponse>(`${this.episodesUrl}/`, episodeData);
   }
 
-  // --- ¡CORRECCIÓN DE TIPADO! ---
-  // El método debe prometer que devolverá un array de EpisodeResponse.
   getEpisodes(): Observable<EpisodeResponse[]> {
     return this.http.get<EpisodeResponse[]>(this.episodesUrl);
   }

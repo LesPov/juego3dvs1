@@ -36,9 +36,12 @@ export class ToolbarComponent {
 
   toggleCamera(): void {
     this.engineService.toggleCameraMode();
+    // ✨ LÓGICA AÑADIDA: Inmediatamente después de cambiar la cámara, se encuadra la escena.
+    // Esto asegura que al pasar a la vista 2D, los objetos sean visibles sin un clic extra.
+    this.engineService.frameScene();
   }
 
-  // ✅ MEJORA: La función ahora es más simple. La lógica compleja se mueve al servicio.
+  // La función de encuadre manual se mantiene por si el usuario se aleja y quiere recentrar.
   frameAll(): void {
     this.engineService.frameScene();
   }

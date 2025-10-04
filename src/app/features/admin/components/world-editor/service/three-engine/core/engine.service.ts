@@ -32,8 +32,7 @@ const FADE_OUT_SPEED = 7.0;
 const VISIBILITY_HYSTERESIS_FACTOR = 15.05;
 const FOG_START_DISTANCE_MULTIPLIER = 0.01;
 const FOG_DENSITY = 0.95;
-// ✨ LÓGICA: Se establece un valor de escalado visual base. Este valor debe ser el mismo en EntityManagerService.
-const DEEP_SPACE_SCALE_BOOST = 200.0;
+const DEEP_SPACE_SCALE_BOOST = 50.0;
 const ORTHO_ZOOM_VISIBILITY_MULTIPLIER = 5.0;
 const ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR = 12.0;
 const MAX_INTENSITY = 8.0;
@@ -64,6 +63,7 @@ export class EngineService implements OnDestroy {
   private controlsSubscription?: Subscription;
   private focusPivot: THREE.Object3D;
 
+  private orthoBillboardRotation = new THREE.Quaternion();
   private tempQuaternion = new THREE.Quaternion();
   private tempMatrix = new THREE.Matrix4();
   private frustum = new THREE.Frustum();
@@ -107,43 +107,20 @@ export class EngineService implements OnDestroy {
 
     this.sceneManager.setupBasicScene(canvas);
 
-    // ====================================================================
-    // ✨ INICIO DE LA LÓGICA DE ILUMINACIÓN GLOBAL ✨
-    // ====================================================================
-    // Se añade una luz ambiental para asegurar que los modelos 3D con materiales
-    // estándar (MeshStandardMaterial) tengan una iluminación base y no se vean
-    // completamente negros. Esta luz ilumina todas las caras de un objeto por igual
-    // y solo afecta a los objetos con materiales que reaccionan a la luz.
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.5); // Luz blanca, intensidad moderada
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
     ambientLight.name = 'GlobalAmbientLight';
     this.sceneManager.scene.add(ambientLight);
 
-    // Se añade una luz direccional para simular una fuente de luz principal (como el sol).
-    // Esto crea reflejos y sombras, dando a los objetos 3D una mayor sensación de
-    // volumen y profundidad, lo que mejora drásticamente su apariencia visual.
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5); // Luz blanca, intensidad más sutil
-    directionalLight.position.set(5, 10, 7.5); // Posicionada para iluminar desde un ángulo superior
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    directionalLight.position.set(5, 10, 7.5);
     directionalLight.name = 'GlobalDirectionalLight';
     this.sceneManager.scene.add(directionalLight);
-    // ====================================================================
-    // ✨ FIN DE LA LÓGICA DE ILUMINACIÓN GLOBAL ✨
-    // ====================================================================
 
-    // ====================================================================
-    // ✨ INICIO DE LA LÓGICA DE ENVMAP ✨
-    // ====================================================================
-    // Se añade un mapa de entorno para mejorar la apariencia de los materiales
-    // PBR (como MeshStandardMaterial), proporcionando reflejos y una iluminación
-    // más realista. Esto es crucial para que las texturas se vean correctamente
-    // y los modelos no parezcan planos o sin vida.
     const environment = new RoomEnvironment();
     const pmremGenerator = new THREE.PMREMGenerator(this.sceneManager.renderer);
     this.sceneManager.scene.environment = pmremGenerator.fromScene(environment).texture;
     environment.dispose();
     pmremGenerator.dispose();
-    // ====================================================================
-    // ✨ FIN DE LA LÓGICA DE ENVMAP ✨
-    // ====================================================================
 
     this.sceneManager.scene.add(this.focusPivot);
     this.entityManager.init(this.sceneManager.scene);
@@ -209,8 +186,12 @@ export class EngineService implements OnDestroy {
       this.cameraOrientationSubject.next(this.tempQuaternion.clone());
     }
 
+    const isOrthographic = this.cameraManager.cameraMode$.getValue() === 'orthographic';
     const selectionProxy = this.sceneManager.scene.getObjectByName('SelectionProxy');
-    if (selectionProxy) selectionProxy.quaternion.copy(this.sceneManager.activeCamera.quaternion);
+    if (selectionProxy) {
+      const rotation = isOrthographic ? this.orthoBillboardRotation : this.sceneManager.activeCamera.quaternion;
+      selectionProxy.quaternion.copy(rotation);
+    }
 
     this.updateDynamicCelestialModels(delta);
     this.sceneManager.scene.children.forEach(object => {
@@ -224,15 +205,28 @@ export class EngineService implements OnDestroy {
   };
 
   private renderSceneWithSelectiveBloom(): void {
+    const isOrthographic = this.cameraManager.cameraMode$.getValue() === 'orthographic';
+    const skySphere = this.sceneManager.scene.getObjectByName('SkySphere');
+
+    if (skySphere) {
+        skySphere.visible = !isOrthographic;
+    }
+
     this.originalSceneBackground = this.sceneManager.scene.background;
+    
+    const mainRenderBackground = isOrthographic 
+        ? new THREE.Color(0x000000) 
+        : this.originalSceneBackground;
+
     this.sceneManager.scene.background = null;
     this.sceneManager.activeCamera.layers.set(BLOOM_LAYER);
     this.sceneManager.bloomComposer.render();
 
-    this.sceneManager.scene.background = this.originalSceneBackground;
+    this.sceneManager.scene.background = mainRenderBackground;
     this.sceneManager.activeCamera.layers.enableAll();
-
     this.sceneManager.composer.render();
+
+    this.sceneManager.scene.background = this.originalSceneBackground;
   }
 
 
@@ -318,19 +312,47 @@ export class EngineService implements OnDestroy {
     dummyMaterial.dispose();
   }
 
+  /**
+   * --- ✨ ¡LÓGICA SIMPLIFICADA Y CORREGIDA! ✨ ---
+   * Elimina la agrupación previa de objetos. Ahora, cada objeto se pasa
+   * individualmente al EntityManager, que se encargará de decidir cómo crearlo.
+   */
   public populateScene(objects: SceneObjectResponse[], onProgress: (p: number) => void, onLoaded: () => void): void {
     if (!this.sceneManager.scene) return;
     this.entityManager.clearScene();
     this.dynamicCelestialModels = [];
 
-    const celestialTypes = ['galaxy_normal', 'galaxy_bright', 'meteor', 'galaxy_far', 'galaxy_medium', 'model'];
-    const celestialObjectsData = objects.filter(o => celestialTypes.includes(o.type));
-    const standardObjectsData = objects.filter(o => !celestialTypes.includes(o.type));
+    const objectsForInstancing: SceneObjectResponse[] = [];
+    const individualObjects: SceneObjectResponse[] = [];
 
-    this.entityManager.objectManager.createCelestialObjectsInstanced(
-      this.sceneManager.scene, celestialObjectsData, this.entityManager.getGltfLoader()
-    );
+    // Clasificamos cada objeto según su tipo de renderizado.
+    for (const obj of objects) {
+      const isWmtsPlanet = obj.asset?.path.includes('{TileMatrix}');
+      const isGltfModel = obj.asset?.type === 'model_glb';
+      const isStandardPrimitive = ['cube', 'sphere', 'cone', 'torus', 'floor'].includes(obj.type);
+      const isLightOrCamera = ['camera', 'directionalLight', 'ambientLight', 'pointLight'].includes(obj.type);
 
+      // Si es un objeto "especial" que requiere su propia geometría, va a la lista de individuales.
+      if (isWmtsPlanet || isGltfModel || isStandardPrimitive || isLightOrCamera) {
+        individualObjects.push(obj);
+      } else {
+        // Todo lo demás (galaxias, estrellas, etc.) se agrupa para instancing.
+        objectsForInstancing.push(obj);
+      }
+    }
+    
+    console.log(`[EngineService] Clasificación: ${individualObjects.length} objetos individuales, ${objectsForInstancing.length} para instancing.`);
+
+    // 1. Creamos el gran grupo de objetos instanciados de una sola vez para el rendimiento.
+    if (objectsForInstancing.length > 0) {
+      this.entityManager.objectManager.createCelestialObjectsInstanced(
+        this.sceneManager.scene,
+        objectsForInstancing,
+        this.entityManager.getGltfLoader()
+      );
+    }
+
+    // 2. Creamos los objetos individuales, que usarán el LoadingManager si son modelos.
     const loadingManager = this.entityManager.getLoadingManager();
     loadingManager.onProgress = (_, loaded, total) => onProgress((loaded / total) * 100);
     loadingManager.onLoad = () => {
@@ -342,11 +364,14 @@ export class EngineService implements OnDestroy {
       });
     };
 
-    standardObjectsData.forEach(o => this.entityManager.createObjectFromData(o));
+    individualObjects.forEach(o => this.entityManager.createObjectFromData(o));
 
-    const hasModelsToLoad = standardObjectsData.some(o => o.type === 'model' && o.asset?.path) ||
-      celestialObjectsData.some(o => o.asset?.type === 'model_glb');
-    if (!hasModelsToLoad && loadingManager.onLoad) setTimeout(() => loadingManager.onLoad!(), 0);
+    // Si no hay modelos 3D en la lista de individuales, disparamos onLoaded manualmente
+    // para que la barra de progreso no se quede atascada.
+    const hasModelsToLoad = individualObjects.some(o => o.asset?.type === 'model_glb');
+    if (!hasModelsToLoad && loadingManager.onLoad) {
+      setTimeout(() => loadingManager.onLoad!(), 0);
+    }
   }
 
   private updateVisibleCelestialInstances(instancedMesh: THREE.InstancedMesh, delta: number): void {
@@ -387,7 +412,8 @@ export class EngineService implements OnDestroy {
       }
 
       if (data.currentIntensity > 0) {
-        this.tempMatrix.compose(data.position, camera.quaternion, this.tempScale.copy(data.scale).multiplyScalar(DEEP_SPACE_SCALE_BOOST));
+        const rotation = isOrthographic ? this.orthoBillboardRotation : camera.quaternion;
+        this.tempMatrix.compose(data.position, rotation, this.tempScale.copy(data.scale).multiplyScalar(DEEP_SPACE_SCALE_BOOST));
         instancedMesh.setMatrixAt(idx, this.tempMatrix);
         needsMatrixUpdate = true;
       }
@@ -420,6 +446,11 @@ export class EngineService implements OnDestroy {
   }
 
   private _calculateInstanceIntensity(data: CelestialInstanceData, camera: THREE.Camera, isOrthographic: boolean, bloomDampeningFactor: number, personalVisibilityDist: number): number {
+    if (isOrthographic) {
+        const intensity = data.isDominant ? data.emissiveIntensity : (data.emissiveIntensity + data.baseEmissiveIntensity) / 2;
+        return Math.min(intensity, ORTHO_MAX_INTENSITY) * bloomDampeningFactor * data.brightness;
+    }
+
     const distance = data.position.distanceTo(camera.position);
     const maxScale = Math.max(data.scale.x, data.scale.y, data.scale.z);
 
@@ -483,16 +514,36 @@ export class EngineService implements OnDestroy {
   public setTravelSpeedMultiplier(multiplier: number): void { this.cameraManager.setTravelSpeedMultiplier(multiplier); }
   public onWindowResize = () => this.sceneManager.onWindowResize();
   public toggleActiveCamera(): void { this.cameraManager.toggleActiveCamera(this.selectedObject); }
-  public toggleCameraMode(): void { this.cameraManager.toggleCameraMode(); }
-  public setCameraView(axisName: string | null): void { this.baseOrthoMatrixElement = this.cameraManager.setCameraView(axisName, undefined); }
-  public switchToPerspectiveView(): void { this.cameraManager.switchToPerspectiveView(); }
+  
+  public toggleCameraMode(): void {
+    this.cameraManager.toggleCameraMode();
+    if (this.cameraManager.cameraMode$.getValue() === 'orthographic') {
+        setTimeout(() => this.frameScene(), 50);
+    }
+  }
+
+  public setCameraView(axisName: string | null): void {
+    this.baseOrthoMatrixElement = this.cameraManager.setCameraView(axisName, undefined);
+    if (axisName) {
+        setTimeout(() => this.frameScene(), 50);
+    }
+  }
+
+  public switchToPerspectiveView(): void {
+    this.cameraManager.switchToPerspectiveView();
+  }
+
   public updateObjectName = (uuid: string, newName: string) => this.entityManager.updateObjectName(uuid, newName);
   public setGroupVisibility = (uuids: string[], visible: boolean): void => this.entityManager.setGroupVisibility(uuids, visible);
   public setGroupBrightness = (uuids: string[], brightness: number): void => this.entityManager.setGroupBrightness(uuids, brightness);
   public addObjectToScene = (objData: SceneObjectResponse) => this.entityManager.createObjectFromData(objData);
   public getSceneEntities = (): Observable<SceneEntity[]> => this.entityManager.getSceneEntities();
   public getGizmoAttachedObject = (): THREE.Object3D | undefined => this.selectedObject;
-  public frameScene = () => this.cameraManager.frameScene();
+  
+  public frameScene = () => {
+    this.sceneManager.frameScene();
+  }
+
   public focusOnObject = (uuid: string) => this.cameraManager.focusOnObject(uuid);
   public getCurrentToolMode = (): ToolMode => this.controlsManager.getCurrentToolMode();
 

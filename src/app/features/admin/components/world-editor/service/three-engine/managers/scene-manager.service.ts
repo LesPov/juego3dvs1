@@ -372,18 +372,79 @@ export class SceneManagerService {
     }
   }
 
-  public frameScene(sceneWidth: number, sceneHeight: number): void {
-    if (!this.activeCamera || !this.controls || !('fov' in this.activeCamera)) return;
+  public frameScene(): void {
+    if (!this.activeCamera || !this.controls) {
+        console.warn('[SceneManager] No se puede encuadrar la escena: la cámara o los controles no están disponibles.');
+        return;
+    }
 
-    const fovRad = THREE.MathUtils.degToRad(this.activeCamera.fov);
-    const effectiveHeight = Math.max(sceneHeight, sceneWidth / this.activeCamera.aspect);
-    const distance = (effectiveHeight / 2) / Math.tan(fovRad / 2);
-    const finalZ = distance * 1.2;
+    const boundingBox = this.getSceneBoundingBox();
 
-    this.activeCamera.position.set(0, 0, finalZ);
-    this.activeCamera.lookAt(0, 0, 0);
-    this.controls.target.set(0, 0, 0);
+    if (boundingBox.isEmpty()) {
+        console.warn('[SceneManager] No se puede encuadrar la escena: la escena está vacía o todos los objetos están ocultos.');
+        return;
+    }
+
+    const center = boundingBox.getCenter(new THREE.Vector3());
+    const size = boundingBox.getSize(new THREE.Vector3());
+
+    // ✨ LÓGICA MEJORADA: El encuadre ahora funciona para cámaras de perspectiva y ortográficas.
+    if (this.activeCamera instanceof THREE.PerspectiveCamera) {
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const fov = this.activeCamera.fov * (Math.PI / 180);
+        const distance = maxDim / (2 * Math.tan(fov / 2));
+
+        const direction = new THREE.Vector3();
+        this.activeCamera.getWorldDirection(direction);
+        this.activeCamera.position.copy(center).sub(direction.multiplyScalar(distance * 1.5)); // Añadir padding
+
+    } else if (this.activeCamera instanceof THREE.OrthographicCamera) {
+        const orthoCam = this.activeCamera;
+        const aspect = this.canvas.clientWidth / this.canvas.clientHeight;
+        const padding = 1.2;
+
+        const camDir = new THREE.Vector3();
+        orthoCam.getWorldDirection(camDir);
+
+        let worldWidth: number;
+        let worldHeight: number;
+
+        // Determina qué dimensiones del bounding box usar según la vista de la cámara
+        if (Math.abs(camDir.y) > 0.9) { // Vista Superior/Inferior
+            worldWidth = size.x;
+            worldHeight = size.z;
+        } else if (Math.abs(camDir.x) > 0.9) { // Vista Izquierda/Derecha
+            worldWidth = size.z;
+            worldHeight = size.y;
+        } else { // Vista Frontal/Trasera
+            worldWidth = size.x;
+            worldHeight = size.y;
+        }
+        
+        worldWidth *= padding;
+        worldHeight *= padding;
+
+        // Ajusta el frustum de la cámara para que encaje el contenido
+        if (aspect >= worldWidth / worldHeight) {
+            orthoCam.top = worldHeight / 2;
+            orthoCam.bottom = -orthoCam.top;
+            orthoCam.right = orthoCam.top * aspect;
+            orthoCam.left = -orthoCam.right;
+        } else {
+            orthoCam.right = worldWidth / 2;
+            orthoCam.left = -orthoCam.right;
+            orthoCam.top = orthoCam.right / aspect;
+            orthoCam.bottom = -orthoCam.top;
+        }
+
+        // Reposiciona la cámara para que mire al centro
+        const camDistance = size.length(); // Distancia segura para no cortar objetos
+        orthoCam.position.copy(center).add(camDir.multiplyScalar(camDistance));
+        orthoCam.lookAt(center);
+        orthoCam.updateProjectionMatrix();
+    }
+
+    this.controls.target.copy(center);
     this.controls.update();
   }
 }
- 
