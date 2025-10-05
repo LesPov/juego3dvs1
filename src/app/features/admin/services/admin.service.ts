@@ -10,21 +10,31 @@ export type AnalysisType =
   | 'PLANETARY_BODY'
   | 'NEBULA';
 
+// --- ✨ NUEVA INTERFAZ PARA METADATOS WMTS ✨ ---
+// Refleja exactamente la estructura de metadatos del backend.
+export interface WmtsMetadata {
+  layerId: string;
+  title: string;
+  abstract: string;
+  bbox: string;
+  projection: string;
+  tileMatrixSet: string;
+}
+
 /**
- * --- ✨ INTERFAZ MEJORADA PARA ASSETS ✨ ---
- * Representa un Asset devuelto por la API.
+ * --- ✨ INTERFAZ DE ASSET COMPLETAMENTE ACTUALIZADA ✨ ---
+ * Representa cualquier tipo de Asset devuelto por la API, incluyendo los WMTS.
  */
 export interface AssetResponse {
   id: number;
   name: string;
-  // Se mantiene el tipo ENUM del backend para una consistencia total.
-  type: 'model_glb' | 'video_mp4' | 'texture_png' | 'texture_jpg' | 'sound_mp3';
-  /**
-   * La ruta del asset.
-   * - Para archivos locales, será una ruta relativa (ej: /uploads/assets/modelo.glb).
-   * - Para texturas WMTS, será una PLANTILLA de URL (ej: .../{TileMatrix}/{TileRow}/{TileCol}.jpg).
-   */
-  path: string;
+  // 🔧 MODIFICADO: Se añade 'texture_wmts' al tipo.
+  type: 'model_glb' | 'video_mp4' | 'texture_png' | 'texture_jpg' | 'sound_mp3' | 'texture_wmts';
+  path: string; // Para WMTS, esta será la plantilla de URL procesada.
+  // ✨ NUEVO: Especifica el origen del asset.
+  sourceType: 'LOCAL' | 'REMOTE_WMTS';
+  // ✨ NUEVO: Contiene los metadatos enriquecidos para los assets WMTS.
+  metadata?: WmtsMetadata | null;
 }
 
 export type SceneObjectStatus = 'active' | 'inactive' | 'destroyed';
@@ -56,6 +66,7 @@ export interface SceneObjectResponse {
   scale: { x: number; y: number; z: number };
   properties: { [key: string]: any } | null;
   assetId?: number | null;
+  // 🔧 MODIFICADO: Usa la nueva interfaz AssetResponse.
   asset?: AssetResponse | null;
   galaxyData?: GalaxyDataResponse | null;
   createdAt?: string;

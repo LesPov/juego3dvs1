@@ -1,12 +1,7 @@
-/* src/app/admin/pages/world-editor/tour-guide/tour-guide.component.css */
 :host {
   position: relative;
   z-index: 11000;
 }
-
-/* ========================================================= */
-/* ===       ✨ ESTILOS DEL TOUR MODIFICADOS ✨      === */
-/* ========================================================= */
 
 .tour-overlay {
   position: fixed;
@@ -14,36 +9,31 @@
   left: 0;
   width: 100vw;
   height: 100vh;
-  /* ✨ Vuelve a tener el color y el blur */
   background-color: rgba(18, 18, 18, 0.75);
   backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px); /* Para compatibilidad */
+  -webkit-backdrop-filter: blur(3px);
   animation: fadeIn 0.3s ease-out;
-  /* ✨ Debe ser 'auto' para que el click fuera del modal cierre el tour */
-  pointer-events: auto; 
-  /* ✨ Animación suave para el cambio de agujero */
+  pointer-events: auto;
   transition: clip-path 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .tour-highlight-box {
   position: fixed;
   border-radius: 8px;
-  /* ✨ Se elimina la sombra gigante que hacía el truco anterior */
-  box-shadow: 0 0 15px rgba(245, 179, 0, 0.7); /* Mantenemos el brillo */
+  box-shadow: 0 0 15px rgba(245, 179, 0, 0.7);
   border: 2px solid var(--c-accent-highlight);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   pointer-events: none;
-  z-index: 11001; /* Se asegura que el borde esté sobre el overlay */
+  z-index: 11001;
 }
 
 .tour-modal-container {
   position: fixed;
-  z-index: 11002; /* El más alto de todos */
+  z-index: 11002;
   transition: top 0.3s ease-out, left 0.3s ease-out;
   animation: fadeInScale 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  pointer-events: auto; /* El modal debe ser interactuable */
+  pointer-events: auto;
 }
-
 
 .tour-modal-content {
   position: relative;
@@ -58,7 +48,6 @@
   flex-direction: column;
 }
 
-/* Flecha del modal */
 .tour-modal-content::after {
   content: '';
   position: absolute;
@@ -91,7 +80,6 @@
   border-width: 10px 0 10px 10px;
   border-color: transparent transparent transparent var(--c-bg-panel);
 }
-
 
 .tour-header {
   padding: 12px 16px;

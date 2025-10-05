@@ -1,4 +1,4 @@
-// src/app/features/admin/components/world-editor/service/three-engine/managers/object-manager.service.ts
+/// src/app/features/admin/components/world-editor/service/three-engine/managers/object-manager.service.ts
 
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
@@ -73,32 +73,31 @@ export class ObjectManagerService {
     
     if (objData.asset && objData.asset.path.includes('{TileMatrix}')) {
         console.log(`[ObjectManager] Detectado asset WMTS para '${objData.name}'. Creando como cuerpo planetario.`);
-        this._createWmtsCelestialBody(scene, objData);
-        return null;
-    }
-
-    if (objData.asset?.type === 'model_glb') {
+        // ✨ CAMBIO: Ahora _createWmtsCelestialBody devuelve el objeto creado.
+        createdObject = this._createWmtsCelestialBody(scene, objData);
+    } else if (objData.asset?.type === 'model_glb') {
         console.log(`[ObjectManager] 📦 Creando '${objData.name}' como modelo GLB optimizado.`);
         this.loadGltfModel(scene, objData, loader);
-        return null;
-    }
-
-    switch (objData.type) {
-      case 'cube': case 'sphere': case 'cone': case 'torus': case 'floor':
-        createdObject = this.createStandardPrimitive(scene, objData);
-        break;
-      case 'camera':
-        createdObject = this.createCamera(scene, objData);
-        break;
-      case 'directionalLight':
-        createdObject = this.createDirectionalLight(scene, objData);
-        break;
-      default:
-        console.warn(`[ObjectManager] Tipo '${objData.type}' no es un objeto individual y será ignorado en este método.`);
-        break;
+        return null; // La carga es asíncrona, el objeto se añade después.
+    } else {
+        switch (objData.type) {
+          case 'cube': case 'sphere': case 'cone': case 'torus': case 'floor':
+            createdObject = this.createStandardPrimitive(scene, objData);
+            break;
+          case 'camera':
+            createdObject = this.createCamera(scene, objData);
+            break;
+          case 'directionalLight':
+            createdObject = this.createDirectionalLight(scene, objData);
+            break;
+          default:
+            console.warn(`[ObjectManager] Tipo '${objData.type}' no es un objeto individual y será ignorado en este método.`);
+            break;
+        }
     }
 
     if (createdObject) {
+      // ✨ LÓGICA CLAVE: Nos aseguramos de que CUALQUIER objeto individual creado se registre aquí.
       this.labelManager.registerObject(createdObject);
     }
 
@@ -135,17 +134,17 @@ export class ObjectManagerService {
     });
   }
 
-  private _createWmtsCelestialBody(scene: THREE.Scene, objData: SceneObjectResponse): void {
+  private _createWmtsCelestialBody(scene: THREE.Scene, objData: SceneObjectResponse): THREE.Mesh | null {
     if (!objData.asset) { 
         console.error(`[ObjectManager] Objeto '${objData.name}' no tiene 'asset' y no se puede crear como cuerpo WMTS.`);
-        return;
+        return null;
     }
 
     const radius = objData.scale.x;
 
     if (radius <= 0) {
         console.warn(`[ObjectManager] WMTS object '${objData.name}' has an invalid radius of ${radius}.`);
-        return;
+        return null;
     }
 
     const geometry = new THREE.SphereGeometry(radius, 128, 64); 
@@ -162,6 +161,8 @@ export class ObjectManagerService {
     
     this.applyTransformations(planetMesh, objData);
     
+    // ✨ LÓGICA CENTRAL: Marcamos este objeto como un cuerpo celestial WMTS.
+    // El LabelManager usará esta bandera para aplicar la escala y posición correctas a la etiqueta.
     planetMesh.userData['isWmtsCelestialBody'] = true;
     planetMesh.userData['apiData'] = objData;
 
@@ -186,8 +187,12 @@ export class ObjectManagerService {
     });
     
     scene.add(planetMesh);
-    this.labelManager.registerObject(planetMesh);
+    return planetMesh; // ✨ CAMBIO: Devolvemos la malla creada.
   }
+
+  // ... (El resto del archivo `object-manager.service.ts` no necesita cambios, por lo que se omite por brevedad, pero en un entorno real, el resto del código seguiría aquí)
+  // ... _loadWmtsTexture, _loadImagePromise, loadGltfModel, etc. se mantienen igual.
+  // El código completo del resto del archivo que me diste se mantendría.
 
   private _loadWmtsTexture(asset: AssetResponse): Promise<THREE.Texture> {
     const cacheKey = asset.path;
@@ -288,10 +293,9 @@ export class ObjectManagerService {
   private _processGltfMaterials(model: THREE.Object3D, objData: SceneObjectResponse): void {
     const galaxyInfo = objData.galaxyData;
 
-    // Lógica de brillo dinámico para ser usada por el motor de renderizado.
     model.userData['isDynamicCelestialModel'] = true;
     model.userData['farProximityIntensity'] = galaxyInfo ? THREE.MathUtils.clamp(galaxyInfo.emissiveIntensity, 1.0, 7.0) : 1.0;
-    model.userData['closeProximityIntensity'] = 0.25; // Corregido: Intensidad sutil para vistas cercanas.
+    model.userData['closeProximityIntensity'] = 0.25;
 
     model.traverse(child => {
         if (child instanceof THREE.Mesh && child.material) {
@@ -304,8 +308,6 @@ export class ObjectManagerService {
 
             const material = child.material as THREE.MeshStandardMaterial;
             if (!material.isMeshStandardMaterial) return;
-
-            // Optimización de rendimiento y calidad para todos los mapas de textura.
             const maps = ['map', 'normalMap', 'metalnessMap', 'roughnessMap', 'emissiveMap', 'aoMap'];
             maps.forEach(mapType => {
                 const texture = material[mapType as keyof THREE.MeshStandardMaterial] as THREE.Texture;
@@ -325,49 +327,33 @@ export class ObjectManagerService {
                 }
             });
 
-            // Lógica de material específica para capas atmosféricas y nubes
             if (material.transparent) {
-                // Se usa AdditiveBlending para que las nubes AÑADAN su color al del planeta.
-                // Esto las hace ver como una capa brillante (atmósfera) en lugar de un objeto opaco.
                 material.blending = THREE.AdditiveBlending;
                 material.depthWrite = false;
-
-                // Con AdditiveBlending, la opacidad actúa como un control de intensidad.
-                // Aumentado para mayor brillo y contraste en las nubes.
                 material.opacity = 0.9;
-
-                // Se desactiva el alphaTest para permitir bordes suaves y difuminados.
                 material.alphaTest = 0.0;
             }
 
-            // Lógica de emisión en cascada (luces de ciudad, brillo de API, y brillo por defecto)
             if (material.emissiveMap) {
-                // CASO 1: El modelo tiene un mapa de emisión (luces de ciudad).
-                material.emissive.set(0xffffff); // Blanco para no alterar los colores del mapa.
+                material.emissive.set(0xffffff);
                 material.emissiveIntensity = model.userData['farProximityIntensity'];
 
             } else if (galaxyInfo?.emissiveColor) {
-                // CASO 2: No hay mapa, pero la API provee un color de emisión.
                 const celestialEmissive = new THREE.Color(sanitizeHexColor(galaxyInfo.emissiveColor));
                 material.emissive.copy(celestialEmissive);
                 material.emissiveIntensity = model.userData['farProximityIntensity'];
 
             } else {
-                // CASO 3: Brillo por defecto para que no se vea oscuro.
                 if (material.transparent) {
-                    // Para nubes o atmósferas, un brillo blanco base mejora el efecto de bloom.
                     material.emissive.set(0xffffff);
-                    material.emissiveIntensity = 0.4; // Intensidad moderada para un brillo notable.
+                    material.emissiveIntensity = 0.4;
                 } else {
-                    // Para superficies sólidas, un ligero brillo del propio color evita negros absolutos.
                     if (material.color) {
                         material.emissive.copy(material.color);
                     }
-                    material.emissiveIntensity = 0.05; // Intensidad muy baja, solo para "levantar" las sombras.
+                    material.emissiveIntensity = 0.05;
                 }
             }
-
-            // Habilitar el objeto para el efecto de post-procesado (bloom).
             child.layers.enable(BLOOM_LAYER);
             material.needsUpdate = true;
         }

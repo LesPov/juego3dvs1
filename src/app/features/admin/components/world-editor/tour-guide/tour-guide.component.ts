@@ -1,5 +1,3 @@
-// src/app/features/admin/components/world-editor/tour-guide/tour-guide.component.ts
-
 import { Component, OnDestroy, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, NgStyle } from '@angular/common';
 import { Subscription } from 'rxjs';
@@ -17,7 +15,7 @@ export class TourGuideComponent implements OnInit, OnDestroy {
   public currentStep: TourStep | null = null;
   public modalStyle: { [key: string]: string } = {};
   public highlightStyle: { [key: string]: string } = {};
-  public overlayStyle: { [key: string]: string } = {}; // ✨ NUEVA PROPIEDAD
+  public overlayStyle: { [key: string]: string } = {};
 
   public totalSteps = 0;
   public currentIndex = 0;
@@ -50,7 +48,7 @@ export class TourGuideComponent implements OnInit, OnDestroy {
 
         this.resizeObserver.disconnect();
         if (step) {
-          setTimeout(() => this.calculatePosition(step), 50); // Delay para asegurar que el DOM se actualizó
+          setTimeout(() => this.calculatePosition(step), 50);
           const targetElement = document.getElementById(step.targetId);
           if (targetElement) {
             this.resizeObserver.observe(targetElement);
@@ -67,9 +65,6 @@ export class TourGuideComponent implements OnInit, OnDestroy {
     this.resizeObserver.disconnect();
   }
 
-  // =========================================================
-  // ===       ✨ LÓGICA DE POSICIONAMIENTO ACTUALIZADA ✨      ===
-  // =========================================================
   private calculatePosition(step: TourStep): void {
     const targetElement = document.getElementById(step.targetId);
     if (!targetElement) {
@@ -110,7 +105,6 @@ export class TourGuideComponent implements OnInit, OnDestroy {
         break;
     }
 
-    // Asegurar que el modal no se salga de la pantalla
     if (left < margin) left = margin;
     if (top < margin) top = margin;
     if (left + modalWidth > window.innerWidth) left = window.innerWidth - modalWidth - margin;
@@ -118,15 +112,17 @@ export class TourGuideComponent implements OnInit, OnDestroy {
 
     this.modalStyle = { 'top': `${top}px`, 'left': `${left}px` };
 
-    // ✨ NUEVO: Calcular el 'clip-path' para el overlay
-    if (step.position !== 'center') {
-      const padding = 5; // Un pequeño margen para el agujero
+    // =========================================================
+    // ===       ✅ LÓGICA MODIFICADA PARA EL OVERLAY       ===
+    // =========================================================
+    // Ahora, SIEMPRE que haya un targetElement, creamos el "agujero" y el borde.
+    if (targetElement) {
+      const padding = 5;
       const x1 = targetRect.left - padding;
       const y1 = targetRect.top - padding;
       const x2 = targetRect.right + padding;
       const y2 = targetRect.bottom + padding;
-      
-      // Creamos una ruta que "corta" un agujero en el overlay
+
       const polygonPath = `
         0% 0%, 0% 100%, 100% 100%, 100% 0%, 0% 0%,
         ${x1}px ${y1}px,
@@ -139,9 +135,19 @@ export class TourGuideComponent implements OnInit, OnDestroy {
       this.overlayStyle = {
         'clip-path': `polygon(evenodd, ${polygonPath})`
       };
+
+      this.highlightStyle = {
+        'top': `${targetRect.top}px`,
+        'left': `${targetRect.left}px`,
+        'width': `${targetRect.width}px`,
+        'height': `${targetRect.height}px`,
+        'display': 'block'
+      };
+
     } else {
-      // Para 'center', el overlay es sólido (sin agujero)
+      // Si por alguna razón no hay target, el overlay es sólido.
       this.overlayStyle = { 'clip-path': 'none' };
+      this.highlightStyle = { 'display': 'none' };
     }
   }
 }

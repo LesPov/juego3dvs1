@@ -27,8 +27,8 @@ export class ControlsManagerService implements OnDestroy {
   private transformEndSubject = new Subject<void>();
   private isFlyModeActiveSubject = new BehaviorSubject<boolean>(false);
 
-  private readonly MOVEMENT_SPEED = 20_000_000.0;
-  private readonly BOOST_MULTIPLIER = 9_000.0;
+  private readonly MOVEMENT_SPEED = 200_000_000.0;
+  private readonly BOOST_MULTIPLIER = 1_000.0;
   private readonly LOOK_SPEED = 0.002;
 
   private tempVector = new THREE.Vector3();

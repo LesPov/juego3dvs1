@@ -1,11 +1,9 @@
-// src/app/admin/pages/world-editor/world-view.component.ts
-
-import { Component, OnInit, OnDestroy, ChangeDetectorRef, Renderer2 } from '@angular/core'; // ✨ Renderer2 AÑADIDO
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, Renderer2 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Observable, Subject, Subscription, BehaviorSubject, combineLatest } from 'rxjs';
-import { switchMap, tap, debounceTime, map, startWith, pairwise } from 'rxjs/operators'; // ✨ pairwise AÑADIDO
+import { switchMap, tap, debounceTime, map, startWith, pairwise } from 'rxjs/operators';
 import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { environment } from '../../../../../environments/environment';
 import { SceneObjectResponse, AdminService } from '../../services/admin.service';
@@ -119,9 +117,8 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     private cdr: ChangeDetectorRef,
     private sceneObjectService: SceneObjectService,
     private tourService: TourService,
-    private renderer: Renderer2,// ✨ Renderer2 INYECTADO
-    private statsManager: StatsManagerService // ✅ INYECTADO
-
+    private renderer: Renderer2,
+    private statsManager: StatsManagerService
   ) {
     this.axisLock$ = this.engineService.axisLockState$;
     this.isFlyModeActive$ = this.engineService.isFlyModeActive$;
@@ -150,15 +147,15 @@ export class WorldViewComponent implements OnInit, OnDestroy {
       })
     );
   }
+
   ngAfterViewInit(): void {
-    // ✅ INICIALIZAMOS STATS.JS DESPUÉS DE QUE LA VISTA ESTÉ LISTA
-    // Usamos un pequeño timeout para asegurar que el *ngIf no interfiera.
     setTimeout(() => {
       if (!this.isLoadingData) {
         this.statsManager.init('stats-container');
       }
     }, 0);
   }
+
   ngOnInit(): void {
     this.engineService.setTravelSpeedMultiplier(this.cameraTravelSpeedMultiplier);
 
@@ -172,17 +169,15 @@ export class WorldViewComponent implements OnInit, OnDestroy {
       this.router.navigate(['/admin/episodios']);
     }
     this.setupTour();
-    this.setupTourElementHighlighting(); // ✨ NUEVA LLAMADA
+    this.setupTourElementHighlighting();
   }
 
   ngOnDestroy(): void {
     this.subscriptions.unsubscribe();
     this.brightnessUpdate$.complete();
-    this.statsManager.destroy(); // ✅ LIMPIAMOS STATS.JS
-
+    this.statsManager.destroy();
   }
 
-  // ✨ --- LÓGICA DEL TOUR --- ✨
   public startTour(): void {
     this.tourService.start();
   }
@@ -191,10 +186,15 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     const tourSteps: TourStep[] = [
       { step: 1, targetId: 'tour-target-viewport', title: '¡Bienvenido al Editor de Mundos!', content: '<p>Este es el <b>Viewport 3D</b>, tu ventana principal al universo que estás creando. Aquí puedes navegar, seleccionar y manipular todos los objetos de tu escena.</p>', position: 'center' },
       { step: 2, targetId: 'tour-target-toolbar', title: 'Barra de Herramientas Principal', content: '<p>Accede a las herramientas de <b>mover (W)</b>, <b>rotar (E)</b> y <b>escalar (R)</b>. También puedes cambiar el modo de cámara y maximizar el viewport.</p>', position: 'bottom' },
+      // ✅ CAMBIO DE POSICIÓN
       { step: 3, targetId: 'tour-target-scene-list', title: 'Panel de Objetos', content: '<p>Aquí se listan todos los objetos de tu escena, agrupados por tipo. Puedes buscar, seleccionar, ocultar o cambiar el brillo de grupos enteros.</p>', position: 'right', action: () => { this.layoutState.sceneListVisible = true; this.cdr.detectChanges(); } },
+      // ✅ CAMBIO DE POSICIÓN
       { step: 4, targetId: 'tour-target-properties', title: 'Panel de Propiedades', content: '<p>Cuando seleccionas un objeto, sus propiedades de transformación y ajustes aparecen aquí. ¡Pruébalo seleccionando un objeto de la lista!</p>', position: 'right', action: () => { this.layoutState.propertiesVisible = true; this.cdr.detectChanges(); } },
+      // ✅ CAMBIO DE POSICIÓN
       { step: 5, targetId: 'tour-target-image', title: 'Imagen del Episodio', content: '<p>Este panel muestra la miniatura principal de tu episodio. Haz clic en ella para verla en tamaño completo.</p>', position: 'left', action: () => { this.layoutState.imageVisible = true; this.layoutState.assetsVisible = true; this.layoutState.performanceVisible = true; this.layoutState.descriptionVisible = true; this.cdr.detectChanges(); } },
+      // ✅ CAMBIO DE POSICIÓN
       { step: 6, targetId: 'tour-target-assets', title: 'Panel de Assets', content: '<p>Aquí encontrarás la biblioteca de modelos 3D, texturas y sonidos disponibles para añadir a tu escena.</p>', position: 'left' },
+      // ✅ CAMBIO DE POSICIÓN
       { step: 7, targetId: 'tour-target-performance', title: 'Monitor de Rendimiento', content: '<p>Este panel muestra información técnica en tiempo real, como los fotogramas por segundo (FPS), para ayudarte a optimizar tu escena.</p>', position: 'left' },
       { step: 8, targetId: 'tour-target-description', title: 'Descripción del Objeto', content: '<p>Cuando tienes un objeto seleccionado, puedes añadir notas o descripciones aquí. Es útil para recordar detalles importantes o para colaborar con otros.</p>', position: 'top', action: () => { this.layoutState.descriptionVisible = true; this.cdr.detectChanges(); } },
       { step: 9, targetId: 'tour-target-viewport', title: '¡Listo para Crear!', content: '<p>Ya conoces las secciones principales. Explora, experimenta y construye mundos increíbles. Puedes reiniciar esta guía cuando quieras desde el botón <b>?</b> en la cabecera.</p>', position: 'center' }
@@ -202,21 +202,16 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     this.tourService.initialize(tourSteps);
   }
 
-  // ====================================================================
-  // === ✨ NUEVA LÓGICA PARA RESALTAR EL ELEMENTO ACTIVO DEL TOUR ✨ ===
-  // ====================================================================
   private setupTourElementHighlighting(): void {
     const tourStepSub = this.tourService.currentStep$
-      .pipe(startWith(null), pairwise()) // pairwise nos da el paso [anterior, actual]
+      .pipe(startWith(null), pairwise())
       .subscribe(([prevStep, currentStep]) => {
-        // Quitar la clase del elemento anterior
         if (prevStep && prevStep.targetId) {
           const prevElement = document.getElementById(prevStep.targetId);
           if (prevElement) {
             this.renderer.removeClass(prevElement, 'tour-active-element');
           }
         }
-        // Añadir la clase al elemento actual
         if (currentStep && currentStep.targetId) {
           const currentElement = document.getElementById(currentStep.targetId);
           if (currentElement) {
@@ -224,8 +219,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
           }
         }
       });
-  
-    // Asegurarnos de limpiar la clase cuando el tour se detiene
+
     const tourStatusSub = this.tourService.isTourActive$.subscribe(isActive => {
       if (!isActive) {
         const activeElement = document.querySelector('.tour-active-element');
@@ -234,7 +228,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
         }
       }
     });
-  
+
     this.subscriptions.add(tourStepSub);
     this.subscriptions.add(tourStatusSub);
   }
