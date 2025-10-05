@@ -64,12 +64,6 @@ Desde esta sección, los administradores pueden ver la lista de episodios existe
 <img width="1912" height="924" alt="msedge_6jJCcwrybj" src="https://github.com/user-attachments/assets/8f530d9e-365d-4ea3-95f5-754b4363d234" />
 
 
-https://github.com/user-attachments/assets/dd958bd4-f4ea-466f-a740-e8120a1686ee
-
-
-
-https://github.com/user-attachments/assets/feac0a31-3a7b-4a2d-b5fb-918fdf958617
-
 
 El corazón de la aplicación. Aquí es donde los administradores dan vida a sus mundos. La interfaz incluye:
 *   **Visor de Escena:** Una vista en tiempo real del mundo 3D.
@@ -78,7 +72,13 @@ El corazón de la aplicación. Aquí es donde los administradores dan vida a sus
 *   **Brújula y Controles:** Para navegar fácilmente por la escena.
 
 <!-- Placeholder para la imagen del Editor de Mundos -->
-![Editor de Mundos](https.via.placeholder.com/600x400.png?text=Editor+de+Mundos+3D)
+
+https://github.com/user-attachments/assets/dd958bd4-f4ea-466f-a740-e8120a1686ee
+
+
+
+https://github.com/user-attachments/assets/feac0a31-3a7b-4a2d-b5fb-918fdf958617
+
 
 ## Estructura del Proyecto
 
