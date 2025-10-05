@@ -1,5 +1,8 @@
 <!-- world-view.component.html -->
 
+<!-- ✨ COMPONENTE DEL TOUR ✨ -->
+<app-tour-guide></app-tour-guide>
+
 <!-- MODALES -->
 <div *ngIf="isImageModalVisible" class="image-modal-overlay" (click)="closeImageModal()">
   <div class="image-modal-content" (click)="$event.stopPropagation()"><img [src]="episodeThumbnailUrl"
@@ -13,7 +16,6 @@
 </div>
 <app-add-object-modal *ngIf="isAddObjectModalVisible" (close)="closeAddObjectModal()"
   (create)="createSceneObject($event)"></app-add-object-modal>
-
 <!-- CONTENEDOR PRINCIPAL -->
 <div *ngIf="!isLoadingData && !errorMessage && episodeId" class="editor-layout"
   [class.scene-list-hidden]="!layoutState.sceneListVisible" [class.properties-hidden]="!layoutState.propertiesVisible"
@@ -25,19 +27,22 @@
   [class.bottom-collapsed]="!layoutState.descriptionVisible">
 
   <!-- HEADER -->
-  <header class="panel p-header">
+  <header class="panel p-header" id="tour-target-header">
     <div class="episode-title">Editor - {{ episodeTitle }}</div>
+    <!-- ✨ BOTÓN PARA INICIAR EL TOUR ✨ -->
+    <button class="tour-start-button" (click)="startTour()" title="Iniciar Guía Interactiva">?</button>
   </header>
 
   <!-- VIEWPORT 3D -->
-  <main class="panel p-viewport">
+  <main class="panel p-viewport" id="tour-target-viewport">
     <div class="scene-container-header">
-      <div class="scene-tabs-container">
+      <!-- ✨ ID AÑADIDO PARA EL TOUR ✨ -->
+      <div class="scene-tabs-container" id="tour-target-scene-tabs">
         <button *ngFor="let scene of sceneTabs" class="scene-tab-button" [class.active]="scene.isActive"
           (click)="selectScene(scene.id)"><span>{{ scene.name }}</span></button>
         <button class="scene-tab-button add-scene" (click)="addScene()" title="Añadir nueva escena">+</button>
       </div>
-      <app-toolbar [isMaximized]="layoutState.isMaximized" (maximizeToggle)="onMaximizeToggle()"></app-toolbar>
+      <app-toolbar id="tour-target-toolbar" [isMaximized]="layoutState.isMaximized" (maximizeToggle)="onMaximizeToggle()"></app-toolbar>
     </div>
     <div class="scene-render-area">
       <div *ngIf="isRenderingScene" class="scene-loader-overlay">
@@ -64,33 +69,27 @@
       <app-brujula></app-brujula>
     </div>
 
-    <!-- ==================================================================== -->
-    <!-- ✨ BARRA DE HERRAMIENTAS INFERIOR CON CONTROL DE VELOCIDAD FUNCIONAL ✨ -->
-    <!-- ==================================================================== -->
-    <div *ngIf="selectedEntityUuid" class="scene-bottom-toolbar">
+    <!-- BARRA DE HERRAMIENTAS INFERIOR -->
+    <div *ngIf="selectedEntityUuid" class="scene-bottom-toolbar" id="tour-target-bottom-toolbar">
       <div class="toolbar-section toolbar-section-vertical">
         <button class="focus-button" (click)="onFocusObject()">Acercarse</button>
         <div class="toolbar-speed-control">
-          <label for="speed-slider">Velocidad: x{{ cameraTravelSpeedMultiplier | number:'1.0-1' }}</label>
+          <label for="speed-slider">Velocidad: x{{ (cameraTravelSpeedMultiplier * cameraTravelSpeedMultiplier) | number:'1.0-1' }}</label>
           <input id="speed-slider" type="range" class="speed-slider" 
-                 min="0" max="100" step="0.1" 
+                 min="0.1" max="10" step="0.1" 
                  [value]="cameraTravelSpeedMultiplier"
                  (input)="onTravelSpeedChange($event)"
                  title="Ajustar velocidad de viaje">
         </div>
       </div>
-
       <div class="toolbar-section">Sección 2</div>
       <div class="toolbar-section center">Sección 3</div>
       <div class="toolbar-section">Sección 4</div>
       <div class="toolbar-section">Sección 5</div>
     </div>
-    <!-- ============================================================== -->
-
   </main>
-
-  <!-- EL RESTO DE LA INTERFAZ (SIN CAMBIOS) -->
-  <div class="panel p-scene-list">
+  <!-- PANEL DE LISTA DE OBJETOS -->
+  <div class="panel p-scene-list" id="tour-target-scene-list">
     <div class="panel-header">
       <span class="panel-title">{{ selectedEntityUuid ? 'Objeto Seleccionado' : 'Lista de Objetos' }}</span>
       <button class="panel-toggle-icon" (click)="togglePanel('sceneListVisible')"
@@ -151,7 +150,9 @@
       </ul>
     </div>
   </div>
-  <div class="panel p-properties">
+
+  <!-- PANEL DE PROPIEDADES -->
+  <div class="panel p-properties" id="tour-target-properties">
     <div class="panel-header">
       <span class="panel-title">Propiedades</span>
       <button class="panel-toggle-icon" (click)="togglePanel('propertiesVisible')"
@@ -182,7 +183,9 @@
       </ng-container>
     </div>
   </div>
-  <div class="panel p-episode-image">
+
+  <!-- PANEL IMAGEN -->
+  <div class="panel p-episode-image" id="tour-target-image">
     <div class="panel-header">
       <span class="panel-title">Imagen del Episodio</span>
       <button class="panel-toggle-icon" (click)="togglePanel('imageVisible')"
@@ -204,7 +207,9 @@
       </ng-template>
     </div>
   </div>
-  <div class="panel p-episode-assets">
+  
+  <!-- PANEL ASSETS -->
+  <div class="panel p-episode-assets" id="tour-target-assets">
     <div class="panel-header">
       <span class="panel-title">Assets del Episodio</span>
       <button class="panel-toggle-icon" (click)="togglePanel('assetsVisible')"
@@ -216,7 +221,9 @@
       </div>
     </div>
   </div>
-  <div class="panel p-performance">
+
+  <!-- PANEL RENDIMIENTO -->
+  <div class="panel p-performance" id="tour-target-performance">
     <div class="panel-header">
       <span class="panel-title">Rendimiento</span>
       <button class="panel-toggle-icon" (click)="togglePanel('performanceVisible')"
@@ -228,7 +235,9 @@
       </div>
     </div>
   </div>
-  <div class="panel p-description">
+
+  <!-- PANEL DESCRIPCIÓN -->
+  <div class="panel p-description" id="tour-target-description">
     <div class="panel-header">
       <span class="panel-title">Descripción del Objeto</span>
       <button class="panel-toggle-icon" (click)="togglePanel('descriptionVisible')"
@@ -244,6 +253,7 @@
       </ng-template>
     </div>
   </div>
+  
   <button class="panel-toggle-tab toggle-scene-list" *ngIf="!layoutState.sceneListVisible"
     (click)="togglePanel('sceneListVisible')"><span>&#9654;</span></button>
   <button class="panel-toggle-tab toggle-properties" *ngIf="!layoutState.propertiesVisible"

@@ -53,6 +53,11 @@
 
 .p-header {
   grid-area: 1 / 1 / 2 / 8;
+  /* ✨ AÑADIDO PARA EL BOTÓN DEL TOUR */
+  position: relative; 
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .p-viewport {
@@ -1150,4 +1155,32 @@ app-brujula {
   transform: translateY(0px);
   background-color: #3e73b4;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* ✨ ESTILO PARA EL BOTÓN DEL TOUR ✨ */
+.tour-start-button {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--c-border);
+  background-color: var(--c-bg-interactive);
+  color: var(--c-accent-highlight);
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  z-index: 1; /* Para asegurarse de que esté encima del título si hay superposición */
+}
+
+.tour-start-button:hover {
+  background-color: var(--c-accent-select);
+  color: #fff;
+  transform: translateY(-50%) scale(1.1);
 }

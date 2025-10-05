@@ -1,13 +1,14 @@
-import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
+// src/app/admin/pages/world-editor/world-view.component.ts
+
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, Renderer2 } from '@angular/core'; // ✨ Renderer2 AÑADIDO
 import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Observable, Subject, Subscription, BehaviorSubject, combineLatest } from 'rxjs';
-import { switchMap, tap, debounceTime, map, startWith } from 'rxjs/operators';
+import { switchMap, tap, debounceTime, map, startWith, pairwise } from 'rxjs/operators'; // ✨ pairwise AÑADIDO
 import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { environment } from '../../../../../environments/environment';
-// Asegúrate de que SceneObjectStatus se importe correctamente desde tu servicio
-import { SceneObjectResponse, AdminService, SceneObjectStatus } from '../../services/admin.service';
+import { SceneObjectResponse, AdminService } from '../../services/admin.service';
 import { SceneObjectService } from '../../services/scene-object.service';
 import { AddObjectModalComponent, NewSceneObjectData } from '../world-editor/add-object-modal/add-object-modal.component';
 import { BrujulaComponent } from '../world-editor/brujula/brujula.component';
@@ -17,6 +18,8 @@ import { SceneComponent } from '../world-editor/scene/scene.component';
 import { SceneEntity } from '../world-editor/service/three-engine/managers/entity-manager.service';
 import { ToolbarComponent } from '../world-editor/toolbar/toolbar.component';
 import { EngineService } from '../world-editor/service/three-engine/core/engine.service';
+import { TourGuideComponent } from '../world-editor/tour-guide/tour-guide.component';
+import { TourService, TourStep } from '../../services/tour.service';
 
 export interface EntityGroup {
   type: string;
@@ -33,17 +36,15 @@ export interface SceneTab {
   isActive: boolean;
 }
 
-// Definición de tipo para los tipos de objetos válidos en SceneObjectResponse
 type SceneObjectType = "cube" | "sphere" | "floor" | "model" | "video" | "sound" | "camera" | "torus" | "ambientLight" | "directionalLight" | "cone" | "galaxy_normal" | "galaxy_bright" | "galaxy_medium" | "galaxy_far";
-
 
 @Component({
   selector: 'app-world-view',
   standalone: true,
-  imports: [CommonModule, FormsModule, SceneComponent, AddObjectModalComponent, PropertiesPanelComponent, SceneSettingsPanelComponent, BrujulaComponent, ToolbarComponent, DragDropModule],
+  imports: [CommonModule, FormsModule, SceneComponent, AddObjectModalComponent, PropertiesPanelComponent, SceneSettingsPanelComponent, BrujulaComponent, ToolbarComponent, DragDropModule, TourGuideComponent],
   templateUrl: './world-view.component.html',
   styleUrls: ['./world-view.component.css'],
-  providers: [EngineService]
+  providers: [EngineService, TourService]
 })
 export class WorldViewComponent implements OnInit, OnDestroy {
   public episodeId?: number;
@@ -116,6 +117,8 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     public engineService: EngineService,
     private cdr: ChangeDetectorRef,
     private sceneObjectService: SceneObjectService,
+    private tourService: TourService,
+    private renderer: Renderer2 // ✨ Renderer2 INYECTADO
   ) {
     this.axisLock$ = this.engineService.axisLockState$;
     this.isFlyModeActive$ = this.engineService.isFlyModeActive$;
@@ -157,11 +160,70 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     } else {
       this.router.navigate(['/admin/episodios']);
     }
+    this.setupTour();
+    this.setupTourElementHighlighting(); // ✨ NUEVA LLAMADA
   }
 
   ngOnDestroy(): void {
     this.subscriptions.unsubscribe();
     this.brightnessUpdate$.complete();
+  }
+
+  // ✨ --- LÓGICA DEL TOUR --- ✨
+  public startTour(): void {
+    this.tourService.start();
+  }
+
+  private setupTour(): void {
+    const tourSteps: TourStep[] = [
+      { step: 1, targetId: 'tour-target-viewport', title: '¡Bienvenido al Editor de Mundos!', content: '<p>Este es el <b>Viewport 3D</b>, tu ventana principal al universo que estás creando. Aquí puedes navegar, seleccionar y manipular todos los objetos de tu escena.</p>', position: 'center' },
+      { step: 2, targetId: 'tour-target-toolbar', title: 'Barra de Herramientas Principal', content: '<p>Accede a las herramientas de <b>mover (W)</b>, <b>rotar (E)</b> y <b>escalar (R)</b>. También puedes cambiar el modo de cámara y maximizar el viewport.</p>', position: 'bottom' },
+      { step: 3, targetId: 'tour-target-scene-list', title: 'Panel de Objetos', content: '<p>Aquí se listan todos los objetos de tu escena, agrupados por tipo. Puedes buscar, seleccionar, ocultar o cambiar el brillo de grupos enteros.</p>', position: 'right', action: () => { this.layoutState.sceneListVisible = true; this.cdr.detectChanges(); } },
+      { step: 4, targetId: 'tour-target-properties', title: 'Panel de Propiedades', content: '<p>Cuando seleccionas un objeto, sus propiedades de transformación y ajustes aparecen aquí. ¡Pruébalo seleccionando un objeto de la lista!</p>', position: 'right', action: () => { this.layoutState.propertiesVisible = true; this.cdr.detectChanges(); } },
+      { step: 5, targetId: 'tour-target-image', title: 'Imagen del Episodio', content: '<p>Este panel muestra la miniatura principal de tu episodio. Haz clic en ella para verla en tamaño completo.</p>', position: 'left', action: () => { this.layoutState.imageVisible = true; this.layoutState.assetsVisible = true; this.layoutState.performanceVisible = true; this.layoutState.descriptionVisible = true; this.cdr.detectChanges(); } },
+      { step: 6, targetId: 'tour-target-assets', title: 'Panel de Assets', content: '<p>Aquí encontrarás la biblioteca de modelos 3D, texturas y sonidos disponibles para añadir a tu escena.</p>', position: 'left' },
+      { step: 7, targetId: 'tour-target-performance', title: 'Monitor de Rendimiento', content: '<p>Este panel muestra información técnica en tiempo real, como los fotogramas por segundo (FPS), para ayudarte a optimizar tu escena.</p>', position: 'left' },
+      { step: 8, targetId: 'tour-target-description', title: 'Descripción del Objeto', content: '<p>Cuando tienes un objeto seleccionado, puedes añadir notas o descripciones aquí. Es útil para recordar detalles importantes o para colaborar con otros.</p>', position: 'top', action: () => { this.layoutState.descriptionVisible = true; this.cdr.detectChanges(); } },
+      { step: 9, targetId: 'tour-target-viewport', title: '¡Listo para Crear!', content: '<p>Ya conoces las secciones principales. Explora, experimenta y construye mundos increíbles. Puedes reiniciar esta guía cuando quieras desde el botón <b>?</b> en la cabecera.</p>', position: 'center' }
+    ];
+    this.tourService.initialize(tourSteps);
+  }
+  
+  // ====================================================================
+  // === ✨ NUEVA LÓGICA PARA RESALTAR EL ELEMENTO ACTIVO DEL TOUR ✨ ===
+  // ====================================================================
+  private setupTourElementHighlighting(): void {
+    const tourStepSub = this.tourService.currentStep$
+      .pipe(startWith(null), pairwise()) // pairwise nos da el paso [anterior, actual]
+      .subscribe(([prevStep, currentStep]) => {
+        // Quitar la clase del elemento anterior
+        if (prevStep && prevStep.targetId) {
+          const prevElement = document.getElementById(prevStep.targetId);
+          if (prevElement) {
+            this.renderer.removeClass(prevElement, 'tour-active-element');
+          }
+        }
+        // Añadir la clase al elemento actual
+        if (currentStep && currentStep.targetId) {
+          const currentElement = document.getElementById(currentStep.targetId);
+          if (currentElement) {
+            this.renderer.addClass(currentElement, 'tour-active-element');
+          }
+        }
+      });
+  
+    // Asegurarnos de limpiar la clase cuando el tour se detiene
+    const tourStatusSub = this.tourService.isTourActive$.subscribe(isActive => {
+      if (!isActive) {
+        const activeElement = document.querySelector('.tour-active-element');
+        if (activeElement) {
+          this.renderer.removeClass(activeElement, 'tour-active-element');
+        }
+      }
+    });
+  
+    this.subscriptions.add(tourStepSub);
+    this.subscriptions.add(tourStatusSub);
   }
 
   loadEpisodeData(id: number): void {
@@ -171,10 +233,10 @@ export class WorldViewComponent implements OnInit, OnDestroy {
         this.episodeTitle = response.episode.title;
         this.episodeThumbnailUrl = this.buildFullThumbnailUrl(response.episode.thumbnailUrl);
         this.sceneObjects = response.sceneObjects || [];
-        const hasSceneAssetsToLoad = this.sceneObjects.some(o => o.asset?.path);
-        const hasThumbnailToLoad = !!this.episodeThumbnailUrl;
         this.isLoadingData = false;
         this.isRenderingScene = true;
+        
+        const hasThumbnailToLoad = !!this.episodeThumbnailUrl;
         if (hasThumbnailToLoad) {
           this.isThumbnailAssetLoaded = false;
           const img = new Image();
@@ -184,12 +246,13 @@ export class WorldViewComponent implements OnInit, OnDestroy {
         } else {
           this.isThumbnailAssetLoaded = true;
         }
+
+        const hasSceneAssetsToLoad = this.sceneObjects.some(o => o.asset?.path);
         if (!hasSceneAssetsToLoad) { this.isSceneAssetsLoaded = true; }
+        
         this.checkAndFinalizeLoading();
       },
-      error: (err) => {
-        this.errorMessage = "Error al cargar los datos del episodio."; this.isLoadingData = false; console.error(err);
-      }
+      error: (err) => { this.errorMessage = "Error al cargar los datos del episodio."; this.isLoadingData = false; console.error(err); }
     });
   }
 
@@ -197,7 +260,21 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     if (this.isSceneAssetsLoaded && this.isThumbnailAssetLoaded) {
       this.loadingProgress = 100;
       this.cdr.detectChanges();
-      setTimeout(() => { this.isRenderingScene = false; this.cdr.detectChanges(); }, 500);
+      setTimeout(() => {
+        this.isRenderingScene = false;
+        this.cdr.detectChanges();
+        this.checkAndStartTour();
+      }, 500);
+    }
+  }
+
+  private checkAndStartTour(): void {
+    const hasSeenTour = localStorage.getItem('hasSeenTour');
+    if (!hasSeenTour) {
+      setTimeout(() => {
+        this.startTour();
+        localStorage.setItem('hasSeenTour', 'true');
+      }, 500);
     }
   }
 
@@ -263,7 +340,6 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   }
 
   private handleSelectionChange(uuid: string | null): void {
-    this.cdr.detectChanges();
     if (uuid) {
       let foundObject: SceneObjectResponse | undefined | null = this.sceneObjects.find(o => o.id.toString() === uuid);
 
@@ -272,9 +348,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
         const liveObject = this.engineService.getGizmoAttachedObject();
 
         if (entity && liveObject && liveObject.uuid === uuid) {
-
           const objectType = (entity.type === 'Model' ? 'model' : entity.type) as SceneObjectType;
-
           foundObject = {
             id: parseInt(uuid, 10) || 0,
             name: entity.name,
@@ -320,10 +394,8 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   public onTravelSpeedChange(event: Event): void {
     const slider = event.target as HTMLInputElement;
     const rawValue = parseFloat(slider.value);
-    const speedMultiplier = Math.pow(rawValue, 2);
-
     this.cameraTravelSpeedMultiplier = rawValue;
-    this.engineService.setTravelSpeedMultiplier(speedMultiplier);
+    this.engineService.setTravelSpeedMultiplier(Math.pow(rawValue, 2));
   }
 
   public onGroupBrightnessChange(group: EntityGroup, event: Event): void { const slider = event.target as HTMLInputElement; const brightness = parseFloat(slider.value); this.groupBrightnessState.set(group.type, brightness); this.brightnessUpdate$.next({ groupType: group.type, brightness }); }

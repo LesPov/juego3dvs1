@@ -1,0 +1,186 @@
+/* src/app/admin/pages/world-editor/tour-guide/tour-guide.component.css */
+:host {
+  position: relative;
+  z-index: 11000;
+}
+
+/* ========================================================= */
+/* ===       ✨ ESTILOS DEL TOUR MODIFICADOS ✨      === */
+/* ========================================================= */
+
+.tour-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  /* ✨ Vuelve a tener el color y el blur */
+  background-color: rgba(18, 18, 18, 0.75);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px); /* Para compatibilidad */
+  animation: fadeIn 0.3s ease-out;
+  /* ✨ Debe ser 'auto' para que el click fuera del modal cierre el tour */
+  pointer-events: auto; 
+  /* ✨ Animación suave para el cambio de agujero */
+  transition: clip-path 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tour-highlight-box {
+  position: fixed;
+  border-radius: 8px;
+  /* ✨ Se elimina la sombra gigante que hacía el truco anterior */
+  box-shadow: 0 0 15px rgba(245, 179, 0, 0.7); /* Mantenemos el brillo */
+  border: 2px solid var(--c-accent-highlight);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+  z-index: 11001; /* Se asegura que el borde esté sobre el overlay */
+}
+
+.tour-modal-container {
+  position: fixed;
+  z-index: 11002; /* El más alto de todos */
+  transition: top 0.3s ease-out, left 0.3s ease-out;
+  animation: fadeInScale 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: auto; /* El modal debe ser interactuable */
+}
+
+
+.tour-modal-content {
+  position: relative;
+  width: 350px;
+  max-width: 90vw;
+  background-color: var(--c-bg-panel);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
+  color: var(--c-text-primary);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Flecha del modal */
+.tour-modal-content::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-style: solid;
+}
+
+.tour-modal-content.pos-bottom::after {
+  bottom: 100%; left: 50%;
+  transform: translateX(-50%);
+  border-width: 0 10px 10px 10px;
+  border-color: transparent transparent var(--c-bg-panel-header) transparent;
+}
+.tour-modal-content.pos-top::after {
+  top: 100%; left: 50%;
+  transform: translateX(-50%);
+  border-width: 10px 10px 0 10px;
+  border-color: var(--c-bg-panel) transparent transparent transparent;
+}
+.tour-modal-content.pos-right::after {
+  right: 100%; top: 50%;
+  transform: translateY(-50%);
+  border-width: 10px 10px 10px 0;
+  border-color: transparent var(--c-bg-panel) transparent transparent;
+}
+.tour-modal-content.pos-left::after {
+  left: 100%; top: 50%;
+  transform: translateY(-50%);
+  border-width: 10px 0 10px 10px;
+  border-color: transparent transparent transparent var(--c-bg-panel);
+}
+
+
+.tour-header {
+  padding: 12px 16px;
+  background-color: var(--c-bg-panel-header);
+  border-bottom: 1px solid var(--c-border);
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tour-title {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--c-accent-highlight);
+}
+
+.tour-close-btn {
+  background: none;
+  border: none;
+  color: var(--c-text-secondary);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.tour-close-btn:hover {
+  color: #fff;
+}
+
+.tour-body {
+  padding: 16px;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+.tour-body p {
+  margin: 0 0 10px;
+}
+.tour-body p:last-child {
+  margin-bottom: 0;
+}
+
+.tour-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--c-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tour-progress {
+  font-size: 0.8rem;
+  color: var(--c-text-secondary);
+}
+
+.tour-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.tour-btn {
+  padding: 6px 16px;
+  border-radius: 4px;
+  border: 1px solid var(--c-border);
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.tour-btn-secondary {
+  background-color: var(--c-bg-interactive);
+  color: var(--c-text-primary);
+}
+.tour-btn-secondary:hover {
+  background-color: #555;
+}
+
+.tour-btn-primary {
+  background-color: var(--c-accent-select);
+  border-color: var(--c-accent-select);
+  color: #fff;
+}
+.tour-btn-primary:hover {
+  background-color: #5a93d9;
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeInScale {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}

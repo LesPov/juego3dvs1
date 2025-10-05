@@ -1,0 +1,23 @@
+<!-- src/app/admin/pages/world-editor/tour-guide/tour-guide.component.html -->
+<div class="tour-overlay" *ngIf="isTourActive" (click)="tourService.stop()" [ngStyle]="overlayStyle"></div>
+
+<div class="tour-highlight-box" *ngIf="isTourActive && currentStep" [ngStyle]="highlightStyle"></div>
+
+<div class="tour-modal-container" *ngIf="isTourActive && currentStep" [ngStyle]="modalStyle">
+  <div class="tour-modal-content" [ngClass]="'pos-' + currentStep!.position" (click)="$event.stopPropagation()">
+    <div class="tour-header">
+      <h3 class="tour-title">{{ currentStep!.title }}</h3>
+      <button class="tour-close-btn" (click)="tourService.stop()" title="Cerrar Tour">&times;</button>
+    </div>
+    <div class="tour-body" [innerHTML]="currentStep!.content"></div>
+    <div class="tour-footer">
+      <span class="tour-progress">{{ currentIndex + 1 }} / {{ totalSteps }}</span>
+      <div class="tour-actions">
+        <button class="tour-btn tour-btn-secondary" *ngIf="currentIndex > 0" (click)="tourService.prev()">Anterior</button>
+        <button class="tour-btn tour-btn-primary" (click)="tourService.next()">
+          {{ currentIndex < totalSteps - 1 ? 'Siguiente' : 'Finalizar' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
