@@ -77,10 +77,8 @@ export class SceneManagerService {
     this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
 
-    // ✨ CORRECCIÓN: Eliminamos el límite de tamaño de textura.
-    // Esto permite que los modelos GLB usen sus texturas de alta resolución (e.g., 4K)
-    // sin que el renderer las redimensione a la fuerza, lo que arregla el warning y la calidad.
-    // this.renderer.capabilities.maxTextureSize = 2048; // <- Eliminado
+    // ✨ ¡CORRECTO! Esta línea está eliminada, lo que permite texturas de alta resolución.
+    // this.renderer.capabilities.maxTextureSize = 2048; 
 
     const renderPass = new RenderPass(this.scene, this.activeCamera);
 
@@ -136,7 +134,6 @@ export class SceneManagerService {
     console.log("[SceneManager] Renderer y Composers inicializados correctamente");
   }
 
-  // El resto del archivo se mantiene sin cambios
   private setupContextLossHandling(): void {
     const canvas = this.renderer.domElement;
 
@@ -188,7 +185,7 @@ export class SceneManagerService {
     this.scene = new THREE.Scene();
     this.scene.background = null;
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 4.0);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 5.0);
     ambientLight.name = "Luz Ambiental";
     this.scene.add(ambientLight);
 
@@ -242,17 +239,9 @@ export class SceneManagerService {
           texture.mapping = THREE.EquirectangularReflectionMapping;
           texture.needsUpdate = true;
           if (this.scene) {
-            const skySphereGeometry = new THREE.SphereGeometry(4e15, 32, 32);
-            const skySphereMaterial = new THREE.MeshBasicMaterial({
-              map: texture,
-              side: THREE.BackSide,
-              depthWrite: false,
-              fog: false
-            });
-            const skySphere = new THREE.Mesh(skySphereGeometry, skySphereMaterial);
-            skySphere.name = 'SkySphere';
-            skySphere.renderOrder = -1;
-            this.scene.add(skySphere);
+            // En lugar de una esfera gigante, usamos la propiedad 'background' de la escena.
+            // Es más eficiente y evita problemas de clipping al alejarse.
+            this.scene.background = texture;
             this.scene.environment = texture;
           }
           if (this.bloomPass) {

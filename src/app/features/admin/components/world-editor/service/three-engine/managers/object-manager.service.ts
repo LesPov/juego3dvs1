@@ -1,3 +1,5 @@
+// src/app/features/admin/components/world-editor/service/three-engine/managers/object-manager.service.ts
+
 import { Injectable } from '@angular/core';
 import * as THREE from 'three';
 import { GLTFLoader, GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -259,10 +261,6 @@ export class ObjectManagerService {
     });
   }
   
-  // ✨ ======================================================================= ✨
-  // ✨ =========== LÓGICA MEJORADA PARA CARGAR MODELOS GLB =========== ✨
-  // ✨ ======================================================================= ✨
-  
   private loadGltfModel(scene: THREE.Scene, objData: SceneObjectResponse, loader: GLTFLoader): void {
     if (!objData.asset?.path) {
       console.error(`[ObjectManager] '${objData.name}' es un modelo pero no tiene asset válido.`);
@@ -275,91 +273,104 @@ export class ObjectManagerService {
       const model = gltf.scene;
 
       this.applyTransformations(model, objData);
-      
       this._processGltfMaterials(model, objData);
-      
       this._setupAnimations(gltf, model);
+
       this.labelManager.registerObject(model);
       scene.add(model);
-      console.log(`[ObjectManager] ✅ Modelo GLB '${objData.name}' cargado y procesado con LODs.`);
+      console.log(`[ObjectManager] ✅ Modelo GLB '${objData.name}' cargado y procesado.`);
 
     }, undefined, (error) => {
         console.error(`[ObjectManager] ❌ Error cargando modelo GLB '${objData.name}':`, error);
     });
   }
 
-  /**
-   * Procesa los materiales de un modelo GLTF, creando versiones de baja calidad
-   * para optimización de rendimiento en tiempo real.
-   */
   private _processGltfMaterials(model: THREE.Object3D, objData: SceneObjectResponse): void {
     const galaxyInfo = objData.galaxyData;
-    
+
+    // Lógica de brillo dinámico para ser usada por el motor de renderizado.
     model.userData['isDynamicCelestialModel'] = true;
-    model.userData['originalEmissiveIntensity'] = galaxyInfo ? THREE.MathUtils.clamp(galaxyInfo.emissiveIntensity, 1.0, 7.0) : 1.0;
-    model.userData['baseEmissiveIntensity'] = 0.1;
+    model.userData['farProximityIntensity'] = galaxyInfo ? THREE.MathUtils.clamp(galaxyInfo.emissiveIntensity, 1.0, 7.0) : 1.0;
+    model.userData['closeProximityIntensity'] = 0.25; // Corregido: Intensidad sutil para vistas cercanas.
 
     model.traverse(child => {
-      if (child instanceof THREE.Mesh && child.geometry) {
-        child.castShadow = false;
-        child.receiveShadow = false;
-        child.frustumCulled = true;
-        if (!child.geometry.boundingSphere) { 
-            child.geometry.computeBoundingSphere();
-        }
+        if (child instanceof THREE.Mesh && child.material) {
+            child.castShadow = false;
+            child.receiveShadow = false;
+            child.frustumCulled = true;
+            if (!child.geometry.boundingSphere) {
+                child.geometry.computeBoundingSphere();
+            }
 
-        const material = child.material as THREE.MeshStandardMaterial;
-        if (!material || !material.isMeshStandardMaterial) {
-            return;
-        }
+            const material = child.material as THREE.MeshStandardMaterial;
+            if (!material.isMeshStandardMaterial) return;
 
-        // --- ✨ LÓGICA DE OPTIMIZACIÓN DE GEOMETRÍA Y MATERIAL (LOD) ---
-        // Guardamos las versiones de alta calidad para poder restaurarlas después.
-        child.userData['highQualityMaterial'] = material;
-        child.userData['highQualityGeometry'] = child.geometry;
+            // Optimización de rendimiento y calidad para todos los mapas de textura.
+            const maps = ['map', 'normalMap', 'metalnessMap', 'roughnessMap', 'emissiveMap', 'aoMap'];
+            maps.forEach(mapType => {
+                const texture = material[mapType as keyof THREE.MeshStandardMaterial] as THREE.Texture;
+                if (texture && texture.isTexture) {
+                    texture.anisotropy = 16;
+                    if (!texture.mipmaps || texture.mipmaps.length === 0) {
+                        texture.generateMipmaps = true;
+                    }
+                    texture.minFilter = THREE.LinearMipmapLinearFilter;
+                    texture.magFilter = THREE.LinearFilter;
+                    if (mapType === 'map' || mapType === 'emissiveMap') {
+                        texture.colorSpace = THREE.SRGBColorSpace;
+                    } else {
+                        texture.colorSpace = THREE.NoColorSpace;
+                    }
+                    texture.needsUpdate = true;
+                }
+            });
 
-        // 1. Crear Geometría de Baja Calidad
-        try {
-            const vertexCount = child.geometry.attributes.position.count;
-            // ✨ FIX: Clonar la geometría antes de simplificarla para evitar efectos secundarios sobre el modelo original.
-            const simplifiedGeom = this.simplifyModifier.modify(child.geometry.clone(), Math.floor(vertexCount * 0.3));
-            child.userData['lowQualityGeometry'] = simplifiedGeom;
-        } catch (e) {
-            console.warn(`[ObjectManager] No se pudo simplificar la geometría para ${child.name}. Usando la original como fallback.`, e);
-            child.userData['lowQualityGeometry'] = child.geometry; // Fallback
-        }
+            // Lógica de material específica para capas atmosféricas y nubes
+            if (material.transparent) {
+                // Se usa AdditiveBlending para que las nubes AÑADAN su color al del planeta.
+                // Esto las hace ver como una capa brillante (atmósfera) en lugar de un objeto opaco.
+                material.blending = THREE.AdditiveBlending;
+                material.depthWrite = false;
 
-        // 2. Crear Material de Baja Calidad (MeshBasicMaterial es mucho más rápido que MeshStandardMaterial)
-        const lowQualityMaterial = new THREE.MeshBasicMaterial();
-        if (material.map) {
-            lowQualityMaterial.map = material.map; // Reutilizar la textura principal
-        } else {
-            lowQualityMaterial.color.copy(material.color); // O el color base
-        }
-        // Asegurarse de que el espacio de color es correcto también en el material simple
-        if (lowQualityMaterial.map) {
-            lowQualityMaterial.map.colorSpace = THREE.SRGBColorSpace;
-        }
-        child.userData['lowQualityMaterial'] = lowQualityMaterial;
-        
-        // --- FIN DE LA LÓGICA DE OPTIMIZACIÓN ---
+                // Con AdditiveBlending, la opacidad actúa como un control de intensidad.
+                // Aumentado para mayor brillo y contraste en las nubes.
+                material.opacity = 0.9;
 
-        if (material.map) {
-            material.map.colorSpace = THREE.SRGBColorSpace;
-        }
-        if (material.emissiveMap) {
-            material.emissiveMap.colorSpace = THREE.SRGBColorSpace;
-        }
+                // Se desactiva el alphaTest para permitir bordes suaves y difuminados.
+                material.alphaTest = 0.0;
+            }
 
-        if (galaxyInfo?.emissiveColor) {
-            const celestialEmissive = new THREE.Color(sanitizeHexColor(galaxyInfo.emissiveColor));
-            material.emissive.lerp(celestialEmissive, 0.5);
-        }
-        material.emissiveIntensity = model.userData['originalEmissiveIntensity'];
+            // Lógica de emisión en cascada (luces de ciudad, brillo de API, y brillo por defecto)
+            if (material.emissiveMap) {
+                // CASO 1: El modelo tiene un mapa de emisión (luces de ciudad).
+                material.emissive.set(0xffffff); // Blanco para no alterar los colores del mapa.
+                material.emissiveIntensity = model.userData['farProximityIntensity'];
 
-        child.layers.enable(BLOOM_LAYER);
-        material.needsUpdate = true;
-      }
+            } else if (galaxyInfo?.emissiveColor) {
+                // CASO 2: No hay mapa, pero la API provee un color de emisión.
+                const celestialEmissive = new THREE.Color(sanitizeHexColor(galaxyInfo.emissiveColor));
+                material.emissive.copy(celestialEmissive);
+                material.emissiveIntensity = model.userData['farProximityIntensity'];
+
+            } else {
+                // CASO 3: Brillo por defecto para que no se vea oscuro.
+                if (material.transparent) {
+                    // Para nubes o atmósferas, un brillo blanco base mejora el efecto de bloom.
+                    material.emissive.set(0xffffff);
+                    material.emissiveIntensity = 0.4; // Intensidad moderada para un brillo notable.
+                } else {
+                    // Para superficies sólidas, un ligero brillo del propio color evita negros absolutos.
+                    if (material.color) {
+                        material.emissive.copy(material.color);
+                    }
+                    material.emissiveIntensity = 0.05; // Intensidad muy baja, solo para "levantar" las sombras.
+                }
+            }
+
+            // Habilitar el objeto para el efecto de post-procesado (bloom).
+            child.layers.enable(BLOOM_LAYER);
+            material.needsUpdate = true;
+        }
     });
   }
   

@@ -408,7 +408,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     const slider = event.target as HTMLInputElement;
     const rawValue = parseFloat(slider.value);
     this.cameraTravelSpeedMultiplier = rawValue;
-    this.engineService.setTravelSpeedMultiplier(Math.pow(rawValue, 2));
+    this.engineService.setTravelSpeedMultiplier(Math.pow(rawValue,6));
   }
 
   public onGroupBrightnessChange(group: EntityGroup, event: Event): void { const slider = event.target as HTMLInputElement; const brightness = parseFloat(slider.value); this.groupBrightnessState.set(group.type, brightness); this.brightnessUpdate$.next({ groupType: group.type, brightness }); }
