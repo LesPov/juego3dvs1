@@ -67,6 +67,10 @@ Desde esta sección, los administradores pueden ver la lista de episodios existe
 https://github.com/user-attachments/assets/dd958bd4-f4ea-466f-a740-e8120a1686ee
 
 
+
+https://github.com/user-attachments/assets/feac0a31-3a7b-4a2d-b5fb-918fdf958617
+
+
 El corazón de la aplicación. Aquí es donde los administradores dan vida a sus mundos. La interfaz incluye:
 *   **Visor de Escena:** Una vista en tiempo real del mundo 3D.
 *   **Panel de Propiedades:** Para ajustar detalles de objetos, materiales y metadatos.
