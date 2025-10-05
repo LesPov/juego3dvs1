@@ -40,27 +40,32 @@ Juego 3D V1 es una plataforma que combina un sistema de gestión de contenido co
 ## Vistas Clave de la Aplicación
 
 ### Autenticación (Login)
+<img width="745" height="768" alt="msedge_U8MkmbQYuu" src="https://github.com/user-attachments/assets/9e5952f7-6710-44a6-9e60-09da78500cff" />
 
 La puerta de entrada a la aplicación. Los usuarios y administradores acceden a sus respectivas áreas a través de esta interfaz.
 
 <!-- Placeholder para la imagen de la pantalla de login -->
-![Pantalla de Login](https://via.placeholder.com/600x400.png?text=Pantalla+de+Login)
 
 ### Dashboard del Administrador
+<img width="1912" height="924" alt="msedge_PEQ38Y53uk" src="https://github.com/user-attachments/assets/70c1f083-96b9-4f06-9588-b1bbe60a1146" />
 
 Una vez que un administrador inicia sesión, es recibido por un dashboard que le da acceso rápido a las principales herramientas de gestión.
 
 <!-- Placeholder para la imagen del Dashboard del Administrador -->
-![Dashboard del Administrador](https://via.placeholder.com/600x400.png?text=Dashboard+del+Administrador)
 
 ### Gestión de Episodios
+<img width="1912" height="924" alt="msedge_YSEz7pRk4Q" src="https://github.com/user-attachments/assets/d6cd4764-9fed-4b24-b682-1b5ecc519a95" />
 
 Desde esta sección, los administradores pueden ver la lista de episodios existentes, crear nuevos y editar sus detalles.
 
 <!-- Placeholder para la imagen de la Gestión de Episodios -->
-![Gestión de Episodios](https://via.placeholder.com/600x400.png?text=Gestión+de+Episodios)
 
 ### Editor de Mundos (Escena 3D)
+<img width="1912" height="924" alt="msedge_6jJCcwrybj" src="https://github.com/user-attachments/assets/8f530d9e-365d-4ea3-95f5-754b4363d234" />
+
+
+https://github.com/user-attachments/assets/dd958bd4-f4ea-466f-a740-e8120a1686ee
+
 
 El corazón de la aplicación. Aquí es donde los administradores dan vida a sus mundos. La interfaz incluye:
 *   **Visor de Escena:** Una vista en tiempo real del mundo 3D.
