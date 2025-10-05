@@ -3,7 +3,8 @@
 ¡Bienvenido al repositorio oficial de Juego 3D V1! Este proyecto es una aplicación web interactiva desarrollada con Angular que permite a los administradores crear y gestionar mundos 3D y episodios de juego, y a los usuarios explorar e interactuar con ellos.
 
 <!-- Placeholder para una imagen o banner del proyecto -->
-![Banner del Proyecto](https://via.placeholder.com/800x200.png?text=Banner+del+Proyecto)
+
+<img width="673" height="376" alt="msedge_FSPiLKiZzw" src="https://github.com/user-attachments/assets/85a655ac-7bbb-4839-9f8f-33bdba1d8204" />
 
 ## Tabla de Contenidos
 
