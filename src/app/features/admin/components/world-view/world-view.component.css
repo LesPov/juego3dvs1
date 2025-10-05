@@ -1207,3 +1207,66 @@ app-brujula {
   transition: box-shadow 0.3s ease-in-out;
   border-radius: 8px; /* Coincide con el radio de los paneles */
 }
+/* ========================================================= */
+/* === ✨ ESTILOS PARA LA FICHA DE METADATOS WMTS ✨ === */
+/* ========================================================= */
+.wmts-metadata-container {
+  padding: 5px 15px;
+  height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.metadata-title {
+  color: var(--c-accent-highlight);
+  font-size: 15px;
+  margin: 0 0 4px 0;
+  border-bottom: 1px solid var(--c-border-dark);
+  padding-bottom: 4px;
+  font-weight: 600;
+}
+
+.metadata-abstract {
+  font-size: 12px;
+  color: var(--c-text-secondary);
+  margin: 5px 0 10px 0;
+  line-height: 1.4;
+  font-style: italic;
+}
+
+.metadata-details-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 13px;
+}
+
+.metadata-details-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--c-border-dark);
+}
+
+.metadata-details-list li:last-child {
+  border-bottom: none;
+}
+
+.metadata-key {
+  color: var(--c-text-secondary);
+  margin-right: 15px;
+}
+
+.metadata-value {
+  color: var(--c-text-primary);
+  font-weight: 500;
+  text-align: right;
+}
+
+.code-font {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+  background-color: var(--c-bg-deep);
+  padding: 2px 4px;
+  border-radius: 3px;
+}

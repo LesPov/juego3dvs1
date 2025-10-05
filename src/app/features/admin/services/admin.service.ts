@@ -39,10 +39,10 @@ export interface AssetResponse {
 
 export type SceneObjectStatus = 'active' | 'inactive' | 'destroyed';
 
-export type SceneObjectType = 
-  | 'model' | 'cube' | 'sphere' | 'floor' | 'video' | 'sound' | 'camera' 
+export type SceneObjectType =
+  | 'model' | 'cube' | 'sphere' | 'floor' | 'video' | 'sound' | 'camera'
   | 'ambientLight' | 'directionalLight' | 'pointLight' | 'cone' | 'torus'
-  | 'galaxy_normal' | 'galaxy_bright' | 'galaxy_medium'| 'galaxy_far';
+  | 'galaxy_normal' | 'galaxy_bright' | 'galaxy_medium' | 'galaxy_far';
 
 export interface GalaxyDataResponse {
   id: number;
@@ -64,7 +64,10 @@ export interface SceneObjectResponse {
   position: { x: number; y: number; z: number };
   rotation: { x: number; y: number; z: number };
   scale: { x: number; y: number; z: number };
-  properties: { [key: string]: any } | null;
+  properties: {
+    description?: string;
+    [key: string]: any
+  } | null;
   assetId?: number | null;
   // 🔧 MODIFICADO: Usa la nueva interfaz AssetResponse.
   asset?: AssetResponse | null;
@@ -87,21 +90,21 @@ export interface EpisodeResponse {
 }
 
 export interface PaginatedEpisodeResponse {
-    episode: EpisodeResponse;
-    sceneObjects: SceneObjectResponse[];
-    pagination: any;
+  episode: EpisodeResponse;
+  sceneObjects: SceneObjectResponse[];
+  pagination: any;
 }
 
 export interface CreateEpisodeResponse {
-    message: string;
-    episode: EpisodeResponse;
+  message: string;
+  episode: EpisodeResponse;
 }
 
 export interface CreateEpisodePayload {
-    title: string;
-    description?: string;
-    analysisType: AnalysisType;
-    thumbnail: File;
+  title: string;
+  description?: string;
+  analysisType: AnalysisType;
+  thumbnail: File;
 }
 
 @Injectable({ providedIn: 'root' })

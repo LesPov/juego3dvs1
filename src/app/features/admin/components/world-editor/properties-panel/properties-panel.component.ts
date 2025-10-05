@@ -1,4 +1,5 @@
 // src/app/features/admin/views/world-editor/properties-panel/properties-panel.component.ts
+
 import { Component, Input, Output, EventEmitter, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -12,6 +13,13 @@ export interface NameUpdate {
   path: 'name';
   value: string;
 }
+
+// ✨ NUEVA INTERFAZ: Exportada para ser usada por el componente padre.
+export interface DescriptionUpdate {
+  path: 'properties.description';
+  value: string;
+}
+
 export type PropertyUpdate = TransformUpdate | NameUpdate;
 
 @Component({

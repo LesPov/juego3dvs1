@@ -1,3 +1,5 @@
+<!-- src/app/features/admin/views/world-view/world-view.component.html -->
+
 <!-- ✨ COMPONENTE DEL TOUR ✨ -->
 <app-tour-guide></app-tour-guide>
 
@@ -14,6 +16,7 @@
 </div>
 <app-add-object-modal *ngIf="isAddObjectModalVisible" (close)="closeAddObjectModal()"
   (create)="createSceneObject($event)"></app-add-object-modal>
+  
 <!-- CONTENEDOR PRINCIPAL -->
 <div *ngIf="!isLoadingData && !errorMessage && episodeId" class="editor-layout"
   [class.scene-list-hidden]="!layoutState.sceneListVisible" [class.properties-hidden]="!layoutState.propertiesVisible"
@@ -27,14 +30,12 @@
   <!-- HEADER -->
   <header class="panel p-header" id="tour-target-header">
     <div class="episode-title">Editor - {{ episodeTitle }}</div>
-    <!-- ✨ BOTÓN PARA INICIAR EL TOUR ✨ -->
     <button class="tour-start-button" (click)="startTour()" title="Iniciar Guía Interactiva">?</button>
   </header>
 
   <!-- VIEWPORT 3D -->
   <main class="panel p-viewport" id="tour-target-viewport">
     <div class="scene-container-header">
-      <!-- ✨ ID AÑADIDO PARA EL TOUR ✨ -->
       <div class="scene-tabs-container" id="tour-target-scene-tabs">
         <button *ngFor="let scene of sceneTabs" class="scene-tab-button" [class.active]="scene.isActive"
           (click)="selectScene(scene.id)"><span>{{ scene.name }}</span></button>
@@ -46,24 +47,15 @@
       <div *ngIf="isRenderingScene" class="scene-loader-overlay">
         <div class="preloader-content">
           <h1>Cargando Escena...</h1>
-          <div class="progress-bar-container">
-            <div class="progress-bar" [style.width.%]="loadingProgress"></div>
-          </div>
+          <div class="progress-bar-container"><div class="progress-bar" [style.width.%]="loadingProgress"></div></div>
           <p class="progress-text">{{ loadingProgress | number:'1.0-0' }}%</p>
         </div>
       </div>
       <div *ngIf="(axisLock$ | async) as lockedAxis" class="axis-lock-indicator" [ngClass]="'lock-' + lockedAxis">
         Moviendo en Eje: <b>{{ lockedAxis | uppercase }}</b></div>
-      <div class="camera-position-display" *ngIf="engineService.cameraPosition$ | async as pos"><b>Posición
-          Cámara:</b><br>X: {{ pos.x | number:'1.2-2' }}<br>Y: {{ pos.y | number:'1.2-2' }}<br>Z: {{ pos.z |
-        number:'1.2-2' }}</div>
-      <div *ngIf="isFlyModeActive$ | async" class="fly-mode-crosshair">
-        <div class="crosshair-line horizontal"></div>
-        <div class="crosshair-line vertical"></div>
-      </div>
-      <app-scene [initialObjects]="sceneObjects" (loadingProgress)="handleLoadingProgress($event)"
-        (loadingComplete)="handleSceneAssetsLoaded()"
-        [style.visibility]="isRenderingScene ? 'hidden' : 'visible'"></app-scene>
+      <div class="camera-position-display" *ngIf="engineService.cameraPosition$ | async as pos"><b>Posición Cámara:</b><br>X: {{ pos.x | number:'1.2-2' }}<br>Y: {{ pos.y | number:'1.2-2' }}<br>Z: {{ pos.z | number:'1.2-2' }}</div>
+      <div *ngIf="isFlyModeActive$ | async" class="fly-mode-crosshair"><div class="crosshair-line horizontal"></div><div class="crosshair-line vertical"></div></div>
+      <app-scene [initialObjects]="sceneObjects" (loadingProgress)="handleLoadingProgress($event)" (loadingComplete)="handleSceneAssetsLoaded()" [style.visibility]="isRenderingScene ? 'hidden' : 'visible'"></app-scene>
       <app-brujula></app-brujula>
     </div>
 
@@ -73,11 +65,7 @@
         <button class="focus-button" (click)="onFocusObject()">Acercarse</button>
         <div class="toolbar-speed-control">
           <label for="speed-slider">Velocidad: x{{ (cameraTravelSpeedMultiplier * cameraTravelSpeedMultiplier) | number:'1.0-1' }}</label>
-          <input id="speed-slider" type="range" class="speed-slider"
-                 min="0.1" max="10" step="0.1"
-                 [value]="cameraTravelSpeedMultiplier"
-                 (input)="onTravelSpeedChange($event)"
-                 title="Ajustar velocidad de viaje">
+          <input id="speed-slider" type="range" class="speed-slider" min="0.1" max="10" step="0.1" [value]="cameraTravelSpeedMultiplier" (input)="onTravelSpeedChange($event)" title="Ajustar velocidad de viaje">
         </div>
       </div>
       <div class="toolbar-section">Sección 2</div>
@@ -90,25 +78,20 @@
   <div class="panel p-scene-list" id="tour-target-scene-list">
     <div class="panel-header">
       <span class="panel-title">{{ selectedEntityUuid ? 'Objeto Seleccionado' : 'Lista de Objetos' }}</span>
-      <button class="panel-toggle-icon" (click)="togglePanel('sceneListVisible')"
-        title="Ocultar/Mostrar Panel"><span></span></button>
+      <button class="panel-toggle-icon" (click)="togglePanel('sceneListVisible')" title="Ocultar/Mostrar Panel"><span></span></button>
     </div>
     <div class="search-bar-container" *ngIf="!selectedEntityUuid">
-      <input type="text" class="search-input" placeholder=" Buscar por nombre..." [ngModel]="searchFilter"
-        (ngModelChange)="onSearchChange($event)">
+      <input type="text" class="search-input" placeholder=" Buscar por nombre..." [ngModel]="searchFilter" (ngModelChange)="onSearchChange($event)">
     </div>
     <div class="panel-content scrollable" cdkDropListGroup>
       <ng-container *ngIf="displayGroups$ | async as groups">
         <div *ngIf="groups.length > 0; else noResults">
           <div *ngFor="let group of groups; trackBy: trackByGroupType" class="object-group">
-            <div class="group-header" (click)="!selectedEntityUuid && toggleGroup(group)"
-              [class.group-hidden]="!group.isGroupVisible" [class.no-hover]="selectedEntityUuid">
+            <div class="group-header" (click)="!selectedEntityUuid && toggleGroup(group)" [class.group-hidden]="!group.isGroupVisible" [class.no-hover]="selectedEntityUuid">
               <span class="group-toggle-icon" *ngIf="!selectedEntityUuid">{{ group.isExpanded ? '▼' : '▶' }}</span>
               <span class="group-name">{{ group.type }}</span>
               <span class="group-count" *ngIf="!selectedEntityUuid">({{ group.totalCount }})</span>
-              <button *ngIf="!selectedEntityUuid" class="group-visibility-toggle"
-                (click)="toggleGroupVisibility(group, $event)"
-                [title]="group.isGroupVisible ? 'Ocultar grupo' : 'Mostrar grupo'">
+              <button *ngIf="!selectedEntityUuid" class="group-visibility-toggle" (click)="toggleGroupVisibility(group, $event)" [title]="group.isGroupVisible ? 'Ocultar grupo' : 'Mostrar grupo'">
                 <span *ngIf="group.isGroupVisible" class="icon-eye-open"></span>
                 <span *ngIf="!group.isGroupVisible" class="icon-eye-closed"></span>
               </button>
@@ -116,36 +99,25 @@
             <ng-container *ngIf="group.isExpanded">
               <div class="group-controls" *ngIf="!selectedEntityUuid">
                 <span class="brightness-icon"></span>
-                <input type="range" class="brightness-slider" min="0" max="1" step="0.01" [value]="group.brightness"
-                  (input)="onGroupBrightnessChange(group, $event)" (click)="$event.stopPropagation()">
+                <input type="range" class="brightness-slider" min="0" max="1" step="0.01" [value]="group.brightness" (input)="onGroupBrightnessChange(group, $event)" (click)="$event.stopPropagation()">
               </div>
-              <ul class="scene-object-list" cdkDropList [cdkDropListData]="group.visibleEntities"
-                (cdkDropListDropped)="onDrop($event)">
-                <li *ngFor="let e of group.visibleEntities; trackBy: trackByEntity" cdkDrag class="scene-object-item"
-                  [class.selected]="e.uuid === selectedEntityUuid" [ngClass]="getColorClassForEntity(e)"
-                  (click)="onEntitySelect(e)">
-                  <span class="object-icon">{{ e.type === 'camera' ? '📷' :
-                    e.type.includes('Light') ? '💡': (e.type === 'Model' ? '📦' : '●') }}</span>
+              <ul class="scene-object-list" cdkDropList [cdkDropListData]="group.visibleEntities" (cdkDropListDropped)="onDrop($event)">
+                <li *ngFor="let e of group.visibleEntities; trackBy: trackByEntity" cdkDrag class="scene-object-item" [class.selected]="e.uuid === selectedEntityUuid" [ngClass]="getColorClassForEntity(e)" (click)="onEntitySelect(e)">
+                  <span class="object-icon">{{ e.type === 'camera' ? '📷' : e.type.includes('Light') ? '💡': (e.type === 'Model' ? '📦' : '●') }}</span>
                   <span class="object-name">{{ e.name }}</span>
                 </li>
               </ul>
               <div class="list-loader" *ngIf="!selectedEntityUuid && group.visibleEntities.length < group.totalCount">
-                <button (click)="showMoreInGroup(group)" class="show-more-button">Cargar Más ({{
-                  group.visibleEntities.length }} / {{ group.totalCount }})</button>
+                <button (click)="showMoreInGroup(group)" class="show-more-button">Cargar Más ({{ group.visibleEntities.length }} / {{ group.totalCount }})</button>
               </div>
             </ng-container>
           </div>
         </div>
         <ng-template #noResults>
-          <div *ngIf="totalFilteredEntityCount === 0 && searchFilter" class="empty-state">No se encontraron objetos.
-          </div>
+          <div *ngIf="totalFilteredEntityCount === 0 && searchFilter" class="empty-state">No se encontraron objetos.</div>
           <div *ngIf="!searchFilter && allEntities.length === 0" class="empty-state">La escena está vacía.</div>
         </ng-template>
       </ng-container>
-      <ul class="scene-object-list" *ngIf="!searchFilter && !selectedEntityUuid">
-        <li *ngFor="let e of placeholderEntities" class="scene-object-item placeholder-item"
-          (click)="onEntitySelect(e)">{{ e.name }}</li>
-      </ul>
     </div>
   </div>
 
@@ -153,31 +125,20 @@
   <div class="panel p-properties" id="tour-target-properties">
     <div class="panel-header">
       <span class="panel-title">Propiedades</span>
-      <button class="panel-toggle-icon" (click)="togglePanel('propertiesVisible')"
-        title="Ocultar/Mostrar Panel"><span></span></button>
+      <button class="panel-toggle-icon" (click)="togglePanel('propertiesVisible')" title="Ocultar/Mostrar Panel"><span></span></button>
     </div>
     <div class="bottom-tabs-header">
-      <button class="bottom-tab-button" [class.active]="activePropertiesTab==='object'"
-        (click)="selectPropertiesTab('object')" [disabled]="!selectedObject">Transformación</button>
-      <button class="bottom-tab-button" [class.active]="activePropertiesTab==='scene'"
-        (click)="selectPropertiesTab('scene')">Render</button>
-      <button class="bottom-tab-button" [class.active]="activePropertiesTab==='world'"
-        (click)="selectPropertiesTab('world')">Ajustes</button>
+      <button class="bottom-tab-button" [class.active]="activePropertiesTab==='object'" (click)="selectPropertiesTab('object')" [disabled]="!selectedObject">Transformación</button>
+      <button class="bottom-tab-button" [class.active]="activePropertiesTab==='scene'" (click)="selectPropertiesTab('scene')">Render</button>
+      <button class="bottom-tab-button" [class.active]="activePropertiesTab==='world'" (click)="selectPropertiesTab('world')">Ajustes</button>
     </div>
     <div class="bottom-tabs-content">
       <ng-container [ngSwitch]="activePropertiesTab">
-        <ng-container *ngSwitchCase="'object'"><app-properties-panel [selectedObject]="selectedObject"
-            (objectUpdate)="handleObjectUpdate($event)"></app-properties-panel>
-          <div *ngIf="!selectedObject" class="placeholder-panel">
-            <h2>Propiedades</h2>
-            <p>Selecciona un objeto.</p>
-          </div>
+        <ng-container *ngSwitchCase="'object'"><app-properties-panel [selectedObject]="selectedObject" (objectUpdate)="handleObjectUpdate($event)"></app-properties-panel>
+          <div *ngIf="!selectedObject" class="placeholder-panel"><h2>Propiedades</h2><p>Selecciona un objeto.</p></div>
         </ng-container>
         <ng-container *ngSwitchCase="'scene'"><app-scene-settings-panel></app-scene-settings-panel></ng-container>
-        <div *ngSwitchDefault class="placeholder-panel">
-          <h2>{{ activePropertiesTab | titlecase }}</h2>
-          <p>Contenido de la pestaña.</p>
-        </div>
+        <div *ngSwitchDefault class="placeholder-panel"><h2>{{ activePropertiesTab | titlecase }}</h2><p>Contenido de la pestaña.</p></div>
       </ng-container>
     </div>
   </div>
@@ -186,80 +147,80 @@
   <div class="panel p-episode-image" id="tour-target-image">
     <div class="panel-header">
       <span class="panel-title">Imagen del Episodio</span>
-      <button class="panel-toggle-icon" (click)="togglePanel('imageVisible')"
-        title="Ocultar/Mostrar Panel"><span></span></button>
+      <button class="panel-toggle-icon" (click)="togglePanel('imageVisible')" title="Ocultar/Mostrar Panel"><span></span></button>
     </div>
     <div class="panel-content image-panel-content">
       <ng-container *ngIf="episodeThumbnailUrl; else noImagePlaceholder">
         <div class="thumbnail-container" [class.loaded]="isThumbnailLoaded" (click)="openImageModal()">
           <img [src]="episodeThumbnailUrl" [alt]="'Miniatura de ' + episodeTitle" class="episode-thumbnail">
-          <div class="thumbnail-overlay">
-            <span class="thumbnail-zoom-icon"></span>
-          </div>
+          <div class="thumbnail-overlay"><span class="thumbnail-zoom-icon"></span></div>
         </div>
       </ng-container>
-      <ng-template #noImagePlaceholder>
-        <div class="placeholder-panel">
-          <p>No hay imagen asignada.</p>
-        </div>
-      </ng-template>
+      <ng-template #noImagePlaceholder><div class="placeholder-panel"><p>No hay imagen asignada.</p></div></ng-template>
     </div>
   </div>
 
   <!-- PANEL ASSETS -->
   <div class="panel p-episode-assets" id="tour-target-assets">
-    <div class="panel-header">
-      <span class="panel-title">Assets del Episodio</span>
-      <button class="panel-toggle-icon" (click)="togglePanel('assetsVisible')"
-        title="Ocultar/Mostrar Panel"><span></span></button>
-    </div>
-    <div class="panel-content">
-      <div class="placeholder-panel">
-        <p>Lista de assets disponibles.</p>
-      </div>
-    </div>
+    <div class="panel-header"><span class="panel-title">Assets del Episodio</span><button class="panel-toggle-icon" (click)="togglePanel('assetsVisible')" title="Ocultar/Mostrar Panel"><span></span></button></div>
+    <div class="panel-content"><div class="placeholder-panel"><p>Lista de assets disponibles.</p></div></div>
   </div>
   <!-- PANEL RENDIMIENTO -->
   <div class="panel p-performance" id="tour-target-performance">
-    <div class="panel-header">
-      <span class="panel-title">Rendimiento</span>
-      <button class="panel-toggle-icon" (click)="togglePanel('performanceVisible')" title="Ocultar/Mostrar Panel"><span></span></button>
-    </div>
-    <div class="panel-content">
-      <!-- ✅ CONTENEDOR PARA STATS.JS -->
-      <div id="stats-container" class="stats-container"></div>
-    </div>
+    <div class="panel-header"><span class="panel-title">Rendimiento</span><button class="panel-toggle-icon" (click)="togglePanel('performanceVisible')" title="Ocultar/Mostrar Panel"><span></span></button></div>
+    <div class="panel-content"><div id="stats-container" class="stats-container"></div></div>
   </div>
 
-  <!-- PANEL DESCRIPCIÓN -->
-  <div class="panel p-description" id="tour-target-description">
-    <div class="panel-header">
-      <span class="panel-title">Descripción del Objeto</span>
-      <button class="panel-toggle-icon" (click)="togglePanel('descriptionVisible')"
-        title="Ocultar/Mostrar Panel"><span></span></button>
-    </div>
-    <div class="panel-content">
-      <div *ngIf="selectedObject; else noObjectSelectedForDescription" class="description-editor"><textarea
-          placeholder="Añade una descripción para {{selectedObject.name}}..."></textarea></div>
-      <ng-template #noObjectSelectedForDescription>
-        <div class="placeholder-panel">
-          <p>Selecciona un objeto para ver o editar su descripción.</p>
+ <!-- PANEL DE INFORMACIÓN / DESCRIPCIÓN (MEJORADO) -->
+<div class="panel p-description" id="tour-target-description">
+  <div class="panel-header">
+    <span class="panel-title">Información del Objeto</span>
+    <button class="panel-toggle-icon" (click)="togglePanel('descriptionVisible')" title="Ocultar/Mostrar Panel"><span></span></button>
+  </div>
+  <div class="panel-content">
+    
+    <ng-container *ngIf="selectedObject; else noObjectSelectedForDescription">
+      
+      <!-- ✨ VISTA PARA OBJETOS WMTS ✨ -->
+      <ng-container *ngIf="selectedObject.asset?.sourceType === 'REMOTE_WMTS' && selectedObject.asset?.metadata as metadata">
+        <div class="wmts-metadata-container">
+          <h3 class="metadata-title">{{ metadata.title }}</h3>
+          <p class="metadata-abstract">{{ metadata.abstract }}</p>
+          <ul class="metadata-details-list">
+            <li><span class="metadata-key">ID de Capa</span><span class="metadata-value">{{ metadata.layerId }}</span></li>
+            <li><span class="metadata-key">Proyección</span><span class="metadata-value">{{ metadata.projection }}</span></li>
+            <li><span class="metadata-key">BBox</span><span class="metadata-value code-font">{{ metadata.bbox }}</span></li>
+            <li><span class="metadata-key">Tile Matrix Set</span><span class="metadata-value code-font">{{ metadata.tileMatrixSet }}</span></li>
+          </ul>
         </div>
-      </ng-template>
-    </div>
-  </div>
+      </ng-container>
 
-  <button class="panel-toggle-tab toggle-scene-list" *ngIf="!layoutState.sceneListVisible"
-    (click)="togglePanel('sceneListVisible')"><span>&#9654;</span></button>
-  <button class="panel-toggle-tab toggle-properties" *ngIf="!layoutState.propertiesVisible"
-    (click)="togglePanel('propertiesVisible')"><span>&#9654;</span></button>
-  <button class="panel-toggle-tab toggle-image" *ngIf="!layoutState.imageVisible"
-    (click)="togglePanel('imageVisible')"><span>&#9664;</span></button>
-  <button class="panel-toggle-tab toggle-assets" *ngIf="!layoutState.assetsVisible"
-    (click)="togglePanel('assetsVisible')"><span>&#9664;</span></button>
-  <button class="panel-toggle-tab toggle-performance" *ngIf="!layoutState.performanceVisible"
-    (click)="togglePanel('performanceVisible')"><span>&#9664;</span></button>
-  <button class="panel-toggle-tab toggle-description" *ngIf="!layoutState.descriptionVisible"
-    (click)="togglePanel('descriptionVisible')"><span>&#9650;</span></button>
+      <!-- ✨ VISTA PARA OBJETOS NORMALES (CON DESCRIPCIÓN EDITABLE) ✨ -->
+      <ng-container *ngIf="selectedObject.asset?.sourceType !== 'REMOTE_WMTS'">
+        <div class="description-editor">
+          <textarea 
+            placeholder="Añade una descripción o notas para '{{selectedObject.name}}'..."
+            [(ngModel)]="editableDescription"
+            (blur)="onDescriptionChange()">
+          </textarea>
+        </div>
+      </ng-container>
+
+    </ng-container>
+
+    <!-- VISTA POR DEFECTO -->
+    <ng-template #noObjectSelectedForDescription>
+      <div class="placeholder-panel"><p>Selecciona un objeto para ver su información.</p></div>
+    </ng-template>
+  </div>
+</div>
+
+  <!-- BOTONES DE PANELES OCULTOS -->
+  <button class="panel-toggle-tab toggle-scene-list" *ngIf="!layoutState.sceneListVisible" (click)="togglePanel('sceneListVisible')"><span>&#9654;</span></button>
+  <button class="panel-toggle-tab toggle-properties" *ngIf="!layoutState.propertiesVisible" (click)="togglePanel('propertiesVisible')"><span>&#9654;</span></button>
+  <button class="panel-toggle-tab toggle-image" *ngIf="!layoutState.imageVisible" (click)="togglePanel('imageVisible')"><span>&#9664;</span></button>
+  <button class="panel-toggle-tab toggle-assets" *ngIf="!layoutState.assetsVisible" (click)="togglePanel('assetsVisible')"><span>&#9664;</span></button>
+  <button class="panel-toggle-tab toggle-performance" *ngIf="!layoutState.performanceVisible" (click)="togglePanel('performanceVisible')"><span>&#9664;</span></button>
+  <button class="panel-toggle-tab toggle-description" *ngIf="!layoutState.descriptionVisible" (click)="togglePanel('descriptionVisible')"><span>&#9650;</span></button>
 </div>
 <div *ngIf="errorMessage" class="error-state">{{ errorMessage }}</div>
