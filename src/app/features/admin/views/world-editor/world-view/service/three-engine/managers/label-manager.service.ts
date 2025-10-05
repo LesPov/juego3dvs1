@@ -16,21 +16,21 @@ const LABEL_PADDING = 12;
 
 // --- 1. Para OBJETOS CON MODELO 3D (GLTF: Naves, estaciones, etc.) ---
 // Una escala grande relativa al tamaño del modelo para que sea legible.
-const MODEL_LABEL_SCALE_FACTOR = 1.0;
+const MODEL_LABEL_SCALE_FACTOR = 100.0;
 // Un desplazamiento Y sutil para que la etiqueta flote justo encima del modelo.
-const MODEL_LABEL_Y_OFFSET_MULTIPLIER = 2.0;
+const MODEL_LABEL_Y_OFFSET_MULTIPLIER = 1.2;
 
 // --- 2. Para CUERPOS CELESTIALES GRANDES (Planetas WMTS, esferas primitivas) ---
 // Un factor de escala pequeño, ya que el radio base del objeto ya es enorme.
 const LARGE_BODY_LABEL_SCALE_FACTOR = 0.8;
 // Un desplazamiento Y justo por encima de la "superficie" del planeta.
-const LARGE_BODY_LABEL_Y_OFFSET_MULTIPLIER = 2.0;
+const LARGE_BODY_LABEL_Y_OFFSET_MULTIPLIER = 1.1;
 
 // --- 3. Para OBJETOS PEQUEÑOS/LEJANOS (Instanciados: estrellas, galaxias) ---
 // Una escala base más grande para que sean visibles a distancia.
-const DEFAULT_LABEL_SCALE_FACTOR = 10;
+const DEFAULT_LABEL_SCALE_FACTOR = 8.5;
 // Un desplazamiento Y mayor para que la etiqueta salga del "glow" del objeto.
-const DEFAULT_LABEL_Y_OFFSET_MULTIPLIER = 20;
+const DEFAULT_LABEL_Y_OFFSET_MULTIPLIER = 8.0;
 
 
 /**

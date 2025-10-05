@@ -35,7 +35,10 @@ const FADE_OUT_SPEED = 7.0;
 const VISIBILITY_HYSTERESIS_FACTOR = 15.05;
 const FOG_START_DISTANCE_MULTIPLIER = 0.01;
 const FOG_DENSITY = 0.95;
-const DEEP_SPACE_SCALE_BOOST = 50.0;
+// ====================================================================
+// ✨ MEJORA: Exportamos la constante para que otros servicios la usen.
+// ====================================================================
+export const DEEP_SPACE_SCALE_BOOST = 50.0;
 const ORTHO_ZOOM_VISIBILITY_MULTIPLIER = 5.0;
 const ORTHO_ZOOM_BLOOM_DAMPENING_FACTOR = 12.0;
 const MAX_INTENSITY = 8.0;
@@ -130,9 +133,6 @@ export class EngineService implements OnDestroy {
     this.entityManager.init(this.sceneManager.scene);
     this.labelManager.init(this.sceneManager.scene);
 
-    // =========================================================
-    // ===       ✨ CORRECCIÓN DEL ERROR DE COMPILACIÓN ✨      ===
-    // =========================================================
     this.statsManager.init('stats-container');
 
     this.controlsManager.init(this.sceneManager.editorCamera, canvas, this.sceneManager.scene, this.focusPivot);
@@ -165,8 +165,6 @@ export class EngineService implements OnDestroy {
     this.controlsManager.enableNavigation();
     this.animate();
   }
-
-    // ... (El resto del archivo `engine.service.ts` no tiene más cambios) ...
     
   private animate = () => {
     this.animationFrameId = requestAnimationFrame(this.animate);
