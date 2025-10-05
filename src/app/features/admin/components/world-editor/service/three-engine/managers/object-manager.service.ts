@@ -4,6 +4,7 @@ import { GLTFLoader, GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { environment } from '../../../../../../../../environments/environment';
 import { SceneObjectResponse, AssetResponse } from '../../../../../services/admin.service';
 import { LabelManagerService } from './label-manager.service';
+import { SimplifyModifier } from 'three/examples/jsm/modifiers/SimplifyModifier.js';
 
 /**
  * @constant BLOOM_LAYER
@@ -57,35 +58,29 @@ export class ObjectManagerService {
   private textureLoader = new THREE.TextureLoader();
   private textureCache = new Map<string, THREE.Texture>();
   private wmtsTextureCache = new Map<string, Promise<THREE.Texture>>();
+  private simplifyModifier = new SimplifyModifier();
 
   private glowTexture: THREE.CanvasTexture | null = null;
   private sharedPlaneGeometry = new THREE.PlaneGeometry(1, 1);
   private sharedCircleGeometry = new THREE.CircleGeometry(12.0, 32);
-
-  private tempBox = new THREE.Box3();
-  private tempSize = new THREE.Vector3();
-  private tempCenter = new THREE.Vector3();
 
   constructor(private labelManager: LabelManagerService) { }
 
   public createObjectFromData(scene: THREE.Scene, objData: SceneObjectResponse, loader: GLTFLoader): THREE.Object3D | null {
     let createdObject: THREE.Object3D | null = null;
     
-    // La regla de oro: si tiene un asset WMTS, es un planeta.
     if (objData.asset && objData.asset.path.includes('{TileMatrix}')) {
         console.log(`[ObjectManager] Detectado asset WMTS para '${objData.name}'. Creando como cuerpo planetario.`);
         this._createWmtsCelestialBody(scene, objData);
-        return null; // El objeto se añade a la escena internamente.
+        return null;
     }
 
-    // Si tiene un asset de modelo 3D.
     if (objData.asset?.type === 'model_glb') {
-        console.log(`[ObjectManager] Creando '${objData.name}' como modelo GLB.`);
+        console.log(`[ObjectManager] 📦 Creando '${objData.name}' como modelo GLB optimizado.`);
         this.loadGltfModel(scene, objData, loader);
         return null;
     }
 
-    // Para todos los demás objetos (primitivas estándar, luces, etc.).
     switch (objData.type) {
       case 'cube': case 'sphere': case 'cone': case 'torus': case 'floor':
         createdObject = this.createStandardPrimitive(scene, objData);
@@ -97,8 +92,6 @@ export class ObjectManagerService {
         createdObject = this.createDirectionalLight(scene, objData);
         break;
       default:
-        // Si no es ninguno de los anteriores, se asume que es un billboard y se ignora aquí,
-        // ya que debería haber sido procesado por `createCelestialObjectsInstanced`.
         console.warn(`[ObjectManager] Tipo '${objData.type}' no es un objeto individual y será ignorado en este método.`);
         break;
     }
@@ -109,6 +102,7 @@ export class ObjectManagerService {
 
     return createdObject;
   }
+
   public createCelestialObjectsInstanced(scene: THREE.Scene, objectsData: SceneObjectResponse[], loader: GLTFLoader): void {
     if (!objectsData.length) return;
   
@@ -116,7 +110,6 @@ export class ObjectManagerService {
     const defaultGroup: SceneObjectResponse[] = [];
 
     for (const obj of objectsData) {
-      // Agrupamos por textura de imagen (PNG/JPG) o los ponemos en el grupo por defecto.
       const assetPath = (obj.asset?.type === 'texture_png' || obj.asset?.type === 'texture_jpg') 
         ? obj.asset.path 
         : null;
@@ -131,25 +124,21 @@ export class ObjectManagerService {
       }
     }
   
-    // Creamos un InstancedMesh para el grupo por defecto (puntos de luz)
     if (defaultGroup.length > 0) {
       this._createDefaultGlowInstancedMesh(scene, defaultGroup);
     }
 
-    // Creamos un InstancedMesh para cada grupo de texturas
     groupedByTexture.forEach((groupData, texturePath) => {
       this._createTexturedInstancedMesh(scene, groupData, texturePath);
     });
   }
+
   private _createWmtsCelestialBody(scene: THREE.Scene, objData: SceneObjectResponse): void {
     if (!objData.asset) { 
         console.error(`[ObjectManager] Objeto '${objData.name}' no tiene 'asset' y no se puede crear como cuerpo WMTS.`);
         return;
     }
 
-    // ✨ LÓGICA DE ESCALA CORREGIDA ✨
-    // Se asume que el valor de `objData.scale.x` representa directamente el RADIO deseado del planeta.
-    // Creamos la geometría con este radio y evitamos escalar un grupo padre para mayor simplicidad y robustez.
     const radius = objData.scale.x;
 
     if (radius <= 0) {
@@ -157,7 +146,6 @@ export class ObjectManagerService {
         return;
     }
 
-    // La calidad de la geometría se mantiene alta.
     const geometry = new THREE.SphereGeometry(radius, 128, 64); 
     const material = new THREE.MeshStandardMaterial({
       color: 0x888888,
@@ -168,18 +156,10 @@ export class ObjectManagerService {
       side: THREE.FrontSide,
     });
 
-    // Creamos el Mesh directamente. Ya no se necesita un grupo contenedor solo para escalar.
     const planetMesh = new THREE.Mesh(geometry, material);
     
-    // Aplicamos las transformaciones de posición y rotación. La escala ya está en la geometría.
-    planetMesh.name = objData.name;
-    planetMesh.uuid = objData.id.toString();
-    planetMesh.position.set(objData.position.x, objData.position.y, objData.position.z);
-    planetMesh.rotation.set(objData.rotation.x, objData.rotation.y, objData.rotation.z);
-    // La escala del mesh se queda en (1, 1, 1).
+    this.applyTransformations(planetMesh, objData);
     
-    planetMesh.userData['apiType'] = objData.type;
-    planetMesh.userData['properties'] = objData.properties || {};
     planetMesh.userData['isWmtsCelestialBody'] = true;
     planetMesh.userData['apiData'] = objData;
 
@@ -210,20 +190,16 @@ export class ObjectManagerService {
   private _loadWmtsTexture(asset: AssetResponse): Promise<THREE.Texture> {
     const cacheKey = asset.path;
     if (this.wmtsTextureCache.has(cacheKey)) {
-        console.log(`[ObjectManager] Reutilizando textura WMTS desde caché para: ${cacheKey}`);
         return this.wmtsTextureCache.get(cacheKey)!;
     }
 
     const texturePromise = new Promise<THREE.Texture>(async (resolve, reject) => {
       try {
         const templateUrl = asset.path;
-        // Aumentamos el nivel de zoom para obtener texturas de mayor resolución y calidad.
-        const zoomLevel = 2; // Nivel 2 (8x4 = 32 tiles) para máxima compatibilidad y rendimiento.
+        const zoomLevel = 2;
         const numCols = Math.pow(2, zoomLevel + 1);
         const numRows = Math.pow(2, zoomLevel);
         
-        console.log(`[ObjectManager] Descargando ${numCols * numRows} mosaicos para el nivel de zoom ${zoomLevel}...`);
-
         const tileUrls: { url: string, row: number, col: number }[] = [];
         for (let row = 0; row < numRows; row++) {
             for (let col = 0; col < numCols; col++) {
@@ -249,7 +225,6 @@ export class ObjectManagerService {
         const ctx = canvas.getContext('2d');
         if (!ctx) return reject(new Error("No se pudo obtener el contexto 2D del canvas."));
         
-        console.log(`[ObjectManager] Ensamblando textura final de ${totalWidth}x${totalHeight}px...`);
         loadedTiles.forEach(tile => {
             ctx.drawImage(tile.img, tile.col * tileWidth, tile.row * tileHeight);
         });
@@ -258,15 +233,10 @@ export class ObjectManagerService {
         texture.colorSpace = THREE.SRGBColorSpace;
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.ClampToEdgeWrapping;
-
-        // Habilitamos mipmaps y filtro anisotrópico para una calidad de textura superior.
         texture.generateMipmaps = true;
         texture.minFilter = THREE.LinearMipmapLinearFilter;
         texture.magFilter = THREE.LinearFilter;
-        // Un valor de anisotropía mayor mejora la claridad de la textura en ángulos de visión oblicuos.
-        // No podemos acceder al renderer aquí, pero 16 es un valor seguro y de alta calidad.
         texture.anisotropy = 16;
-        
         texture.needsUpdate = true;
         
         resolve(texture);
@@ -289,71 +259,115 @@ export class ObjectManagerService {
     });
   }
   
+  // ✨ ======================================================================= ✨
+  // ✨ =========== LÓGICA MEJORADA PARA CARGAR MODELOS GLB =========== ✨
+  // ✨ ======================================================================= ✨
+  
   private loadGltfModel(scene: THREE.Scene, objData: SceneObjectResponse, loader: GLTFLoader): void {
     if (!objData.asset?.path) {
       console.error(`[ObjectManager] '${objData.name}' es un modelo pero no tiene asset válido.`);
       return;
     };
+
     const modelUrl = `${this.backendUrl}${objData.asset.path}`;
+
     loader.load(modelUrl, (gltf) => {
-      const modelWrapper = new THREE.Group();
-      this._normalizeAndCenterModel(gltf.scene);
-      modelWrapper.add(gltf.scene);
-      this._setupCelestialModel(modelWrapper, gltf, objData);
-      this.applyTransformations(modelWrapper, objData);
-      modelWrapper.userData['isNormalizedModel'] = true;
-      this.labelManager.registerObject(modelWrapper);
-      scene.add(modelWrapper);
+      const model = gltf.scene;
+
+      this.applyTransformations(model, objData);
+      
+      this._processGltfMaterials(model, objData);
+      
+      this._setupAnimations(gltf, model);
+      this.labelManager.registerObject(model);
+      scene.add(model);
+      console.log(`[ObjectManager] ✅ Modelo GLB '${objData.name}' cargado y procesado con LODs.`);
+
+    }, undefined, (error) => {
+        console.error(`[ObjectManager] ❌ Error cargando modelo GLB '${objData.name}':`, error);
     });
   }
 
-  private _normalizeAndCenterModel(model: THREE.Object3D): void {
-    this.tempBox.setFromObject(model);
-    this.tempBox.getSize(this.tempSize);
-    this.tempBox.getCenter(this.tempCenter);
-    const maxDimension = Math.max(this.tempSize.x, this.tempSize.y, this.tempSize.z);
-    const scaleFactor = maxDimension > 0 ? (1.0 / maxDimension) : 1.0;
-    model.position.sub(this.tempCenter);
-    model.scale.set(scaleFactor, scaleFactor, scaleFactor);
-  }
-
-  private _setupCelestialModel(modelWrapper: THREE.Group, gltf: GLTF, objData: SceneObjectResponse): void {
+  /**
+   * Procesa los materiales de un modelo GLTF, creando versiones de baja calidad
+   * para optimización de rendimiento en tiempo real.
+   */
+  private _processGltfMaterials(model: THREE.Object3D, objData: SceneObjectResponse): void {
     const galaxyInfo = objData.galaxyData;
-    modelWrapper.userData['isDynamicCelestialModel'] = true;
-    modelWrapper.userData['originalEmissiveIntensity'] = galaxyInfo ? THREE.MathUtils.clamp(galaxyInfo.emissiveIntensity, 1.0, 7.0) : 1.0;
-    modelWrapper.userData['baseEmissiveIntensity'] = 0.1;
-    modelWrapper.renderOrder = 2;
-    modelWrapper.traverse(child => {
-      if (child instanceof THREE.Mesh) {
-        if (child.material) {
-          const material = child.material as THREE.MeshStandardMaterial;
-          material.emissive.setHex(0x000000); material.emissiveIntensity = 0;
-          material.envMapIntensity = 0.5; material.metalness = 0.3; material.roughness = 0.7;
-          material.transparent = material.transparent || false;
-          material.depthWrite = true; material.depthTest = true; material.alphaTest = 0.0;
-          material.blending = THREE.NormalBlending; material.flatShading = true;
-          material.fog = false; material.dithering = false;
-          if (material.map) {
-            material.map.minFilter = THREE.LinearFilter; material.map.magFilter = THREE.LinearFilter;
-            material.map.generateMipmaps = false; material.map.colorSpace = THREE.SRGBColorSpace;
-            material.map.needsUpdate = true;
-          }
+    
+    model.userData['isDynamicCelestialModel'] = true;
+    model.userData['originalEmissiveIntensity'] = galaxyInfo ? THREE.MathUtils.clamp(galaxyInfo.emissiveIntensity, 1.0, 7.0) : 1.0;
+    model.userData['baseEmissiveIntensity'] = 0.1;
+
+    model.traverse(child => {
+      if (child instanceof THREE.Mesh && child.geometry) {
+        child.castShadow = false;
+        child.receiveShadow = false;
+        child.frustumCulled = true;
+        if (!child.geometry.boundingSphere) { 
+            child.geometry.computeBoundingSphere();
         }
-        if (child.geometry) { child.geometry.computeBoundingSphere(); child.geometry.computeBoundingBox(); }
-        child.layers.enable(BLOOM_LAYER); child.renderOrder = 2; child.frustumCulled = true;
-        child.castShadow = false; child.receiveShadow = false;
+
+        const material = child.material as THREE.MeshStandardMaterial;
+        if (!material || !material.isMeshStandardMaterial) {
+            return;
+        }
+
+        // --- ✨ LÓGICA DE OPTIMIZACIÓN DE GEOMETRÍA Y MATERIAL (LOD) ---
+        // Guardamos las versiones de alta calidad para poder restaurarlas después.
+        child.userData['highQualityMaterial'] = material;
+        child.userData['highQualityGeometry'] = child.geometry;
+
+        // 1. Crear Geometría de Baja Calidad
+        try {
+            const vertexCount = child.geometry.attributes.position.count;
+            // ✨ FIX: Clonar la geometría antes de simplificarla para evitar efectos secundarios sobre el modelo original.
+            const simplifiedGeom = this.simplifyModifier.modify(child.geometry.clone(), Math.floor(vertexCount * 0.3));
+            child.userData['lowQualityGeometry'] = simplifiedGeom;
+        } catch (e) {
+            console.warn(`[ObjectManager] No se pudo simplificar la geometría para ${child.name}. Usando la original como fallback.`, e);
+            child.userData['lowQualityGeometry'] = child.geometry; // Fallback
+        }
+
+        // 2. Crear Material de Baja Calidad (MeshBasicMaterial es mucho más rápido que MeshStandardMaterial)
+        const lowQualityMaterial = new THREE.MeshBasicMaterial();
+        if (material.map) {
+            lowQualityMaterial.map = material.map; // Reutilizar la textura principal
+        } else {
+            lowQualityMaterial.color.copy(material.color); // O el color base
+        }
+        // Asegurarse de que el espacio de color es correcto también en el material simple
+        if (lowQualityMaterial.map) {
+            lowQualityMaterial.map.colorSpace = THREE.SRGBColorSpace;
+        }
+        child.userData['lowQualityMaterial'] = lowQualityMaterial;
+        
+        // --- FIN DE LA LÓGICA DE OPTIMIZACIÓN ---
+
+        if (material.map) {
+            material.map.colorSpace = THREE.SRGBColorSpace;
+        }
+        if (material.emissiveMap) {
+            material.emissiveMap.colorSpace = THREE.SRGBColorSpace;
+        }
+
+        if (galaxyInfo?.emissiveColor) {
+            const celestialEmissive = new THREE.Color(sanitizeHexColor(galaxyInfo.emissiveColor));
+            material.emissive.lerp(celestialEmissive, 0.5);
+        }
+        material.emissiveIntensity = model.userData['originalEmissiveIntensity'];
+
+        child.layers.enable(BLOOM_LAYER);
+        material.needsUpdate = true;
       }
     });
-    const coreLight = modelWrapper.getObjectByName(`${objData.name}_CoreLight`);
-    if (coreLight) modelWrapper.remove(coreLight);
-    this._setupAnimations(gltf, modelWrapper);
   }
-
-  private _setupAnimations(gltf: GLTF, modelWrapper: THREE.Group): void {
+  
+  private _setupAnimations(gltf: GLTF, model: THREE.Group): void {
     if (gltf.animations?.length > 0) {
-      const mixer = new THREE.AnimationMixer(modelWrapper);
+      const mixer = new THREE.AnimationMixer(model);
       gltf.animations.forEach(clip => mixer.clipAction(clip).play());
-      modelWrapper.userData['animationMixer'] = mixer;
+      model.userData['animationMixer'] = mixer;
     }
   }
 

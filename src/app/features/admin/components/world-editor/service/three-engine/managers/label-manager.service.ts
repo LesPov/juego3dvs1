@@ -17,7 +17,7 @@ const LABEL_PADDING = 10;
 
 // --- Para OBJETOS CON MODELO 3D ---
 // Se reduce drásticamente para que la etiqueta sea pequeña y proporcional al modelo.
-const MODEL_LABEL_SCALE_FACTOR = 0.5;
+const MODEL_LABEL_SCALE_FACTOR = 110.5;
 // Se ajusta para que la etiqueta se posicione justo encima del borde del objeto.
 const MODEL_LABEL_Y_OFFSET_MULTIPLIER = 1.1;
 
@@ -25,8 +25,8 @@ const MODEL_LABEL_Y_OFFSET_MULTIPLIER = 1.1;
 // ✨ LÓGICA CORREGIDA: Se aumentan drásticamente estos valores para compensar el
 // `DEEP_SPACE_SCALE_BOOST` que agranda visualmente los objetos celestiales.
 // Esto hará que las etiquetas sean más grandes y se posicionen mucho más arriba.
-const DEFAULT_LABEL_SCALE_FACTOR = 45.0;
-const DEFAULT_LABEL_Y_OFFSET_MULTIPLIER = 200.0;
+const DEFAULT_LABEL_SCALE_FACTOR = 0.5;
+const DEFAULT_LABEL_Y_OFFSET_MULTIPLIER = 2.0;
 
 
 /**

@@ -25,7 +25,7 @@ export interface SceneEntity {
 
 // Este valor debe ser idéntico al de `engine.service.ts` para mantener la coherencia.
 // Aumenta el tamaño visual de los objetos celestiales en la escena.
-const DEEP_SPACE_SCALE_BOOST = 15.0;
+const DEEP_SPACE_SCALE_BOOST = 8.0;
 
 // Este es el ajuste crucial. Hacemos que el aro sea 2.5 veces más grande que el objeto.
 // Esto garantiza que el aro siempre se vea por fuera, rodeando la textura del objeto,
