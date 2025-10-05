@@ -1,59 +1,147 @@
-# Juego3dvs1
+# Juego 3D V1
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 19.1.7.
+¡Bienvenido al repositorio oficial de Juego 3D V1! Este proyecto es una aplicación web interactiva desarrollada con Angular que permite a los administradores crear y gestionar mundos 3D y episodios de juego, y a los usuarios explorar e interactuar con ellos.
 
-## Development server
+<!-- Placeholder para una imagen o banner del proyecto -->
+![Banner del Proyecto](https://via.placeholder.com/800x200.png?text=Banner+del+Proyecto)
 
-To start a local development server, run:
+## Tabla de Contenidos
 
-```bash
-ng serve
+1.  [Descripción General](#descripción-general)
+2.  [Características Principales](#características-principales)
+3.  [Vistas Clave de la Aplicación](#vistas-clave-de-la-aplicación)
+    *   [Autenticación (Login)](#autenticación-login)
+    *   [Dashboard del Administrador](#dashboard-del-administrador)
+    *   [Gestión de Episodios](#gestión-de-episodios)
+    *   [Editor de Mundos (Escena 3D)](#editor-de-mundos-escena-3d)
+4.  [Estructura del Proyecto](#estructura-del-proyecto)
+5.  [Tecnologías Utilizadas](#tecnologías-utilizadas)
+6.  [Comenzando](#comenzando)
+    *   [Prerrequisitos](#prerrequisitos)
+    *   [Instalación](#instalación)
+7.  [Scripts Disponibles](#scripts-disponibles)
+8.  [Contribuciones](#contribuciones)
+9.  [Licencia](#licencia)
+
+## Descripción General
+
+Juego 3D V1 es una plataforma que combina un sistema de gestión de contenido con un motor de renderizado 3D en tiempo real. Los administradores pueden iniciar sesión en un panel de control para construir mundos, definir episodios y configurar la lógica del juego. Los usuarios pueden registrarse, iniciar sesión y experimentar los mundos y episodios creados.
+
+## Características Principales
+
+*   **Autenticación de Usuarios:** Sistema seguro de registro e inicio de sesión para administradores y usuarios.
+*   **Panel de Administración:** Un dashboard completo para que los administradores gestionen todos los aspectos del juego.
+*   **Editor de Mundos 3D:** Una interfaz intuitiva para crear y editar escenas 3D, añadir objetos, configurar materiales y propiedades.
+*   **Gestión de Episodios:** Herramientas para crear, visualizar y organizar los diferentes episodios o niveles del juego.
+*   **Roles de Usuario:** Diferenciación clara entre las capacidades de un administrador y un usuario estándar.
+*   **Renderizado 3D:** Uso de Three.js para el renderizado de escenas 3D interactivas directamente en el navegador.
+
+## Vistas Clave de la Aplicación
+
+### Autenticación (Login)
+
+La puerta de entrada a la aplicación. Los usuarios y administradores acceden a sus respectivas áreas a través de esta interfaz.
+
+<!-- Placeholder para la imagen de la pantalla de login -->
+![Pantalla de Login](https://via.placeholder.com/600x400.png?text=Pantalla+de+Login)
+
+### Dashboard del Administrador
+
+Una vez que un administrador inicia sesión, es recibido por un dashboard que le da acceso rápido a las principales herramientas de gestión.
+
+<!-- Placeholder para la imagen del Dashboard del Administrador -->
+![Dashboard del Administrador](https://via.placeholder.com/600x400.png?text=Dashboard+del+Administrador)
+
+### Gestión de Episodios
+
+Desde esta sección, los administradores pueden ver la lista de episodios existentes, crear nuevos y editar sus detalles.
+
+<!-- Placeholder para la imagen de la Gestión de Episodios -->
+![Gestión de Episodios](https://via.placeholder.com/600x400.png?text=Gestión+de+Episodios)
+
+### Editor de Mundos (Escena 3D)
+
+El corazón de la aplicación. Aquí es donde los administradores dan vida a sus mundos. La interfaz incluye:
+*   **Visor de Escena:** Una vista en tiempo real del mundo 3D.
+*   **Panel de Propiedades:** Para ajustar detalles de objetos, materiales y metadatos.
+*   **Barra de Herramientas:** Acciones rápidas para añadir, eliminar y manipular objetos.
+*   **Brújula y Controles:** Para navegar fácilmente por la escena.
+
+<!-- Placeholder para la imagen del Editor de Mundos -->
+![Editor de Mundos](https.via.placeholder.com/600x400.png?text=Editor+de+Mundos+3D)
+
+## Estructura del Proyecto
+
+El código fuente está organizado de manera modular para facilitar el mantenimiento y la escalabilidad.
+
+```
+└── 📁src
+    └── 📁app
+        ├── 📁core (Guards, Interceptors)
+        ├── 📁features
+        │   ├── 📁admin (Componentes, Vistas y Servicios del Admin)
+        │   ├── 📁auth (Componentes y Servicios de Autenticación)
+        │   ├── 📁user (Componentes y Vistas para Usuarios)
+        │   └── 📁landing (Página de inicio)
+        ├── 📁shared (Componentes y Módulos compartidos)
+        └── 📁assets (Imágenes, Modelos 3D, Texturas)
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+## Tecnologías Utilizadas
 
-## Code scaffolding
+*   **Frontend:** [Angular](https://angular.io/)
+*   **Renderizado 3D:** [Three.js](https://threejs.org/)
+*   **Gestión de Estado:** [RxJS](https://rxjs.dev/)
+*   **Estilos:** CSS nativo con una estructura modular
+*   **Notificaciones:** [ngx-toastr](https://www.npmjs.com/package/ngx-toastr)
+*   **Desarrollo Móvil (Capacitor):** [Capacitor](https://capacitorjs.com/)
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+## Comenzando
 
-```bash
-ng generate component component-name
-```
+Sigue estos pasos para tener una copia del proyecto corriendo en tu máquina local.
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+### Prerrequisitos
 
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
+Asegúrate de tener instalado [Node.js](https://nodejs.org/) (que incluye npm). Se recomienda usar `pnpm` para la gestión de paquetes.
 
 ```bash
-ng build
+npm install -g pnpm
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+### Instalación
 
-## Running unit tests
+1.  Clona el repositorio:
+    ```bash
+    git clone https://github.com/tu-usuario/juego3dvs1.git
+    ```
+2.  Navega al directorio del proyecto:
+    ```bash
+    cd juego3dvs1
+    ```
+3.  Instala las dependencias:
+    ```bash
+    pnpm install
+    ```
 
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
+## Scripts Disponibles
 
-```bash
-ng test
-```
+En el directorio del proyecto, puedes ejecutar:
 
-## Running end-to-end tests
+*   `pnpm start`: Inicia el servidor de desarrollo. Navega a `http://localhost:4200/`. La aplicación se recargará automáticamente si cambias algún archivo fuente.
+*   `pnpm build`: Compila el proyecto. Los artefactos de la compilación se almacenarán en el directorio `dist/`.
+*   `pnpm test`: Ejecuta los tests unitarios a través de [Karma](https://karma-runner.github.io).
+*   `pnpm ng generate component component-name`: Genera un nuevo componente. También puedes usar `directive`, `pipe`, `service`, `class`, `guard`, `interface`, `enum` y `module`.
 
-For end-to-end (e2e) testing, run:
+## Contribuciones
 
-```bash
-ng e2e
-```
+Las contribuciones son lo que hacen que la comunidad de código abierto sea un lugar increíble para aprender, inspirar y crear. Cualquier contribución que hagas será **muy apreciada**.
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+1.  Haz un Fork del Proyecto
+2.  Crea tu Feature Branch (`git checkout -b feature/AmazingFeature`)
+3.  Commitea tus Cambios (`git commit -m 'Add some AmazingFeature'`)
+4.  Haz Push a la Branch (`git push origin feature/AmazingFeature`)
+5.  Abre un Pull Request
 
-## Additional Resources
+## Licencia
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+Distribuido bajo la Licencia MIT. Ver `LICENSE` para más información.
