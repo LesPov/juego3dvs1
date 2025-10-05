@@ -20,6 +20,7 @@ import { ToolbarComponent } from '../world-editor/toolbar/toolbar.component';
 import { EngineService } from '../world-editor/service/three-engine/core/engine.service';
 import { TourGuideComponent } from '../world-editor/tour-guide/tour-guide.component';
 import { TourService, TourStep } from '../../services/tour.service';
+import { StatsManagerService } from '../world-editor/service/three-engine/managers/stats-manager.service';
 
 export interface EntityGroup {
   type: string;
@@ -118,7 +119,9 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     private cdr: ChangeDetectorRef,
     private sceneObjectService: SceneObjectService,
     private tourService: TourService,
-    private renderer: Renderer2 // ✨ Renderer2 INYECTADO
+    private renderer: Renderer2,// ✨ Renderer2 INYECTADO
+    private statsManager: StatsManagerService // ✅ INYECTADO
+
   ) {
     this.axisLock$ = this.engineService.axisLockState$;
     this.isFlyModeActive$ = this.engineService.isFlyModeActive$;
@@ -147,7 +150,15 @@ export class WorldViewComponent implements OnInit, OnDestroy {
       })
     );
   }
-
+  ngAfterViewInit(): void {
+    // ✅ INICIALIZAMOS STATS.JS DESPUÉS DE QUE LA VISTA ESTÉ LISTA
+    // Usamos un pequeño timeout para asegurar que el *ngIf no interfiera.
+    setTimeout(() => {
+      if (!this.isLoadingData) {
+        this.statsManager.init('stats-container');
+      }
+    }, 0);
+  }
   ngOnInit(): void {
     this.engineService.setTravelSpeedMultiplier(this.cameraTravelSpeedMultiplier);
 
@@ -167,6 +178,8 @@ export class WorldViewComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.subscriptions.unsubscribe();
     this.brightnessUpdate$.complete();
+    this.statsManager.destroy(); // ✅ LIMPIAMOS STATS.JS
+
   }
 
   // ✨ --- LÓGICA DEL TOUR --- ✨
@@ -188,7 +201,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
     ];
     this.tourService.initialize(tourSteps);
   }
-  
+
   // ====================================================================
   // === ✨ NUEVA LÓGICA PARA RESALTAR EL ELEMENTO ACTIVO DEL TOUR ✨ ===
   // ====================================================================
@@ -235,7 +248,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
         this.sceneObjects = response.sceneObjects || [];
         this.isLoadingData = false;
         this.isRenderingScene = true;
-        
+
         const hasThumbnailToLoad = !!this.episodeThumbnailUrl;
         if (hasThumbnailToLoad) {
           this.isThumbnailAssetLoaded = false;
@@ -249,7 +262,7 @@ export class WorldViewComponent implements OnInit, OnDestroy {
 
         const hasSceneAssetsToLoad = this.sceneObjects.some(o => o.asset?.path);
         if (!hasSceneAssetsToLoad) { this.isSceneAssetsLoaded = true; }
-        
+
         this.checkAndFinalizeLoading();
       },
       error: (err) => { this.errorMessage = "Error al cargar los datos del episodio."; this.isLoadingData = false; console.error(err); }

@@ -1,3 +1,5 @@
+// src/app/features/admin/components/world-editor/service/three-engine/core/engine.service.ts
+
 import { Injectable, ElementRef, OnDestroy } from '@angular/core';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
@@ -127,7 +129,12 @@ export class EngineService implements OnDestroy {
     this.sceneManager.scene.add(this.focusPivot);
     this.entityManager.init(this.sceneManager.scene);
     this.labelManager.init(this.sceneManager.scene);
-    this.statsManager.init();
+
+    // =========================================================
+    // ===       ✨ CORRECCIÓN DEL ERROR DE COMPILACIÓN ✨      ===
+    // =========================================================
+    this.statsManager.init('stats-container');
+
     this.controlsManager.init(this.sceneManager.editorCamera, canvas, this.sceneManager.scene, this.focusPivot);
     this.sceneManager.setControls(this.controlsManager.getControls());
     this.interactionHelperManager.init(this.sceneManager.scene, this.sceneManager.editorCamera);
@@ -159,6 +166,8 @@ export class EngineService implements OnDestroy {
     this.animate();
   }
 
+    // ... (El resto del archivo `engine.service.ts` no tiene más cambios) ...
+    
   private animate = () => {
     this.animationFrameId = requestAnimationFrame(this.animate);
     this.statsManager.begin();
@@ -314,11 +323,6 @@ export class EngineService implements OnDestroy {
     dummyMaterial.dispose();
   }
 
-  /**
-   * --- ✨ ¡LÓGICA SIMPLIFICADA Y CORREGIDA! ✨ ---
-   * Elimina la agrupación previa de objetos. Ahora, cada objeto se pasa
-   * individualmente al EntityManager, que se encargará de decidir cómo crearlo.
-   */
   public populateScene(objects: SceneObjectResponse[], onProgress: (p: number) => void, onLoaded: () => void): void {
     if (!this.sceneManager.scene) return;
     this.entityManager.clearScene();
@@ -327,25 +331,21 @@ export class EngineService implements OnDestroy {
     const objectsForInstancing: SceneObjectResponse[] = [];
     const individualObjects: SceneObjectResponse[] = [];
 
-    // Clasificamos cada objeto según su tipo de renderizado.
     for (const obj of objects) {
       const isWmtsPlanet = obj.asset?.path.includes('{TileMatrix}');
       const isGltfModel = obj.asset?.type === 'model_glb';
       const isStandardPrimitive = ['cube', 'sphere', 'cone', 'torus', 'floor'].includes(obj.type);
       const isLightOrCamera = ['camera', 'directionalLight', 'ambientLight', 'pointLight'].includes(obj.type);
 
-      // Si es un objeto "especial" que requiere su propia geometría, va a la lista de individuales.
       if (isWmtsPlanet || isGltfModel || isStandardPrimitive || isLightOrCamera) {
         individualObjects.push(obj);
       } else {
-        // Todo lo demás (galaxias, estrellas, etc.) se agrupa para instancing.
         objectsForInstancing.push(obj);
       }
     }
     
     console.log(`[EngineService] Clasificación: ${individualObjects.length} objetos individuales, ${objectsForInstancing.length} para instancing.`);
 
-    // 1. Creamos el gran grupo de objetos instanciados de una sola vez para el rendimiento.
     if (objectsForInstancing.length > 0) {
       this.entityManager.objectManager.createCelestialObjectsInstanced(
         this.sceneManager.scene,
@@ -354,7 +354,6 @@ export class EngineService implements OnDestroy {
       );
     }
 
-    // 2. Creamos los objetos individuales, que usarán el LoadingManager si son modelos.
     const loadingManager = this.entityManager.getLoadingManager();
     loadingManager.onProgress = (_, loaded, total) => onProgress((loaded / total) * 100);
     loadingManager.onLoad = () => {
@@ -368,8 +367,6 @@ export class EngineService implements OnDestroy {
 
     individualObjects.forEach(o => this.entityManager.createObjectFromData(o));
 
-    // Si no hay modelos 3D en la lista de individuales, disparamos onLoaded manualmente
-    // para que la barra de progreso no se quede atascada.
     const hasModelsToLoad = individualObjects.some(o => o.asset?.type === 'model_glb');
     if (!hasModelsToLoad && loadingManager.onLoad) {
       setTimeout(() => loadingManager.onLoad!(), 0);
@@ -521,7 +518,6 @@ export class EngineService implements OnDestroy {
     const currentMode = this.cameraManager.cameraMode$.getValue();
 
     if (currentMode === 'perspective') {
-      // Pasando de 3D a 2D: guarda el estado y luego cambia.
       const controls = this.controlsManager.getControls();
       this.lastPerspectiveCameraState = {
         position: this.sceneManager.activeCamera.position.clone(),
@@ -531,17 +527,15 @@ export class EngineService implements OnDestroy {
       this.cameraManager.toggleCameraMode();
       this.setCameraView('z');
     } else {
-      // Pasando de 2D a 3D: cambia y luego restaura el estado.
       this.cameraManager.toggleCameraMode();
       if (this.lastPerspectiveCameraState) {
-        // Usa un timeout para asegurar que la transición de la cámara ha terminado.
         setTimeout(() => {
           const controls = this.controlsManager.getControls();
           if(this.lastPerspectiveCameraState){
             controls.object.position.copy(this.lastPerspectiveCameraState.position);
             controls.target.copy(this.lastPerspectiveCameraState.target);
             controls.update();
-            this.lastPerspectiveCameraState = null; // Limpia el estado guardado
+            this.lastPerspectiveCameraState = null;
           }
         }, 50);
       }

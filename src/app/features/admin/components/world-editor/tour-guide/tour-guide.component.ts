@@ -1,4 +1,5 @@
-// src/app/admin/pages/world-editor/tour-guide/tour-guide.component.ts
+// src/app/features/admin/components/world-editor/tour-guide/tour-guide.component.ts
+
 import { Component, OnDestroy, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, NgStyle } from '@angular/common';
 import { Subscription } from 'rxjs';
@@ -49,8 +50,7 @@ export class TourGuideComponent implements OnInit, OnDestroy {
 
         this.resizeObserver.disconnect();
         if (step) {
-          // Usamos un pequeño delay para asegurar que el DOM se ha actualizado
-          setTimeout(() => this.calculatePosition(step), 0);
+          setTimeout(() => this.calculatePosition(step), 50); // Delay para asegurar que el DOM se actualizó
           const targetElement = document.getElementById(step.targetId);
           if (targetElement) {
             this.resizeObserver.observe(targetElement);
@@ -110,6 +110,7 @@ export class TourGuideComponent implements OnInit, OnDestroy {
         break;
     }
 
+    // Asegurar que el modal no se salga de la pantalla
     if (left < margin) left = margin;
     if (top < margin) top = margin;
     if (left + modalWidth > window.innerWidth) left = window.innerWidth - modalWidth - margin;
@@ -117,31 +118,29 @@ export class TourGuideComponent implements OnInit, OnDestroy {
 
     this.modalStyle = { 'top': `${top}px`, 'left': `${left}px` };
 
-    // Estilo del borde amarillo (sin cambios)
-    this.highlightStyle = {
-      'top': `${targetRect.top - 5}px`,
-      'left': `${targetRect.left - 5}px`,
-      'width': `${targetRect.width + 10}px`,
-      'height': `${targetRect.height + 10}px`,
-      'display': step.position !== 'center' ? 'block' : 'none'
-    };
-
     // ✨ NUEVO: Calcular el 'clip-path' para el overlay
     if (step.position !== 'center') {
-      const padding = 5; // Mismo padding que el borde amarillo
+      const padding = 5; // Un pequeño margen para el agujero
       const x1 = targetRect.left - padding;
       const y1 = targetRect.top - padding;
       const x2 = targetRect.right + padding;
       const y2 = targetRect.bottom + padding;
       
-      // Creamos una ruta poligonal que rodea la pantalla y luego "corta" un agujero
-      const polygonPath = `0 0, 0 100%, 100% 100%, 100% 0, 0 0, ${x1}px ${y1}px, ${x2}px ${y1}px, ${x2}px ${y2}px, ${x1}px ${y2}px, ${x1}px ${y1}px`;
+      // Creamos una ruta que "corta" un agujero en el overlay
+      const polygonPath = `
+        0% 0%, 0% 100%, 100% 100%, 100% 0%, 0% 0%,
+        ${x1}px ${y1}px,
+        ${x2}px ${y1}px,
+        ${x2}px ${y2}px,
+        ${x1}px ${y2}px,
+        ${x1}px ${y1}px
+      `;
 
       this.overlayStyle = {
-        'clip-path': `polygon(${polygonPath})`
+        'clip-path': `polygon(evenodd, ${polygonPath})`
       };
     } else {
-      // Para la posición 'center', el overlay es sólido (sin agujero)
+      // Para 'center', el overlay es sólido (sin agujero)
       this.overlayStyle = { 'clip-path': 'none' };
     }
   }

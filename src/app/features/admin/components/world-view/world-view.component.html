@@ -221,18 +221,15 @@
       </div>
     </div>
   </div>
-
   <!-- PANEL RENDIMIENTO -->
   <div class="panel p-performance" id="tour-target-performance">
     <div class="panel-header">
       <span class="panel-title">Rendimiento</span>
-      <button class="panel-toggle-icon" (click)="togglePanel('performanceVisible')"
-        title="Ocultar/Mostrar Panel"><span></span></button>
+      <button class="panel-toggle-icon" (click)="togglePanel('performanceVisible')" title="Ocultar/Mostrar Panel"><span></span></button>
     </div>
     <div class="panel-content">
-      <div class="placeholder-panel">
-        <p>Stats (FPS, Mem, etc).</p>
-      </div>
+      <!-- ✅ CONTENEDOR PARA STATS.JS -->
+      <div id="stats-container" class="stats-container"></div>
     </div>
   </div>
 

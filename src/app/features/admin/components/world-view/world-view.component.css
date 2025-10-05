@@ -488,6 +488,33 @@
   border-left-color: var(--c-accent-highlight) !important;
 }
 
+/* ========================================================= */
+/* ===       ✨ ESTILOS DEL PANEL DE RENDIMIENTO ✨      === */
+/* ========================================================= */
+.stats-container {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex; /* Usamos flex para centrar si es necesario, pero principalmente para controlar el hijo */
+  background-color: var(--c-bg-deep);
+  overflow: hidden; /* Evita que el canvas se salga si hay errores */
+  padding: 4px; /* Un pequeño espacio interior */
+  box-sizing: border-box;
+}
+
+/*
+  ✨ CAMBIO CLAVE:
+  Forzamos que el canvas de stats.js (que tiene estilos en línea)
+  se comporte correctamente y ocupe todo el espacio.
+  Usamos `!important` porque la librería stats.js pone los estilos directamente
+  en el elemento y esta es la única forma de sobreescribirlos.
+*/
+.stats-container > canvas {
+  position: relative !important;
+  width: 100% !important;
+  height: 100% !important;
+  /* Eliminamos el transform, ya que ahora el tamaño es responsivo */
+}
+
 .placeholder-panel {
   display: flex;
   flex-direction: column;
