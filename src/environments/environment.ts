@@ -5,8 +5,8 @@
 export const environment = {
   production: false,
 
-    endpoint: 'https://7xcbkzkr-4321.use2.devtunnels.ms/'
-  //endpoint: 'http://localhost:4321/'
+   // endpoint: 'https://7xcbkzkr-4321.use2.devtunnels.ms/'
+   endpoint: 'http://localhost:4321/'
 
 };
 

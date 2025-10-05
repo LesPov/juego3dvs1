@@ -60,6 +60,7 @@ export class SceneManagerService {
   }
 
   private _createRendererAndComposer(width: number, height: number): void {
+    // 1. Configuración optimizada del renderer
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
       antialias: false,
@@ -70,32 +71,39 @@ export class SceneManagerService {
       depth: true
     });
 
+    // Optimizaciones del renderer
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(1);
     this.renderer.toneMapping = THREE.NoToneMapping;
+    // Reemplazar outputEncoding por outputColorSpace
     this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+
+    // Limitar el tamaño máximo de texturas
     this.renderer.capabilities.maxTextureSize = 2048;
 
+    // Configuración de passes más ligera
     const renderPass = new RenderPass(this.scene, this.activeCamera);
 
     this.bloomPass = new UnrealBloomPass(
-      new THREE.Vector2(width / 2, height / 2),
+      new THREE.Vector2(width / 2, height / 2), // Reducir resolución del bloom
       0.5,
       0.75,
       0.3
     );
 
+    // Configurar composers con menor resolución
     this.bloomComposer = new EffectComposer(this.renderer);
     this.bloomComposer.renderToScreen = false;
     this.bloomComposer.addPass(renderPass);
     this.bloomComposer.addPass(this.bloomPass);
 
+    // 5. Creamos el finalPass
     this.finalPass = new ShaderPass(
       new THREE.ShaderMaterial({
         uniforms: {
           baseTexture: { value: null },
           bloomTexture: { value: this.bloomComposer.renderTarget2.texture },
-          brightness: { value: 2.5 }
+          brightness: { value: 1.0 } // Valor inicial para ajustar la luminosidad
         },
         vertexShader: `
           varying vec2 vUv;
@@ -107,7 +115,7 @@ export class SceneManagerService {
         fragmentShader: `
           uniform sampler2D baseTexture;
           uniform sampler2D bloomTexture;
-          uniform float brightness;
+          uniform float brightness; // Declaramos el uniform de brillo
           varying vec2 vUv;
           void main() {
             gl_FragColor = ( texture2D( baseTexture, vUv ) * brightness + vec4( 1.0 ) * texture2D( bloomTexture, vUv ) );
@@ -117,15 +125,19 @@ export class SceneManagerService {
     );
     this.finalPass.needsSwap = true;
 
+    // 6. Inicializamos el composer principal
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(renderPass);
     this.composer.addPass(this.finalPass);
 
+    // 7. Ajustamos los tamaños de los compositores
     const pixelRatio = 1;
     this.bloomComposer.setSize(width * pixelRatio, height * pixelRatio);
     this.composer.setSize(width * pixelRatio, height * pixelRatio);
 
+    // Limpiar cualquier textura en caché
     THREE.Cache.clear();
+
     console.log("[SceneManager] Renderer y Composers inicializados correctamente");
   }
 
@@ -145,6 +157,7 @@ export class SceneManagerService {
   }
 
   private handleContextLoss(): void {
+    // Limpiar recursos
     this.scene.traverse((object) => {
       if (object instanceof THREE.Mesh) {
         if (object.geometry) object.geometry.dispose();
@@ -160,9 +173,12 @@ export class SceneManagerService {
   }
 
   private handleContextRestore(): void {
+    // Reconfigurar el renderer y los composers
     const width = this.canvas.clientWidth;
     const height = this.canvas.clientHeight;
     this._createRendererAndComposer(width, height);
+
+    // Recargar texturas y materiales
     this.loadSceneBackground().catch(console.error);
   }
 
@@ -177,6 +193,7 @@ export class SceneManagerService {
     const height = container.clientHeight;
 
     this.scene = new THREE.Scene();
+    // Removemos el color de fondo por defecto ya que será reemplazado por la textura
     this.scene.background = null;
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 4.0);
@@ -186,9 +203,11 @@ export class SceneManagerService {
     this._createCameras(width, height);
     this.activeCamera = this.editorCamera;
 
+    // Importante: Creamos el renderer y los composers después de tener la escena y la cámara
     this._createRendererAndComposer(width, height);
-    this.setupContextLossHandling();
+    this.setupContextLossHandling(); // Añadir manejo de pérdida de contexto
 
+    // Iniciamos la carga del fondo inmediatamente
     this.loadSceneBackground().catch(error => {
       console.error('[SceneManager] Error al cargar el fondo:', error);
     });
@@ -196,9 +215,14 @@ export class SceneManagerService {
 
   public loadSceneBackground(): Promise<void> {
     return new Promise((resolve, reject) => {
+      const textureLoader = new THREE.TextureLoader();
+
+      // Crear un canvas temporal para redimensionar la imagen
       const resizeImage = (image: HTMLImageElement): HTMLCanvasElement => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d')!;
+
+        // Calcular el nuevo tamaño manteniendo la proporción
         const maxSize = 2048;
         let width = image.width;
         let height = image.height;
@@ -214,20 +238,31 @@ export class SceneManagerService {
             height = maxSize;
           }
         }
+
+        // Aplicar el nuevo tamaño al canvas
         canvas.width = width;
         canvas.height = height;
+
+        // Usar algoritmo de suavizado para mejor calidad
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
+
+        // Dibujar la imagen redimensionada
         ctx.drawImage(image, 0, 0, width, height);
+
         return canvas;
       };
 
+      // Cargar la imagen primero
       const img = new Image();
       img.crossOrigin = 'anonymous';
 
       img.onload = () => {
         try {
+          // Redimensionar la imagen si es necesario
           const canvas = resizeImage(img);
+
+          // Crear textura desde el canvas
           const texture = new THREE.CanvasTexture(canvas);
           texture.colorSpace = THREE.SRGBColorSpace;
           texture.minFilter = THREE.LinearFilter;
@@ -236,22 +271,31 @@ export class SceneManagerService {
           texture.mapping = THREE.EquirectangularReflectionMapping;
           texture.needsUpdate = true;
 
+          // Aplicar la textura a la escena
           if (this.scene) {
+            // Se crea una esfera gigante que servirá como fondo de la escena.
+            // Esto soluciona problemas de movimiento y renderizado del fondo cuando la cámara está muy lejos.
+            // ✨ LÓGICA: El radio se aumenta para ser mayor que el objeto más lejano (~1.4e15)
+            // y un poco menor que el far plane de la cámara (5e15).
             const skySphereGeometry = new THREE.SphereGeometry(4e15, 32, 32);
             const skySphereMaterial = new THREE.MeshBasicMaterial({
               map: texture,
               side: THREE.BackSide,
-              depthWrite: false,
-              fog: false
+              depthWrite: false, // Asegura que siempre se renderice detrás de otros objetos.
+              fog: false // No es afectado por la niebla.
             });
 
             const skySphere = new THREE.Mesh(skySphereGeometry, skySphereMaterial);
             skySphere.name = 'SkySphere';
+            // Un valor de renderOrder bajo asegura que se renderice primero (al fondo).
             skySphere.renderOrder = -1;
             this.scene.add(skySphere);
+
+            // El environment se mantiene para los reflejos en los objetos PBR.
             this.scene.environment = texture;
           }
 
+          // Ajustar el bloom para compensar el fondo
           if (this.bloomPass) {
             this.bloomPass.threshold = 0.85;
             this.bloomPass.strength = 0.75;
@@ -273,6 +317,7 @@ export class SceneManagerService {
         reject(error);
       };
 
+      // Iniciar la carga de la imagen
       img.src = 'assets/textures/NightSky.jpg';
     });
   }
@@ -343,6 +388,7 @@ export class SceneManagerService {
     const center = boundingBox.getCenter(new THREE.Vector3());
     const size = boundingBox.getSize(new THREE.Vector3());
 
+    // ✨ LÓGICA MEJORADA: El encuadre ahora funciona para cámaras de perspectiva y ortográficas.
     if (this.activeCamera instanceof THREE.PerspectiveCamera) {
         const maxDim = Math.max(size.x, size.y, size.z);
         const fov = this.activeCamera.fov * (Math.PI / 180);
@@ -350,7 +396,7 @@ export class SceneManagerService {
 
         const direction = new THREE.Vector3();
         this.activeCamera.getWorldDirection(direction);
-        this.activeCamera.position.copy(center).sub(direction.multiplyScalar(distance * 1.5));
+        this.activeCamera.position.copy(center).sub(direction.multiplyScalar(distance * 1.5)); // Añadir padding
 
     } else if (this.activeCamera instanceof THREE.OrthographicCamera) {
         const orthoCam = this.activeCamera;
@@ -363,13 +409,14 @@ export class SceneManagerService {
         let worldWidth: number;
         let worldHeight: number;
 
-        if (Math.abs(camDir.y) > 0.9) {
+        // Determina qué dimensiones del bounding box usar según la vista de la cámara
+        if (Math.abs(camDir.y) > 0.9) { // Vista Superior/Inferior
             worldWidth = size.x;
             worldHeight = size.z;
-        } else if (Math.abs(camDir.x) > 0.9) {
+        } else if (Math.abs(camDir.x) > 0.9) { // Vista Izquierda/Derecha
             worldWidth = size.z;
             worldHeight = size.y;
-        } else {
+        } else { // Vista Frontal/Trasera
             worldWidth = size.x;
             worldHeight = size.y;
         }
@@ -377,6 +424,7 @@ export class SceneManagerService {
         worldWidth *= padding;
         worldHeight *= padding;
 
+        // Ajusta el frustum de la cámara para que encaje el contenido
         if (aspect >= worldWidth / worldHeight) {
             orthoCam.top = worldHeight / 2;
             orthoCam.bottom = -orthoCam.top;
@@ -389,7 +437,8 @@ export class SceneManagerService {
             orthoCam.bottom = -orthoCam.top;
         }
 
-        const camDistance = size.length();
+        // Reposiciona la cámara para que mire al centro
+        const camDistance = size.length(); // Distancia segura para no cortar objetos
         orthoCam.position.copy(center).add(camDir.multiplyScalar(camDistance));
         orthoCam.lookAt(center);
         orthoCam.updateProjectionMatrix();
